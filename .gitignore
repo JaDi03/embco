@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+
+# Secrets: never commit env files or keys (only the .example templates)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local data / databases (never versioned)
+**/src/data/
+*.sqlite
+*.db
+
+# Next.js / builds
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# PWA generated
+**/public/sw.js*
+**/public/workbox-*.js*
+**/public/worker-*.js*
+**/public/fallback-*.js*
+
+# Uploads
+**/public/uploads/
+
+# Hardhat
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+contracts/coverage/
+contracts/coverage.json
+contracts/ignition/deployments/chain-31337/
+
+# Tooling / OS
+.vercel/
+.turbo/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
