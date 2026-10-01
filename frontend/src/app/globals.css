@@ -1,26 +1,173 @@
 @import "tailwindcss";
 
+/* `dark:` utilities follow the resolved theme on <html data-theme>, set before paint by themeScript */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ---------- Brand palette (carried over from the original app) ----------
+   Blue  #005ddb  primary / brand        hover #004bb3
+   Green #00b87b  money, positive state  deep  #007a53
+   Contrast-checked (WCAG AA):
+   - white text on #005ddb 5.9, on #007a53 5.4; white on #00b87b FAILS (2.6) -> dark text on green
+   - #005ddb as text on dark bg FAILS (3.1) -> #60a5fa for brand text in dark mode
+   - #00b87b as text on light bg FAILS (2.5) -> #007a53 for accent text in light mode */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --foreground: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+
+  --brand: #005ddb;
+  --brand-hover: #004bb3;
+  --on-brand: #ffffff;
+  --brand-text: #005ddb;
+  --brand-soft: #ebf5ff;
+
+  --accent: #00b87b;
+  --on-accent: #020617;
+  --accent-text: #007a53;
+  --accent-soft: #f0fdf4;
+
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
+  --warning: #d97706;
+
+  /* Decorative; use the -deep variant behind white text */
+  --gradient-brand: linear-gradient(135deg, #005ddb 30%, #00b87b 100%);
+  --gradient-brand-deep: linear-gradient(135deg, #005ddb 35%, #007a53 100%);
+  /* Tall surfaces (sidebars) */
+  --gradient-brand-vertical: linear-gradient(180deg, #005ddb 70%, #007a53 100%);
+}
+
+/* Dark tokens: explicit choice, or system preference before/without JS */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --background: #020617;
+  --surface: #0f172a;
+  --surface-2: #1e293b;
+  --foreground: #f1f5f9;
+  --muted: #94a3b8;
+  --border: #1e293b;
+
+  --brand-hover: #1a6fe6;
+  --brand-text: #60a5fa;
+  --brand-soft: #0b2447;
+
+  --accent-text: #00b87b;
+  --accent-soft: #052e22;
+
+  --danger: #f87171;
+  --danger-soft: #3b0d0d;
+  --warning: #fbbf24;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --background: #020617;
+    --surface: #0f172a;
+    --surface-2: #1e293b;
+    --foreground: #f1f5f9;
+    --muted: #94a3b8;
+    --border: #1e293b;
+
+    --brand-hover: #1a6fe6;
+    --brand-text: #60a5fa;
+    --brand-soft: #0b2447;
+
+    --accent-text: #00b87b;
+    --accent-soft: #052e22;
+
+    --danger: #f87171;
+    --danger-soft: #3b0d0d;
+    --warning: #fbbf24;
+  }
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-on-brand: var(--on-brand);
+  --color-brand-text: var(--brand-text);
+  --color-brand-soft: var(--brand-soft);
+
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning: var(--warning);
+
+  --font-sans: var(--font-inter), system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ---------- Mobile-first base ---------- */
+@layer base {
+  html {
+    /* Prevent iOS from inflating font sizes in landscape */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100dvh;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Removes the double-tap-to-zoom delay on interactive elements */
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  label {
+    touch-action: manipulation;
+  }
+
+  /* iOS zooms into focused inputs with font-size < 16px */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ---------- Brand gradients ---------- */
+@utility bg-gradient-brand {
+  background-image: var(--gradient-brand);
+}
+@utility bg-gradient-brand-deep {
+  background-image: var(--gradient-brand-deep);
+}
+@utility bg-gradient-brand-vertical {
+  background-image: var(--gradient-brand-vertical);
+}
+
+/* ---------- Safe-area helpers (notch / home indicator) ---------- */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility px-safe {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
