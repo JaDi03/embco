@@ -1,5 +1,7 @@
 # Embco
 
+[![CI](https://github.com/JaDi03/embco/actions/workflows/ci.yml/badge.svg)](https://github.com/JaDi03/embco/actions/workflows/ci.yml)
+
 Embco is a micro-task marketplace where **an AI agent pays the workers**. Businesses post repetitive work, such as transcribing receipts and invoices, classifying items, moderating content, spotting duplicates, writing short texts or translating. Workers do it from their phones and get paid in USDC on [Arc](https://arc.network).
 
 The agent reviews each submission, decides whether to pay, wait for more answers, reject or escalate to the business, and explains why. It never controls the money on its own:
