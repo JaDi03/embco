@@ -1,10 +1,8 @@
-<!-- Maskable variant: full-bleed background, glyph kept inside the 80% safe zone. -->
+<!-- Maskable variant: full-bleed background, mark kept inside the 80% safe zone. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#005ddb"/>
-  <g fill="#ffffff" transform="translate(51.2 51.2) scale(0.8)">
-    <rect x="152" y="128" width="64" height="256" rx="16"/>
-    <rect x="152" y="128" width="208" height="60" rx="16"/>
-    <rect x="152" y="226" width="168" height="60" rx="16"/>
-    <rect x="152" y="324" width="208" height="60" rx="16"/>
+  <rect width="512" height="512" fill="#0f172a"/>
+  <g transform="translate(256 256) scale(0.95) translate(-256 -256)" fill="none" stroke-width="52" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 338 150 L 174 150 L 174 362 L 338 362" stroke="#60a5fa"/>
+    <path d="M 234 262 L 264 292 L 328 228" stroke="#00b87b"/>
   </g>
 </svg>
