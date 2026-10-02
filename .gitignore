@@ -14,6 +14,7 @@ node_modules/
 *.db
 
 # Next.js / builds
+coverage/
 .next/
 out/
 build/
@@ -35,6 +36,7 @@ contracts/cache/
 contracts/out/
 contracts/broadcast/*/31337/
 contracts/broadcast/**/dry-run/
+contracts/broadcast/**/run-[0-9]*.json
 
 # Tooling / OS
 .vercel/
