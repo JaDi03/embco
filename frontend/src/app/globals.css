@@ -13,12 +13,12 @@
 :root {
   color-scheme: light;
 
-  --background: #f8fafc;
-  --surface: #ffffff;
-  --surface-2: #f1f5f9;
+  --background: #f7f5f0;
+  --surface: #fdfcf9;
+  --surface-2: #efece4;
   --foreground: #0f172a;
-  --muted: #64748b;
-  --border: #e2e8f0;
+  --muted: #6b6658;
+  --border: #e6e1d6;
 
   --brand: #005ddb;
   --brand-hover: #004bb3;

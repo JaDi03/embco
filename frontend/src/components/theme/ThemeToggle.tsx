@@ -1,37 +1,22 @@
 "use client";
 
-import { Monitor, Moon, Sun } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
-import type { ThemePreference } from "./theme";
 
-const OPTIONS: { value: ThemePreference; label: string; Icon: typeof Sun }[] = [
-  { value: "light", label: "Light", Icon: Sun },
-  { value: "dark", label: "Dark", Icon: Moon },
-  { value: "system", label: "System", Icon: Monitor },
-];
-
+// One button that flips between light and dark. Until the user picks, the device setting decides.
 export function ThemeToggle() {
-  const { preference, setPreference } = useTheme();
+  const { resolved, setPreference } = useTheme();
+  const next = resolved === "dark" ? "light" : "dark";
+  const Icon = resolved === "dark" ? Sun : Moon;
 
   return (
-    <div role="group" aria-label="Theme" className="inline-flex rounded-xl border border-border bg-surface p-1">
-      {OPTIONS.map(({ value, label, Icon }) => {
-        const active = preference === value;
-        return (
-          <button
-            key={value}
-            type="button"
-            aria-label={label}
-            aria-pressed={active}
-            onClick={() => setPreference(value)}
-            className={`flex size-10 items-center justify-center rounded-lg transition-colors ${
-              active ? "bg-brand text-on-brand" : "text-muted hover:bg-surface-2 hover:text-foreground"
-            }`}
-          >
-            <Icon className="size-5" aria-hidden />
-          </button>
-        );
-      })}
-    </div>
+    <button
+      type="button"
+      aria-label={`Switch to ${next} mode`}
+      onClick={() => setPreference(next)}
+      className="flex size-10 items-center justify-center rounded-xl border border-border bg-surface text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+    >
+      <Icon className="size-5" aria-hidden />
+    </button>
   );
 }

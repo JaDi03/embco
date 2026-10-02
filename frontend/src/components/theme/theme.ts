@@ -6,7 +6,7 @@ export const THEME_CHANGE_EVENT = "embco-theme-change";
 
 // Browser UI color (status bar / task switcher) per resolved theme; matches --background
 export const THEME_COLORS: Record<ResolvedTheme, string> = {
-  light: "#f8fafc",
+  light: "#f7f5f0",
   dark: "#020617",
 };
 
