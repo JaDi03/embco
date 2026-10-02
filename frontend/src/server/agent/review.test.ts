@@ -29,6 +29,7 @@ function input(agent: Agent, signer: HashSigner, over: Partial<ReviewInput> = {}
     agent,
     signer,
     lastEntry: null,
+    task: { kind: "receipt", instructions: "Transcribe every line and the total.", images: [] },
     submission: {
       campaignId: "1",
       submissionId: "7",

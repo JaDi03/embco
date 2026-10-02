@@ -12,6 +12,7 @@
     "icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
     "@serwist/turbopack": "^9.5.12",
     "esbuild": "^0.28.2",
     "lucide-react": "^1.49.0",

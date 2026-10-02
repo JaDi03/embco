@@ -15,20 +15,34 @@ export interface Submission {
   answer: unknown;
 }
 
+export interface TaskImage {
+  mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+  data: string; // base64, no data: prefix
+}
+
+/** The task as the worker saw it: what was asked and the source images (e.g. a receipt photo). */
+export interface Task {
+  kind: string; // e.g. "receipt"
+  instructions: string;
+  images: TaskImage[];
+}
+
 /** What the agent sees when it decides. */
 export interface AgentInput {
+  task: Task;
   submission: Submission;
   facts: SubmissionFacts;
   otherAnswers: { submissionId: string; worker: Address; answer: unknown }[];
 }
 
-/** The agent's brain: a fake in tests, Claude in production. Its output is untrusted input. */
+/** The agent's brain: a fake in tests, a real model in production. Its output is untrusted input. */
 export type Agent = (input: AgentInput) => Promise<unknown>;
 
 export interface ReviewInput {
   agent: Agent;
   signer: HashSigner;
   lastEntry: JournalEntry | null; // last journal entry of this campaign
+  task: Task;
   submission: Submission;
   facts: SubmissionFacts;
   otherAnswers: AgentInput["otherAnswers"];
@@ -66,7 +80,7 @@ export async function reviewSubmission(input: ReviewInput): Promise<ReviewResult
 
   let decision: AgentDecision;
   try {
-    decision = parseDecision(await input.agent({ submission, facts, otherAnswers: input.otherAnswers }));
+    decision = parseDecision(await input.agent({ task: input.task, submission, facts, otherAnswers: input.otherAnswers }));
   } catch (err) {
     decision = { action: "escalate", reasons: [`agent failed: ${err instanceof Error ? err.message : String(err)}`] };
   }
