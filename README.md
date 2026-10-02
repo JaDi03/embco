@@ -71,6 +71,7 @@ npm run dev                  # http://localhost:3000
 | `npm run dev` | Dev server with hot reload (service worker disabled) |
 | `npm run build` | Production build |
 | `npm start` | Serves the last build |
+| `npm run typecheck` | Generates Next route types and runs `tsc` |
 | `npm test` | Agent core tests (Node's built-in test runner) |
 | `npm run lint` | ESLint |
 | `npm run icons` | Regenerates app and PWA icons from `public/brand/*.svg` |
