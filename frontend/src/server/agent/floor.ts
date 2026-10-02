@@ -26,9 +26,10 @@ export interface CampaignState {
 export interface SubmissionFacts {
   formatErrors: string[]; // from formats.ts
   copyOf: string | null; // submission id this answer copies, if any
+  injection?: string[]; // from guard.ts; review.ts always fills it
 }
 
-export type Rule = "reasons" | "format" | "copy" | "budget" | "period-cap" | "worker-cap";
+export type Rule = "reasons" | "format" | "copy" | "injection" | "budget" | "period-cap" | "worker-cap";
 
 export interface Violation {
   rule: Rule;
@@ -61,6 +62,7 @@ export function applyFloor(
   if (facts.copyOf !== null) {
     violations.push({ rule: "copy", detail: `answer is identical to submission ${facts.copyOf}` });
   }
+  for (const f of facts.injection ?? []) violations.push({ rule: "injection", detail: `answer looks like a manipulation attempt: ${f}` });
 
   const { reward } = campaign;
   if (campaign.balance < reward) {

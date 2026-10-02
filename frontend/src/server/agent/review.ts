@@ -4,6 +4,7 @@
 
 import type { Address, Hex } from "viem";
 import { applyFloor, type AgentAction, type AgentDecision, type CampaignState, type FloorResult, type SubmissionFacts } from "./floor.ts";
+import { scanAnswer } from "./guard.ts";
 import { createEntry, type EntryKind, type HashSigner, type JournalEntry } from "./journal.ts";
 
 export interface Submission {
@@ -33,6 +34,7 @@ export interface AgentInput {
   submission: Submission;
   facts: SubmissionFacts;
   otherAnswers: { submissionId: string; worker: Address; answer: unknown }[];
+  withheld: number; // other answers hidden from the agent because they looked like manipulation
 }
 
 /** The agent's brain: a fake in tests, a real model in production. Its output is untrusted input. */
@@ -72,15 +74,21 @@ function parseDecision(raw: unknown): AgentDecision {
   if (!ACTIONS.includes(value?.action as AgentAction) || reasons.length === 0) {
     return { action: "escalate", reasons: ["agent returned a malformed decision"] };
   }
-  return { action: value.action as AgentAction, reasons };
+  return { action: value.action as AgentAction, reasons: reasons.slice(0, 10).map((r) => r.slice(0, 500)) };
 }
 
 export async function reviewSubmission(input: ReviewInput): Promise<ReviewResult> {
-  const { submission, facts, campaign } = input;
+  const { submission, campaign } = input;
+
+  // Screening runs here, on every review, so no caller can skip it.
+  const injection = [...new Set([...(input.facts.injection ?? []), ...scanAnswer(submission.answer)])];
+  const facts: SubmissionFacts = { ...input.facts, injection };
+  const otherAnswers = input.otherAnswers.filter((o) => scanAnswer(o.answer).length === 0);
+  const withheld = input.otherAnswers.length - otherAnswers.length;
 
   let decision: AgentDecision;
   try {
-    decision = parseDecision(await input.agent({ task: input.task, submission, facts, otherAnswers: input.otherAnswers }));
+    decision = parseDecision(await input.agent({ task: input.task, submission, facts, otherAnswers, withheld }));
   } catch (err) {
     decision = { action: "escalate", reasons: [`agent failed: ${err instanceof Error ? err.message : String(err)}`] };
   }
@@ -93,6 +101,7 @@ export async function reviewSubmission(input: ReviewInput): Promise<ReviewResult
     contentHash: submission.contentHash,
     reward: campaign.reward,
     agent: decision,
+    screen: { injection, withheldOtherAnswers: withheld },
     floor: outcome.violations,
     outcome: outcome.action,
   });
