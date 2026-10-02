@@ -30,13 +30,11 @@ next-env.d.ts
 # Uploads
 **/public/uploads/
 
-# Hardhat
-contracts/artifacts/
+# Foundry (testnet broadcasts are kept; local and dry runs are not)
 contracts/cache/
-contracts/typechain-types/
-contracts/coverage/
-contracts/coverage.json
-contracts/ignition/deployments/chain-31337/
+contracts/out/
+contracts/broadcast/*/31337/
+contracts/broadcast/**/dry-run/
 
 # Tooling / OS
 .vercel/
