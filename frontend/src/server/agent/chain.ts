@@ -16,6 +16,7 @@ import {
   type Address,
   type Chain,
   type Hex,
+  type HttpTransport,
   type PublicClient,
   type Transport,
   type WalletClient,
@@ -234,6 +235,44 @@ export async function settle(input: SettleInput): Promise<Settlement> {
 
 // --- configuration ---------------------------------------------------------
 
+const RPC_PLACEHOLDER = "<rpc>";
+
+/** Replaces each secret in every text field of an error and its causes. In place, so viem still decodes reverts. */
+function scrub(err: unknown, secrets: string[]): unknown {
+  const clean = (text: string) => secrets.reduce((t, s) => t.replaceAll(s, RPC_PLACEHOLDER), text);
+  let e = err as Record<string, unknown> | undefined;
+  for (let depth = 0; e && typeof e === "object" && depth < 20; depth++) {
+    for (const key of ["message", "shortMessage", "details", "url", "stack"]) {
+      if (typeof e[key] === "string") e[key] = clean(e[key] as string);
+    }
+    if (Array.isArray(e.metaMessages)) e.metaMessages = e.metaMessages.map((m) => (typeof m === "string" ? clean(m) : m));
+    e = e.cause as Record<string, unknown> | undefined;
+  }
+  return err;
+}
+
+/**
+ * HTTP transport whose errors never contain the RPC URL. viem puts the URL in its
+ * network errors, and Canteen's URL carries a personal token in its path, so without
+ * this the token would end up in any log that prints an error.
+ */
+export function rpcTransport(url: string): HttpTransport {
+  const parsed = new URL(url);
+  const secrets = [url, parsed.toString(), parsed.pathname + parsed.search].filter((s) => s.length > 1);
+  const inner = http(url);
+  return ((config) => {
+    const transport = inner(config);
+    const request: typeof transport.request = async (args, options) => {
+      try {
+        return await transport.request(args, options);
+      } catch (err) {
+        throw scrub(err, secrets);
+      }
+    };
+    return { ...transport, request };
+  }) as HttpTransport;
+}
+
 /**
  * Arc Testnet clients plus the agent's key, from env. The key both signs journal
  * entries and sends transactions: one identity. It is a local key until the
@@ -248,7 +287,7 @@ export function chainFromEnv(env: Record<string, string | undefined>) {
   if (!/^0x[0-9a-fA-F]{64}$/.test(AGENT_PRIVATE_KEY)) throw new Error("AGENT_PRIVATE_KEY must be 0x followed by 64 hex characters");
 
   const account = privateKeyToAccount(AGENT_PRIVATE_KEY as Hex);
-  const transport = http(RPC);
+  const transport = rpcTransport(RPC);
   const client = createPublicClient({ chain: arcTestnet, transport });
   const wallet = createWalletClient({ chain: arcTestnet, transport, account });
   const signer: HashSigner = { address: account.address, signHash: (hash) => account.signMessage({ message: { raw: hash } }) };

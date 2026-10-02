@@ -15,6 +15,7 @@ import {
   createWalletClient,
   http,
   parseEther,
+  zeroAddress,
   type Abi,
   type AbiParameter,
   type Address,
@@ -23,7 +24,7 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
-import { chainFromEnv, localSender, readCampaign, readSubmission, settle, type TxSender } from "./chain.ts";
+import { chainFromEnv, localSender, readCampaign, readSubmission, rpcTransport, settle, type TxSender } from "./chain.ts";
 import { CAMPAIGNS_ABI } from "./contract.ts";
 import { verifyJournal, type HashSigner, type JournalEntry } from "./journal.ts";
 import { reviewSubmission, type Agent } from "./review.ts";
@@ -86,6 +87,30 @@ test("the chain config comes from env and errors never echo the values", () => {
   assert.equal(chain.sender.address, chain.signer.address, "one identity signs the journal and the transactions");
 });
 
+/** Every piece of text an error carries, through all its causes: what a log could print. */
+function allText(err: unknown): string {
+  const parts: string[] = [String(err)];
+  for (let e = err as Record<string, unknown> | undefined; e && typeof e === "object"; e = e.cause as typeof e) {
+    for (const value of Object.values(e)) if (typeof value === "string") parts.push(value);
+    if (Array.isArray(e.metaMessages)) parts.push(...e.metaMessages.map(String));
+    parts.push(String(e.stack));
+  }
+  return parts.join("\n");
+}
+
+test("network errors never carry the RPC URL or its token", async () => {
+  // Nothing listens on port 9: every request fails like an unreachable RPC.
+  const url = "http://127.0.0.1:9/v1/secret-token-123";
+  const plain = createPublicClient({ chain: foundry, transport: http(url, { retryCount: 0 }) });
+  const leaked = await plain.getBlockNumber().then(() => "did not fail", allText);
+  assert.match(leaked, /secret-token-123/, "viem alone puts the URL in its errors");
+
+  const chain = chainFromEnv({ RPC: url, CAMPAIGNS_ADDRESS: zeroAddress, AGENT_PRIVATE_KEY: generatePrivateKey() });
+  const scrubbed = await readCampaign(chain.client, chain.contract, 0n, zeroAddress).then(() => "did not fail", allText);
+  assert.doesNotMatch(scrubbed, /secret-token-123/);
+  assert.match(scrubbed, /<rpc>/);
+});
+
 // --- against the real contract on anvil -------------------------------------
 
 let node: ChildProcess | undefined;
@@ -105,7 +130,8 @@ before(async () => {
   if (missing) return;
   const port = 20_000 + Math.floor(Math.random() * 20_000);
   node = spawn(ANVIL!, ["--port", String(port)], { stdio: "ignore" });
-  transport = http(`http://127.0.0.1:${port}`);
+  // Through the scrubbing transport, so these tests also prove reverts still decode with it.
+  transport = rpcTransport(`http://127.0.0.1:${port}`);
   client = createPublicClient({ chain: foundry, transport });
   for (let i = 0; ; i++) {
     try {
