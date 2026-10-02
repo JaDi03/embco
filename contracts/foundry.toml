@@ -17,3 +17,7 @@ fail_on_revert = false
 
 [fmt]
 line_length = 120
+
+# RPC is the variable arc-canteen exports; without Canteen, set it in .env (see .env.example)
+[rpc_endpoints]
+arc_testnet = "${RPC}"
