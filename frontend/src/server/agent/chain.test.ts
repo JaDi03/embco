@@ -1,20 +1,12 @@
-// Runs the agent against the real compiled contract on a local anvil node.
-// Needs Foundry and `forge build` in contracts/; CI installs both. Locally the
-// tests skip (with a reason) when either is missing.
+// Runs the agent against the real compiled contract on a local anvil node
+// (see testing/anvil.ts for what that needs).
 
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   createPublicClient,
-  createTestClient,
   createWalletClient,
   http,
-  parseEther,
   zeroAddress,
   type Abi,
   type AbiParameter,
@@ -24,31 +16,12 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
-import { chainFromEnv, localSender, readCampaign, readSubmission, rpcTransport, settle, type TxSender } from "./chain.ts";
+import { chainFromEnv, localSender, readCampaign, readSubmission, settle, type TxSender } from "./chain.ts";
 import { CAMPAIGNS_ABI } from "./contract.ts";
 import { verifyJournal, type HashSigner, type JournalEntry } from "./journal.ts";
 import { reviewSubmission, type Agent } from "./review.ts";
+import { CAMPAIGNS, missing, startNode, USDC, type Node } from "./testing/anvil.ts";
 
-const OUT = fileURLToPath(new URL("../../../../contracts/out/", import.meta.url));
-const artifact = (name: string) => {
-  const path = join(OUT, `${name}.sol`, `${name}.json`);
-  if (!existsSync(path)) return null;
-  const json = JSON.parse(readFileSync(path, "utf8")) as { abi: Abi; bytecode: { object: Hex } };
-  return { abi: json.abi, bytecode: json.bytecode.object };
-};
-const CAMPAIGNS = artifact("EmbcoCampaigns");
-const USDC = artifact("MockUSDC");
-
-function findAnvil(): string | null {
-  const bin = join(homedir(), ".foundry", "bin");
-  for (const candidate of [process.env.ANVIL, "anvil", join(bin, "anvil.exe"), join(bin, "anvil")]) {
-    if (candidate && spawnSync(candidate, ["--version"]).status === 0) return candidate;
-  }
-  return null;
-}
-const ANVIL = findAnvil();
-const missing = !ANVIL ? "anvil not found" : !CAMPAIGNS || !USDC ? "contracts not built (cd contracts && forge build)" : null;
-if (missing && process.env.CI) throw new Error(`chain tests can't run in CI: ${missing}`);
 const skip = missing ?? false;
 
 // --- the ABI the agent uses matches the compiled contract ----------------------
@@ -113,9 +86,8 @@ test("network errors never carry the RPC URL or its token", async () => {
 
 // --- against the real contract on anvil -------------------------------------
 
-let node: ChildProcess | undefined;
+let node: Node | undefined;
 let client: PublicClient;
-let transport: ReturnType<typeof http>;
 let contract: Address;
 let usdc: Address;
 const owner = privateKeyToAccount(generatePrivateKey());
@@ -128,42 +100,15 @@ const REWARD = 50_000n; // 0.05 USDC
 
 before(async () => {
   if (missing) return;
-  const port = 20_000 + Math.floor(Math.random() * 20_000);
-  node = spawn(ANVIL!, ["--port", String(port)], { stdio: "ignore" });
-  // Through the scrubbing transport, so these tests also prove reverts still decode with it.
-  transport = rpcTransport(`http://127.0.0.1:${port}`);
-  client = createPublicClient({ chain: foundry, transport });
-  for (let i = 0; ; i++) {
-    try {
-      await client.getChainId();
-      break;
-    } catch (err) {
-      if (i > 100) throw err;
-      await new Promise((r) => setTimeout(r, 100));
-    }
-  }
-  const testClient = createTestClient({ chain: foundry, mode: "anvil", transport });
-  for (const a of [owner, agent, worker]) await testClient.setBalance({ address: a.address, value: parseEther("10") });
-
-  const deployer = createWalletClient({ chain: foundry, transport, account: owner });
-  const deploy = async (a: NonNullable<typeof USDC>, args: unknown[]) => {
-    const hash = await deployer.deployContract({ abi: a.abi, bytecode: a.bytecode, args });
-    return (await client.waitForTransactionReceipt({ hash })).contractAddress!;
-  };
-  usdc = await deploy(USDC!, []);
-  contract = await deploy(CAMPAIGNS!, [usdc]);
-  sender = localSender(createWalletClient({ chain: foundry, transport, account: agent }), contract);
+  node = await startNode([owner, agent, worker]);
+  ({ client, contract, usdc } = node);
+  sender = localSender(createWalletClient({ chain: foundry, transport: node.transport, account: agent }), contract);
 });
 
-after(() => node?.kill());
+after(() => node?.stop());
 
-/** Sends a tx from `account` with the full compiled ABI and returns the function's result. */
-async function call(account: typeof owner, address: Address, abi: Abi, functionName: string, args: unknown[]) {
-  const wallet = createWalletClient({ chain: foundry, transport, account });
-  const { request, result } = await client.simulateContract({ account, address, abi, functionName, args });
-  await client.waitForTransactionReceipt({ hash: await wallet.writeContract(request) });
-  return result;
-}
+const call = (account: typeof owner, address: Address, abi: Abi, functionName: string, args: unknown[]) =>
+  node!.call(account, address, abi, functionName, args);
 const asOwner = (fn: string, args: unknown[]) => call(owner, contract, CAMPAIGNS!.abi, fn, args);
 
 /** A funded campaign with one submission from the worker. */
