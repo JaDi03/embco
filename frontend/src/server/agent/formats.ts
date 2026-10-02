@@ -51,3 +51,31 @@ export function findCopy(text: string, others: { submissionId: string; text: str
   if (!mine) return null;
   return others.find((o) => norm(o.text) === mine)?.submissionId ?? null;
 }
+
+const MAX_RECEIPT_LINES = 200;
+
+/** Strict shape check for an untrusted receipt answer: exactly { lines: [{ description, amount }], total }, all strings. */
+export function parseReceipt(raw: unknown): { answer: ReceiptAnswer | null; errors: string[] } {
+  const isPlain = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+  const extraKeys = (v: Record<string, unknown>, allowed: string[]) => Object.keys(v).filter((k) => !allowed.includes(k));
+
+  if (!isPlain(raw)) return { answer: null, errors: ["answer is not an object"] };
+  const errors = extraKeys(raw, ["lines", "total"]).map((k) => `unexpected field "${k}"`);
+  if (typeof raw.total !== "string") errors.push("total is not text");
+  if (!Array.isArray(raw.lines)) return { answer: null, errors: [...errors, "lines is not a list"] };
+  if (raw.lines.length > MAX_RECEIPT_LINES) errors.push(`more than ${MAX_RECEIPT_LINES} lines`);
+
+  for (const [i, line] of raw.lines.entries()) {
+    if (!isPlain(line)) {
+      errors.push(`line ${i + 1} is not an object`);
+      continue;
+    }
+    errors.push(...extraKeys(line, ["description", "amount"]).map((k) => `line ${i + 1} has unexpected field "${k}"`));
+    if (typeof line.description !== "string" || typeof line.amount !== "string") {
+      errors.push(`line ${i + 1} needs text description and amount`);
+    }
+  }
+  if (errors.length) return { answer: null, errors };
+  const answer = raw as unknown as ReceiptAnswer;
+  return { answer, errors: checkReceipt(answer) };
+}
