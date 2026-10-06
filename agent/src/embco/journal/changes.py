@@ -3,8 +3,8 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
-from embco.decision import Decision
-from embco.journal.models import JournalEntry, fingerprint
+from embco.decision import Decision, fingerprint
+from embco.journal.models import JournalEntry
 
 
 class ChangeKind(StrEnum):
