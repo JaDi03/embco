@@ -75,13 +75,20 @@ def test_only_an_invoice_waiting_for_an_answer_can_be_answered(journal):
         invoice="PINV-1", supplier="S", amount=Decimal(100), due_date=None, action=Action.PAY,
         reasons=("all 6 controls passed",), findings=(),
     )
-    journal.record_run([paid], POLICY, MONDAY)
+    remember(journal, [paid], POLICY, at=MONDAY)
     with pytest.raises(JournalError, match="not waiting"):
         answer_ask(journal, "PINV-1", Verdict.APPROVE, "owner")
 
 
+def test_an_invoice_that_left_the_unpaid_list_cannot_be_answered(journal):
+    remember(journal, [asked()], POLICY, at=MONDAY)
+    remember(journal, [], POLICY, at=TUESDAY)
+    with pytest.raises(JournalError, match="no longer unpaid"):
+        answer_ask(journal, "PINV-1", Verdict.APPROVE, "owner")
+
+
 def test_an_answer_needs_a_name(journal):
-    journal.record_run([asked()], POLICY, MONDAY)
+    remember(journal, [asked()], POLICY, at=MONDAY)
     with pytest.raises(JournalError, match="name"):
         answer_ask(journal, "PINV-1", Verdict.APPROVE, "  ")
 
@@ -118,7 +125,7 @@ def test_the_latest_answer_wins(journal):
 def test_answers_survive_reopening_and_cannot_be_edited(tmp_path):
     path = tmp_path / "journal.sqlite3"
     with SqliteJournal(path) as journal:
-        journal.record_run([asked()], POLICY, MONDAY)
+        remember(journal, [asked()], POLICY, at=MONDAY)
         answer_ask(journal, "PINV-1", Verdict.REJECT, "owner", note="too expensive", at=NOON)
     with SqliteJournal(path) as journal:
         saved = journal.latest_answer("PINV-1")
@@ -129,11 +136,11 @@ def test_answers_survive_reopening_and_cannot_be_edited(tmp_path):
     raw = sqlite3.connect(path)
     try:
         with pytest.raises(sqlite3.DatabaseError, match="append-only"):
-            raw.execute("UPDATE answers SET verdict = 'APPROVE'")
-        raw.execute("DROP TRIGGER answers_no_update")
-        raw.execute("UPDATE answers SET verdict = 'APPROVE'")
+            raw.execute("UPDATE entries SET body = '{}' WHERE kind = 'ANSWER'")
+        raw.execute("DROP TRIGGER entries_no_update")
+        raw.execute("UPDATE entries SET body = replace(body, 'REJECT', 'APPROVE')")
         raw.commit()
     finally:
         raw.close()
-    with SqliteJournal(path) as journal, pytest.raises(JournalError, match="owner answer"):
+    with SqliteJournal(path) as journal, pytest.raises(JournalError, match="ANSWER PINV-1"):
         journal.verify()

@@ -39,7 +39,7 @@ The code lives in `agent/src/embco/`, one package per concern.
 | `ledger` | Domain models, `LedgerAdapter` protocol, `erpnext/` adapter (client, mappers, adapter) | Done (read-only) |
 | `controls` | Context builder and one small module per control: three-way match, payee wallet, duplicates, price anomaly, payment limit, supplier status | Done |
 | `decision` | Fixed combining rule (HOLD, then ASK, then PAY), policy config, the weekly-budget planner and owner answers: an approved ASK becomes PAY, a rejected one HOLD, only while the decision is unchanged. HOLD is never overridden | Done |
-| `journal` | Memory between runs: every decision with its reasons and policy, and every owner answer, append-only and hash-chained, plus what changed since the last run. `DecisionJournal` protocol, SQLite store | Done |
+| `journal` | Memory between runs, stored as changes: every run, each new or changed decision, the policy when it changes, invoices that leave the unpaid list, and owner answers. One append-only, hash-chained sequence; it grows with events, not with runs. `DecisionJournal` protocol, SQLite store | Done |
 | `llm` | Document extraction and suggestions, provider interface | Planned |
 | `payments` | Circle wallets, simulation, idempotency, timeout recovery | Planned |
 | `evidence` | Public feed of the journal | Planned |
