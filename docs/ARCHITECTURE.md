@@ -11,11 +11,14 @@ ERPNext  --REST (read-only user)-->  ledger/      domain models, LedgerAdapter, 
                                        v
                                     decision/     deterministic policy: PAY / HOLD / ASK
                                        |
+                                       v
+                                    journal/      memory: append-only, hash-chained decisions
+                                       |
                           llm/ (input only)  -->  payments/   Circle wallet, simulation, idempotency
                                        |                |
                                        v                v
                                     evidence/       Arc contract (budget, approvals)
-                                    hash-chained log
+                                    public feed
                                        |
                                        v
                                     api/            approvals, webhooks, public feed
@@ -36,9 +39,10 @@ The code lives in `agent/src/embco/`, one package per concern.
 | `ledger` | Domain models, `LedgerAdapter` protocol, `erpnext/` adapter (client, mappers, adapter) | Done (read-only) |
 | `controls` | Context builder and one small module per control: three-way match, payee wallet, duplicates, price anomaly, payment limit, supplier status | Done |
 | `decision` | Fixed combining rule (HOLD, then ASK, then PAY), policy config and the weekly-budget planner | Done |
+| `journal` | Memory between runs: every decision with its reasons and policy, append-only and hash-chained, plus what changed since the last run. `DecisionJournal` protocol, SQLite store | Done |
 | `llm` | Document extraction and suggestions, provider interface | Planned |
 | `payments` | Circle wallets, simulation, idempotency, timeout recovery | Planned |
-| `evidence` | Hash-chained decision log and public feed | Planned |
+| `evidence` | Public feed of the journal | Planned |
 | `api` | Approvals, pause switch, webhooks | Planned |
 
 ## ERP independence
