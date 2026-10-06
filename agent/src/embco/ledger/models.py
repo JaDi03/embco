@@ -1,0 +1,72 @@
+"""ERP-agnostic domain models. Amounts are Decimal, never float."""
+
+from datetime import date
+from decimal import Decimal
+
+from pydantic import BaseModel, ConfigDict
+
+
+class _Frozen(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+
+class Supplier(_Frozen):
+    name: str
+    wallet_address: str | None = None
+    disabled: bool = False
+
+
+class DocumentLine(_Frozen):
+    """One line of a purchase order, receipt or invoice, with its upstream references."""
+
+    item_code: str
+    qty: Decimal
+    rate: Decimal
+    amount: Decimal
+    row_id: str | None = None
+    purchase_order: str | None = None
+    po_detail: str | None = None
+    purchase_receipt: str | None = None
+    pr_detail: str | None = None
+
+
+class PaymentRecord(_Frozen):
+    """A payment already made to a supplier, with the wallet it was sent to."""
+
+    name: str
+    supplier: str
+    amount: Decimal
+    posting_date: date | None = None
+    payee_wallet: str | None = None
+
+
+class PurchaseOrder(_Frozen):
+    name: str
+    supplier: str
+    transaction_date: date | None = None
+    currency: str
+    grand_total: Decimal
+    status: str | None = None
+    lines: tuple[DocumentLine, ...] = ()
+
+
+class PurchaseReceipt(_Frozen):
+    name: str
+    supplier: str
+    posting_date: date | None = None
+    currency: str
+    grand_total: Decimal
+    lines: tuple[DocumentLine, ...] = ()
+
+
+class PurchaseInvoice(_Frozen):
+    name: str
+    supplier: str
+    bill_no: str | None = None
+    posting_date: date | None = None
+    due_date: date | None = None
+    currency: str
+    grand_total: Decimal
+    outstanding_amount: Decimal
+    docstatus: int
+    lines: tuple[DocumentLine, ...] = ()
