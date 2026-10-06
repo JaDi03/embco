@@ -1,6 +1,7 @@
 """Controls: small independent checks that read a context and return a finding."""
 
 from embco.controls.base import Control, Finding, Outcome
+from embco.controls.confirmations import WalletChallenge, WalletProof, WalletProofSource
 from embco.controls.context import Context, ContextBuilder
 from embco.controls.duplicate import DuplicateInvoice
 from embco.controls.payee_wallet import PayeeWallet
@@ -21,4 +22,7 @@ __all__ = [
     "PriceAnomaly",
     "SupplierStatus",
     "ThreeWayMatch",
+    "WalletChallenge",
+    "WalletProof",
+    "WalletProofSource",
 ]

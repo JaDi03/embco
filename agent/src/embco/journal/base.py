@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Protocol
 
+from embco.controls import WalletChallenge, WalletProof
 from embco.decision import OwnerAnswer, PolicyConfig
 from embco.journal.changes import Change
 from embco.journal.models import JournalEntry
@@ -41,6 +42,14 @@ class DecisionJournal(Protocol):
     def record_answer(self, answer: OwnerAnswer) -> None: ...
 
     def latest_answer(self, invoice: str) -> OwnerAnswer | None: ...
+
+    def record_wallet_challenge(self, challenge: WalletChallenge) -> None: ...
+
+    def latest_wallet_challenge(self, supplier: str) -> WalletChallenge | None: ...
+
+    def record_wallet_proof(self, proof: WalletProof) -> None: ...
+
+    def latest_wallet_proof(self, supplier: str) -> WalletProof | None: ...
 
     def verify(self) -> None:
         """Raise JournalError if any entry was changed or removed after it was written."""
