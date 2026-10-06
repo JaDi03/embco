@@ -1,0 +1,4 @@
+# Solidity sources stay LF on every OS, so `arc-forge fmt --check` gives the same answer everywhere.
+*.sol text eol=lf
+contracts/foundry.toml text eol=lf
+contracts/foundry.lock text eol=lf

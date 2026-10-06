@@ -16,3 +16,28 @@ jobs:
       - run: uv sync --frozen
       - run: uv run ruff check .
       - run: uv run pytest -q
+
+  contracts:
+    runs-on: ubuntu-latest
+    env:
+      ARC_FOUNDRY: v0.8.0-2
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install Arc Foundry
+        run: |
+          name="arc-foundry-${ARC_FOUNDRY}-x86_64-unknown-linux-gnu.tar.gz"
+          base="https://github.com/circlefin/arc-foundry/releases/download/${ARC_FOUNDRY}"
+          curl -sSfL -o "/tmp/$name" "$base/$name"
+          curl -sSfL -o "/tmp/$name.sha256" "$base/$name.sha256"
+          (cd /tmp && sha256sum -c "$name.sha256")
+          mkdir -p "$HOME/.local/bin"
+          tar -xzf "/tmp/$name" -C /tmp
+          for b in forge cast anvil; do install -m 755 "/tmp/$b" "$HOME/.local/bin/arc-$b"; done
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: arc-forge fmt --check
+      - run: arc-forge test
