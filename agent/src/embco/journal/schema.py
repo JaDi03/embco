@@ -2,7 +2,8 @@
 
 One table, one hash chain, in the order things happened. Kinds of entry:
 POLICY when the policy changes, RUN for every run, DECISION when a decision is new or changed,
-CLOSED when an invoice leaves the unpaid list, ANSWER when the owner answers an ASK.
+CLOSED when an invoice leaves the unpaid list, ANSWER when the owner answers an ASK, CHALLENGE
+when the agent asks a supplier to sign for a wallet, PROOF when a valid signature comes back.
 """
 
 VERSION = 1
@@ -44,6 +45,11 @@ WHERE invoice = ? AND kind = ? ORDER BY id DESC LIMIT 1
 DECISIONS_OF = """
 SELECT run, invoice, at, body, entry_hash FROM entries
 WHERE invoice = ? AND kind = 'DECISION' ORDER BY id
+"""
+
+LAST_FOR_SUPPLIER = """
+SELECT at, body FROM entries
+WHERE kind = ? AND json_extract(body, '$.supplier') = ? ORDER BY id DESC LIMIT 1
 """
 
 OPEN_INVOICES = """

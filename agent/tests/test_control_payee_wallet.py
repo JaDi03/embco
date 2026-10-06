@@ -37,7 +37,7 @@ def test_holds_when_the_wallet_is_not_a_valid_address():
     assert check(ledger).outcome is Outcome.HOLD
 
 
-def test_asks_for_confirmation_on_the_first_payment():
+def test_holds_the_first_payment_until_the_wallet_is_proven():
     ledger = FakeLedger()
     ledger.payments = []
-    assert check(ledger).outcome is Outcome.ASK
+    assert check(ledger).outcome is Outcome.HOLD

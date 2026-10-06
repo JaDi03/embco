@@ -15,7 +15,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 
-from embco.controls import Finding, Outcome
+from embco.controls import Finding, Outcome, WalletChallenge, WalletProof
 from embco.decision import Action, Decision, OwnerAnswer, PolicyConfig, Verdict, fingerprint
 from embco.journal import schema
 from embco.journal.base import JournalError
@@ -94,13 +94,57 @@ class SqliteJournal:
             "answered_by": answer.answered_by,
             "note": answer.note,
         }
-        stamp = _timestamp(answer.answered_at)
-        with self._transaction():
-            self._append(self._head(), "ANSWER", None, answer.invoice, stamp, body)
+        self._append_owner_entry("ANSWER", answer.answered_at, body, answer.invoice)
 
     def latest_answer(self, invoice: str) -> OwnerAnswer | None:
         row = self._db.execute(schema.LAST_OF_KIND, (invoice, "ANSWER")).fetchone()
         return _answer(row) if row else None
+
+    def record_wallet_challenge(self, challenge: WalletChallenge) -> None:
+        body = {
+            "supplier": challenge.supplier,
+            "wallet": challenge.wallet,
+            "payer": challenge.payer,
+            "nonce": challenge.nonce,
+            "expires_at": _timestamp(challenge.expires_at),
+        }
+        self._append_owner_entry("CHALLENGE", challenge.issued_at, body)
+
+    def latest_wallet_challenge(self, supplier: str) -> WalletChallenge | None:
+        row = self._db.execute(schema.LAST_FOR_SUPPLIER, ("CHALLENGE", supplier)).fetchone()
+        if not row:
+            return None
+        body = json.loads(row[1])
+        return WalletChallenge(
+            supplier=body["supplier"],
+            wallet=body["wallet"],
+            payer=body["payer"],
+            nonce=body["nonce"],
+            issued_at=datetime.fromisoformat(row[0]),
+            expires_at=datetime.fromisoformat(body["expires_at"]),
+        )
+
+    def record_wallet_proof(self, proof: WalletProof) -> None:
+        body = {
+            "supplier": proof.supplier,
+            "wallet": proof.wallet,
+            "nonce": proof.nonce,
+            "signature": proof.signature,
+        }
+        self._append_owner_entry("PROOF", proof.signed_at, body)
+
+    def latest_wallet_proof(self, supplier: str) -> WalletProof | None:
+        row = self._db.execute(schema.LAST_FOR_SUPPLIER, ("PROOF", supplier)).fetchone()
+        if not row:
+            return None
+        body = json.loads(row[1])
+        return WalletProof(
+            supplier=body["supplier"],
+            wallet=body["wallet"],
+            nonce=body["nonce"],
+            signature=body["signature"],
+            signed_at=datetime.fromisoformat(row[0]),
+        )
 
     def verify(self) -> None:
         previous = GENESIS
@@ -109,7 +153,7 @@ class SqliteJournal:
         ):
             expected = chain_hash(previous, _content(kind, run, invoice, at, body))
             if stored != expected:
-                subject = invoice or f"run {run}"
+                subject = invoice or (f"run {run}" if run is not None else "owner entry")
                 raise JournalError(f"journal entry {number} ({kind} {subject}) was altered")
             previous = expected
 
@@ -122,6 +166,14 @@ class SqliteJournal:
             self._db.execute("ROLLBACK")
             raise
         self._db.execute("COMMIT")
+
+    def _append_owner_entry(
+        self, kind: str, at: datetime, body: dict, invoice: str | None = None
+    ) -> None:
+        """Entries outside a run: owner answers and the wallet challenge exchange."""
+        stamp = _timestamp(at)
+        with self._transaction():
+            self._append(self._head(), kind, None, invoice, stamp, body)
 
     def _head(self) -> str:
         row = self._db.execute(schema.HEAD).fetchone()

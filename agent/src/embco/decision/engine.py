@@ -14,6 +14,7 @@ from embco.controls import (
     PriceAnomaly,
     SupplierStatus,
     ThreeWayMatch,
+    WalletProofSource,
 )
 from embco.decision.config import PolicyConfig
 from embco.decision.models import Action, Decision
@@ -42,10 +43,16 @@ def combine(findings: list[Finding]) -> tuple[Action, tuple[str, ...]]:
 
 
 class DecisionEngine:
-    def __init__(self, ledger: LedgerAdapter, config: PolicyConfig) -> None:
+    def __init__(
+        self,
+        ledger: LedgerAdapter,
+        config: PolicyConfig,
+        *,
+        proofs: WalletProofSource | None = None,
+    ) -> None:
         self._ledger = ledger
         self._controls = standard_controls(config)
-        self._contexts = ContextBuilder(ledger)
+        self._contexts = ContextBuilder(ledger, proofs)
 
     def decide(self, invoice: PurchaseInvoice) -> Decision:
         context = self._contexts.build(invoice)
