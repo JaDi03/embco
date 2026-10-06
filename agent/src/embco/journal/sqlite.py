@@ -21,6 +21,7 @@ from embco.journal import schema
 from embco.journal.base import JournalError
 from embco.journal.changes import Change, ChangeKind
 from embco.journal.models import GENESIS, JournalEntry, canonical, chain_hash, digest
+from embco.llm.base import Explanation
 
 CLOSED_NOTE = "no longer among the unpaid invoices in the ERP"
 
@@ -144,6 +145,32 @@ class SqliteJournal:
             nonce=body["nonce"],
             signature=body["signature"],
             signed_at=datetime.fromisoformat(row[0]),
+        )
+
+    def record_explanation(self, explanation: Explanation) -> None:
+        body = {
+            "fingerprint": explanation.fingerprint,
+            "summary": explanation.summary,
+            "next_step": explanation.next_step,
+            "model": explanation.model,
+        }
+        self._append_owner_entry("EXPLANATION", explanation.created_at, body, explanation.invoice)
+
+    def explanation_for(self, invoice: str, fingerprint: str) -> Explanation | None:
+        """The stored explanation of exactly this decision, if the latest one is about it."""
+        row = self._db.execute(schema.LAST_OF_KIND, (invoice, "EXPLANATION")).fetchone()
+        if not row:
+            return None
+        body = json.loads(row[3])
+        if body["fingerprint"] != fingerprint:
+            return None
+        return Explanation(
+            invoice=invoice,
+            fingerprint=body["fingerprint"],
+            summary=body["summary"],
+            next_step=body["next_step"],
+            model=body["model"],
+            created_at=datetime.fromisoformat(row[2]),
         )
 
     def verify(self) -> None:

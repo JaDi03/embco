@@ -62,6 +62,9 @@ uv run embco --env-file ../.env answer ACC-PINV-0001 approve --by owner
 uv run embco --env-file ../.env verify   # check the memory was not altered
 ```
 
-Nothing is paid yet: the agent decides, remembers and plans.
+Nothing is paid yet: the agent decides, remembers and plans. With `EMBCO_EXPLAIN=on` and an
+`ANTHROPIC_API_KEY`, Claude adds a plain-language explanation and a next step to every invoice
+that is held or needs the owner. It is called only for decisions it has not explained yet, and
+its words never change a decision.
 
 Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
