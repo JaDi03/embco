@@ -41,6 +41,8 @@ The code lives in `agent/src/embco/`, one package per concern.
 | `signing` | EIP-712 wallet ownership message bound to embco and Arc testnet, and signer recovery (ordinary wallets; smart contract wallets need EIP-1271 on chain) | Done |
 | `decision` | Fixed combining rule (HOLD, then ASK, then PAY), policy config, the weekly-budget planner and owner answers: an approved ASK becomes PAY, a rejected one HOLD, only while the decision is unchanged. HOLD is never overridden | Done |
 | `journal` | Memory between runs, stored as changes: every run, each new or changed decision, the policy when it changes, invoices that leave the unpaid list, owner answers, wallet challenges and the signatures that answer them. One append-only, hash-chained sequence; it grows with events, not with runs. `DecisionJournal` protocol, SQLite store | Done |
+| `runner` | One cycle (verify memory, decide, apply owner answers, remember, issue wallet challenges, plan), the interval loop that survives an ERP outage and stops on a tampered memory, and the text report | Done |
+| `settings`, `cli` | Settings from the environment or `.env`, checked once, secrets never shown; the `embco` command: `run`, `watch`, `answer`, `challenge`, `sign-wallet`, `history`, `verify` | Done |
 | `llm` | Document extraction and suggestions, provider interface | Planned |
 | `payments` | Circle wallets, simulation, idempotency, timeout recovery | Planned |
 | `evidence` | Public feed of the journal | Planned |

@@ -53,4 +53,15 @@ uv sync
 uv run ruff check . && uv run pytest -q
 ```
 
+Copy `.env.example` to `.env`, fill it in, then:
+
+```bash
+uv run embco --env-file ../.env run      # one cycle, full report
+uv run embco --env-file ../.env watch    # a cycle every 15 minutes, on its own
+uv run embco --env-file ../.env answer ACC-PINV-0001 approve --by owner
+uv run embco --env-file ../.env verify   # check the memory was not altered
+```
+
+Nothing is paid yet: the agent decides, remembers and plans.
+
 Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
