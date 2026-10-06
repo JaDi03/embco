@@ -1,12 +1,15 @@
 """Decision journal in a local SQLite file.
 
-Append-only: triggers reject updates and deletes, and decisions and owner answers are each
-hash-chained to the entry before them, so an edit made around the triggers is caught by verify().
+Append-only: triggers reject updates and deletes, and every entry is hash-chained to the one
+before it in a single sequence, so an edit or removal made around the triggers is caught by
+verify(). Only what changes is stored, so the file grows with events, not with runs.
 """
 
 import json
 import sqlite3
-from collections.abc import Sequence
+from collections import Counter
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import fields
 from datetime import date, datetime
 from decimal import Decimal
@@ -16,15 +19,20 @@ from embco.controls import Finding, Outcome
 from embco.decision import Action, Decision, OwnerAnswer, PolicyConfig, Verdict, fingerprint
 from embco.journal import schema
 from embco.journal.base import JournalError
-from embco.journal.models import JournalEntry, chain_hash
+from embco.journal.changes import Change, ChangeKind
+from embco.journal.models import GENESIS, JournalEntry, canonical, chain_hash, digest
 
-GENESIS = "0" * 64
+CLOSED_NOTE = "no longer among the unpaid invoices in the ERP"
 
 
 class SqliteJournal:
     def __init__(self, path: str | Path) -> None:
-        self._db = sqlite3.connect(path)
-        self._db.executescript(schema.TABLES + schema.APPEND_ONLY)
+        self._db = sqlite3.connect(path, isolation_level=None)
+        version = self._db.execute("PRAGMA user_version").fetchone()[0]
+        if version not in (0, schema.VERSION):
+            self._db.close()
+            raise JournalError(f"journal format {version} is not supported by this agent")
+        self._db.executescript(schema.TABLES)
 
     def close(self) -> None:
         self._db.close()
@@ -36,75 +44,104 @@ class SqliteJournal:
         self.close()
 
     def record_run(
-        self, decisions: Sequence[Decision], policy: PolicyConfig, at: datetime
+        self,
+        changes: Sequence[Change],
+        closed: Sequence[str],
+        policy: PolicyConfig,
+        at: datetime,
     ) -> int:
-        started_at = _timestamp(at)
-        policy_text = _policy_json(policy)
-        with self._db:
-            cursor = self._db.execute(
-                "INSERT INTO runs (started_at, policy) VALUES (?, ?)", (started_at, policy_text)
-            )
-            run_id = int(cursor.lastrowid or 0)
-            previous = self._last_hash("decisions")
-            for decision in decisions:
-                values = (run_id, started_at, policy_text, *_decision_values(decision))
-                previous = chain_hash(previous, _decision_content(values))
-                self._db.execute(schema.INSERT_DECISION, (run_id, *values[3:], previous))
-        return run_id
+        stamp = _timestamp(at)
+        values = {f.name: str(getattr(policy, f.name)) for f in fields(policy)}
+        policy_id = digest(values)
+        counts = Counter(c.kind for c in changes)
+        with self._transaction():
+            head = self._head()
+            run = (self._db.execute(schema.LAST_RUN).fetchone()[0] or 0) + 1
+            if self._current_policy() != policy_id:
+                body = {"policy": policy_id, "values": values}
+                head = self._append(head, "POLICY", run, None, stamp, body)
+            summary = {
+                "policy": policy_id,
+                "unpaid": len(changes),
+                "new": counts[ChangeKind.NEW],
+                "changed": counts[ChangeKind.CHANGED],
+                "same": counts[ChangeKind.SAME],
+                "closed": len(closed),
+            }
+            head = self._append(head, "RUN", run, None, stamp, summary)
+            for change in changes:
+                if change.kind is not ChangeKind.SAME:
+                    body = _decision_body(change.decision)
+                    head = self._append(head, "DECISION", run, change.decision.invoice, stamp, body)
+            for invoice in closed:
+                head = self._append(head, "CLOSED", run, invoice, stamp, {"note": CLOSED_NOTE})
+        return run
 
     def last_entry(self, invoice: str) -> JournalEntry | None:
-        row = self._db.execute(
-            schema.SELECT_DECISIONS + "WHERE d.invoice = ? ORDER BY d.id DESC LIMIT 1", (invoice,)
-        ).fetchone()
+        row = self._db.execute(schema.LAST_OF_KIND, (invoice, "DECISION")).fetchone()
         return _entry(row) if row else None
 
     def history(self, invoice: str) -> list[JournalEntry]:
-        rows = self._db.execute(
-            schema.SELECT_DECISIONS + "WHERE d.invoice = ? ORDER BY d.id", (invoice,)
-        )
-        return [_entry(row) for row in rows]
+        return [_entry(row) for row in self._db.execute(schema.DECISIONS_OF, (invoice,))]
+
+    def open_invoices(self) -> set[str]:
+        return {row[0] for row in self._db.execute(schema.OPEN_INVOICES)}
 
     def record_answer(self, answer: OwnerAnswer) -> None:
-        values = (
-            answer.invoice,
-            answer.fingerprint,
-            answer.verdict.value,
-            answer.answered_by,
-            _timestamp(answer.answered_at),
-            answer.note,
-        )
-        with self._db:
-            entry_hash = chain_hash(self._last_hash("answers"), _answer_content(values))
-            self._db.execute(schema.INSERT_ANSWER, (*values, entry_hash))
+        body = {
+            "fingerprint": answer.fingerprint,
+            "verdict": answer.verdict.value,
+            "answered_by": answer.answered_by,
+            "note": answer.note,
+        }
+        stamp = _timestamp(answer.answered_at)
+        with self._transaction():
+            self._append(self._head(), "ANSWER", None, answer.invoice, stamp, body)
 
     def latest_answer(self, invoice: str) -> OwnerAnswer | None:
-        row = self._db.execute(
-            schema.SELECT_ANSWERS + "WHERE invoice = ? ORDER BY id DESC LIMIT 1", (invoice,)
-        ).fetchone()
+        row = self._db.execute(schema.LAST_OF_KIND, (invoice, "ANSWER")).fetchone()
         return _answer(row) if row else None
 
     def verify(self) -> None:
         previous = GENESIS
-        for row in self._db.execute(schema.SELECT_DECISIONS + "ORDER BY d.id"):
-            previous = _check(previous, _decision_content(row[:-1]), row[-1],
-                              f"journal entry for {row[3]} in run {row[0]}")
-        previous = GENESIS
-        for row in self._db.execute(schema.SELECT_ANSWERS + "ORDER BY id"):
-            previous = _check(previous, _answer_content(row[:-1]), row[-1],
-                              f"owner answer for {row[0]} given at {row[4]}")
+        for number, (kind, run, invoice, at, body, stored) in enumerate(
+            self._db.execute(schema.ALL), start=1
+        ):
+            expected = chain_hash(previous, _content(kind, run, invoice, at, body))
+            if stored != expected:
+                subject = invoice or f"run {run}"
+                raise JournalError(f"journal entry {number} ({kind} {subject}) was altered")
+            previous = expected
 
-    def _last_hash(self, table: str) -> str:
-        found = self._db.execute(
-            f"SELECT entry_hash FROM {table} ORDER BY id DESC LIMIT 1"  # noqa: S608 (fixed names)
-        ).fetchone()
-        return found[0] if found else GENESIS
+    @contextmanager
+    def _transaction(self) -> Iterator[None]:
+        self._db.execute("BEGIN IMMEDIATE")
+        try:
+            yield
+        except BaseException:
+            self._db.execute("ROLLBACK")
+            raise
+        self._db.execute("COMMIT")
+
+    def _head(self) -> str:
+        row = self._db.execute(schema.HEAD).fetchone()
+        return row[0] if row else GENESIS
+
+    def _current_policy(self) -> str | None:
+        row = self._db.execute(schema.LAST_POLICY).fetchone()
+        return json.loads(row[0])["policy"] if row else None
+
+    def _append(
+        self, previous: str, kind: str, run: int | None, invoice: str | None, at: str, body: dict
+    ) -> str:
+        text = canonical(body)
+        entry_hash = chain_hash(previous, _content(kind, run, invoice, at, text))
+        self._db.execute(schema.INSERT, (kind, run, invoice, at, text, entry_hash))
+        return entry_hash
 
 
-def _check(previous: str, content: dict, stored: str, label: str) -> str:
-    expected = chain_hash(previous, content)
-    if stored != expected:
-        raise JournalError(f"{label} was altered")
-    return expected
+def _content(kind: str, run: int | None, invoice: str | None, at: str, body: str) -> dict:
+    return {"kind": kind, "run": run, "invoice": invoice, "at": at, "body": body}
 
 
 def _timestamp(at: datetime) -> str:
@@ -113,57 +150,45 @@ def _timestamp(at: datetime) -> str:
     return at.isoformat()
 
 
-def _policy_json(policy: PolicyConfig) -> str:
-    values = {f.name: str(getattr(policy, f.name)) for f in fields(policy)}
-    return json.dumps(values, sort_keys=True)
-
-
-def _decision_values(decision: Decision) -> tuple:
-    findings = [[f.control, f.outcome.value, f.reason] for f in decision.findings]
-    return (
-        decision.invoice,
-        decision.supplier,
-        str(decision.amount),
-        decision.due_date.isoformat() if decision.due_date else None,
-        decision.action.value,
-        json.dumps(list(decision.reasons)),
-        json.dumps(findings),
-        fingerprint(decision),
-    )
-
-
-def _decision_content(values: tuple) -> dict:
-    return dict(zip(schema.DECISION_KEYS, values, strict=True))
-
-
-def _answer_content(values: tuple) -> dict:
-    return dict(zip(schema.ANSWER_KEYS, values, strict=True))
+def _decision_body(decision: Decision) -> dict:
+    return {
+        "supplier": decision.supplier,
+        "amount": str(decision.amount),
+        "due_date": decision.due_date.isoformat() if decision.due_date else None,
+        "action": decision.action.value,
+        "reasons": list(decision.reasons),
+        "findings": [[f.control, f.outcome.value, f.reason] for f in decision.findings],
+        "fingerprint": fingerprint(decision),
+    }
 
 
 def _entry(row: tuple) -> JournalEntry:
-    run_id, started_at, _, invoice, supplier, amount, due, action, reasons, findings, fp, h = row
+    run, invoice, at, text, entry_hash = row
+    body = json.loads(text)
+    due = body["due_date"]
     return JournalEntry(
-        run_id=run_id,
-        recorded_at=datetime.fromisoformat(started_at),
+        run_id=run,
+        recorded_at=datetime.fromisoformat(at),
         invoice=invoice,
-        supplier=supplier,
-        amount=Decimal(amount),
+        supplier=body["supplier"],
+        amount=Decimal(body["amount"]),
         due_date=date.fromisoformat(due) if due else None,
-        action=Action(action),
-        reasons=tuple(json.loads(reasons)),
-        findings=tuple(Finding(c, Outcome(o), r) for c, o, r in json.loads(findings)),
-        fingerprint=fp,
-        entry_hash=h,
+        action=Action(body["action"]),
+        reasons=tuple(body["reasons"]),
+        findings=tuple(Finding(c, Outcome(o), r) for c, o, r in body["findings"]),
+        fingerprint=body["fingerprint"],
+        entry_hash=entry_hash,
     )
 
 
 def _answer(row: tuple) -> OwnerAnswer:
-    invoice, fp, verdict, answered_by, answered_at, note, _ = row
+    _, invoice, at, text, _ = row
+    body = json.loads(text)
     return OwnerAnswer(
         invoice=invoice,
-        fingerprint=fp,
-        verdict=Verdict(verdict),
-        answered_by=answered_by,
-        answered_at=datetime.fromisoformat(answered_at),
-        note=note,
+        fingerprint=body["fingerprint"],
+        verdict=Verdict(body["verdict"]),
+        answered_by=body["answered_by"],
+        answered_at=datetime.fromisoformat(at),
+        note=body["note"],
     )

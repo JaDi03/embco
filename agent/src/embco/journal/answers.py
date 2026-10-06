@@ -22,6 +22,8 @@ def answer_ask(
     last = journal.last_entry(invoice)
     if last is None:
         raise JournalError(f"{invoice} has no decision to answer")
+    if invoice not in journal.open_invoices():
+        raise JournalError(f"{invoice} is not waiting for an answer (no longer unpaid)")
     if last.action is not Action.ASK:
         raise JournalError(f"{invoice} is not waiting for an answer (last decision: {last.action})")
     answer = OwnerAnswer(

@@ -1,70 +1,54 @@
-"""SQL for the SQLite journal: tables, append-only triggers and the statements that use them."""
+"""SQL for the SQLite journal.
 
-TABLES = """
-PRAGMA foreign_keys = ON;
-CREATE TABLE IF NOT EXISTS runs (
+One table, one hash chain, in the order things happened. Kinds of entry:
+POLICY when the policy changes, RUN for every run, DECISION when a decision is new or changed,
+CLOSED when an invoice leaves the unpaid list, ANSWER when the owner answers an ASK.
+"""
+
+VERSION = 1
+
+TABLES = f"""
+CREATE TABLE IF NOT EXISTS entries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    started_at TEXT NOT NULL,
-    policy TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS decisions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id INTEGER NOT NULL REFERENCES runs (id),
-    invoice TEXT NOT NULL,
-    supplier TEXT NOT NULL,
-    amount TEXT NOT NULL,
-    due_date TEXT,
-    action TEXT NOT NULL,
-    reasons TEXT NOT NULL,
-    findings TEXT NOT NULL,
-    fingerprint TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    run INTEGER,
+    invoice TEXT,
+    at TEXT NOT NULL,
+    body TEXT NOT NULL,
     entry_hash TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS decisions_by_invoice ON decisions (invoice, id);
-CREATE TABLE IF NOT EXISTS answers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    invoice TEXT NOT NULL,
-    fingerprint TEXT NOT NULL,
-    verdict TEXT NOT NULL,
-    answered_by TEXT NOT NULL,
-    answered_at TEXT NOT NULL,
-    note TEXT NOT NULL,
-    entry_hash TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS answers_by_invoice ON answers (invoice, id);
+CREATE INDEX IF NOT EXISTS entries_by_invoice ON entries (invoice, kind, id);
+CREATE INDEX IF NOT EXISTS entries_by_kind ON entries (kind, id);
+CREATE TRIGGER IF NOT EXISTS entries_no_update BEFORE UPDATE ON entries
+BEGIN SELECT RAISE(ABORT, 'the journal is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS entries_no_delete BEFORE DELETE ON entries
+BEGIN SELECT RAISE(ABORT, 'the journal is append-only'); END;
+PRAGMA user_version = {VERSION};
 """
 
-APPEND_ONLY = "".join(
-    f"CREATE TRIGGER IF NOT EXISTS {table}_no_{op.lower()} BEFORE {op} ON {table} "
-    "BEGIN SELECT RAISE(ABORT, 'the journal is append-only'); END;\n"
-    for table in ("runs", "decisions", "answers")
-    for op in ("UPDATE", "DELETE")
-)
+INSERT = "INSERT INTO entries (kind, run, invoice, at, body, entry_hash) VALUES (?, ?, ?, ?, ?, ?)"
 
-SELECT_DECISIONS = """
-SELECT d.run_id, r.started_at, r.policy, d.invoice, d.supplier, d.amount, d.due_date,
-       d.action, d.reasons, d.findings, d.fingerprint, d.entry_hash
-FROM decisions d JOIN runs r ON r.id = d.run_id
+ALL = "SELECT kind, run, invoice, at, body, entry_hash FROM entries ORDER BY id"
+
+HEAD = "SELECT entry_hash FROM entries ORDER BY id DESC LIMIT 1"
+
+LAST_RUN = "SELECT MAX(run) FROM entries WHERE kind = 'RUN'"
+
+LAST_POLICY = "SELECT body FROM entries WHERE kind = 'POLICY' ORDER BY id DESC LIMIT 1"
+
+LAST_OF_KIND = """
+SELECT run, invoice, at, body, entry_hash FROM entries
+WHERE invoice = ? AND kind = ? ORDER BY id DESC LIMIT 1
 """
 
-INSERT_DECISION = """
-INSERT INTO decisions (run_id, invoice, supplier, amount, due_date, action, reasons, findings,
-                       fingerprint, entry_hash)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+DECISIONS_OF = """
+SELECT run, invoice, at, body, entry_hash FROM entries
+WHERE invoice = ? AND kind = 'DECISION' ORDER BY id
 """
 
-DECISION_KEYS = (
-    "run_id", "recorded_at", "policy", "invoice", "supplier", "amount", "due_date", "action",
-    "reasons", "findings", "fingerprint",
-)
-
-SELECT_ANSWERS = """
-SELECT invoice, fingerprint, verdict, answered_by, answered_at, note, entry_hash FROM answers
+OPEN_INVOICES = """
+SELECT e.invoice FROM entries e
+WHERE e.kind = 'DECISION'
+  AND e.id = (SELECT MAX(id) FROM entries
+              WHERE invoice = e.invoice AND kind IN ('DECISION', 'CLOSED'))
 """
-
-INSERT_ANSWER = """
-INSERT INTO answers (invoice, fingerprint, verdict, answered_by, answered_at, note, entry_hash)
-VALUES (?, ?, ?, ?, ?, ?, ?)
-"""
-
-ANSWER_KEYS = ("invoice", "fingerprint", "verdict", "answered_by", "answered_at", "note")

@@ -71,7 +71,7 @@ def test_memory_survives_closing_and_reopening_the_file(tmp_path):
 
 def test_entries_come_back_exactly_as_they_were_written(journal):
     written = decision(amount="249.995")
-    journal.record_run([written], POLICY, MONDAY)
+    remember(journal, [written], POLICY, at=MONDAY)
     entry = journal.last_entry("PINV-1")
     assert entry.amount == Decimal("249.995")
     assert entry.due_date == date(2026, 10, 10)
@@ -81,46 +81,109 @@ def test_entries_come_back_exactly_as_they_were_written(journal):
 
 
 def test_history_keeps_every_decision_oldest_first(journal):
-    journal.record_run([decision()], POLICY, MONDAY)
-    journal.record_run([decision(Action.PAY, ("all 6 controls passed",))], POLICY, TUESDAY)
+    remember(journal, [decision()], POLICY, at=MONDAY)
+    remember(journal, [decision(Action.PAY, ("all 6 controls passed",))], POLICY, at=TUESDAY)
     assert [e.action for e in journal.history("PINV-1")] == [Action.HOLD, Action.PAY]
     assert journal.last_entry("PINV-404") is None
+
+
+def test_an_unchanged_decision_is_not_stored_again_but_the_run_is(tmp_path):
+    path = tmp_path / "journal.sqlite3"
+    with SqliteJournal(path) as journal:
+        for day in range(1, 6):
+            memory = remember(journal, [decision()], POLICY, at=MONDAY.replace(day=day))
+        assert memory.run_id == 5
+        assert len(journal.history("PINV-1")) == 1
+        assert journal.last_entry("PINV-1").run_id == 1
+    assert count(path, "RUN") == 5
+    assert count(path, "DECISION") == 1
+
+
+def test_the_policy_is_stored_only_when_it_changes(tmp_path):
+    path = tmp_path / "journal.sqlite3"
+    stricter = PolicyConfig(max_per_payment=Decimal(100), weekly_budget=Decimal(2500))
+    with SqliteJournal(path) as journal:
+        for policy in (POLICY, POLICY, stricter, stricter):
+            remember(journal, [decision()], policy, at=MONDAY)
+    assert count(path, "POLICY") == 2
+
+
+def test_an_invoice_that_leaves_the_unpaid_list_is_closed(journal):
+    remember(journal, [decision()], POLICY, at=MONDAY)
+    memory = remember(journal, [], POLICY, at=TUESDAY)
+    assert memory.closed == ("PINV-1",)
+    assert journal.open_invoices() == set()
+    assert remember(journal, [], POLICY, at=TUESDAY).closed == ()
+
+
+def test_an_invoice_that_comes_back_is_reported_and_reopened(journal):
+    remember(journal, [decision()], POLICY, at=MONDAY)
+    remember(journal, [], POLICY, at=MONDAY)
+    change = remember(journal, [decision()], POLICY, at=TUESDAY).changes[0]
+    assert change.kind is ChangeKind.CHANGED
+    assert change.note == "back among the unpaid invoices; it was HOLD in run 1"
+    assert journal.open_invoices() == {"PINV-1"}
 
 
 def test_the_journal_rejects_updates_and_deletes(tmp_path):
     path = tmp_path / "journal.sqlite3"
     with SqliteJournal(path) as journal:
-        journal.record_run([decision()], POLICY, MONDAY)
+        remember(journal, [decision()], POLICY, at=MONDAY)
     raw = sqlite3.connect(path)
     try:
         with pytest.raises(sqlite3.DatabaseError, match="append-only"):
-            raw.execute("UPDATE decisions SET action = 'PAY'")
+            raw.execute("UPDATE entries SET body = '{}'")
         with pytest.raises(sqlite3.DatabaseError, match="append-only"):
-            raw.execute("DELETE FROM runs")
+            raw.execute("DELETE FROM entries")
     finally:
         raw.close()
 
 
-def test_an_edit_made_around_the_triggers_is_caught(tmp_path):
+@pytest.mark.parametrize(
+    "tamper",
+    [
+        "UPDATE entries SET body = replace(body, 'HOLD', 'PAY') WHERE kind = 'DECISION'",
+        "DELETE FROM entries WHERE kind = 'RUN' AND run = 2",
+    ],
+)
+def test_an_edit_or_removal_made_around_the_triggers_is_caught(tmp_path, tamper):
     path = tmp_path / "journal.sqlite3"
     with SqliteJournal(path) as journal:
-        journal.record_run([decision()], POLICY, MONDAY)
-        journal.record_run([decision()], POLICY, TUESDAY)
+        for day in (12, 13, 14):
+            remember(journal, [decision()], POLICY, at=MONDAY.replace(day=day))
         journal.verify()
     raw = sqlite3.connect(path)
     try:
-        raw.execute("DROP TRIGGER decisions_no_update")
-        raw.execute("UPDATE decisions SET action = 'PAY' WHERE id = 1")
+        raw.execute("DROP TRIGGER entries_no_update")
+        raw.execute("DROP TRIGGER entries_no_delete")
+        raw.execute(tamper)
         raw.commit()
     finally:
         raw.close()
-    with SqliteJournal(path) as journal, pytest.raises(JournalError, match="run 1"):
+    with SqliteJournal(path) as journal, pytest.raises(JournalError, match="was altered"):
         journal.verify()
+
+
+def test_a_journal_from_an_unknown_format_is_refused(tmp_path):
+    path = tmp_path / "journal.sqlite3"
+    raw = sqlite3.connect(path)
+    raw.execute("PRAGMA user_version = 99")
+    raw.close()
+    with pytest.raises(JournalError, match="format 99"):
+        SqliteJournal(path)
 
 
 def test_timestamps_without_a_timezone_are_refused(journal):
     with pytest.raises(JournalError):
-        journal.record_run([decision()], POLICY, datetime(2026, 10, 12, 9, 0))
+        remember(journal, [decision()], POLICY, at=datetime(2026, 10, 12, 9, 0))
+
+
+def count(path, kind):
+    raw = sqlite3.connect(path)
+    try:
+        return raw.execute("SELECT COUNT(*) FROM entries WHERE kind = ?", (kind,)).fetchone()[0]
+    finally:
+        raw.close()
 
 
 def test_the_fingerprint_ignores_how_the_amount_is_written():

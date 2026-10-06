@@ -1,4 +1,4 @@
-"""What the journal keeps: one entry per decision, never edited afterwards."""
+"""What the journal keeps, and how its entries are hashed. Entries are never edited."""
 
 import hashlib
 import json
@@ -25,7 +25,24 @@ class JournalEntry:
     entry_hash: str
 
 
+DOMAIN = "embco-journal-v1"
+GENESIS = "0" * 64
+
+
+def canonical(payload: object) -> str:
+    """One byte-exact JSON text per value: sorted keys, no spaces, UTF-8, no floats."""
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def digest(payload: object) -> str:
+    return hashlib.sha256(canonical(payload).encode()).hexdigest()
+
+
 def chain_hash(previous_hash: str, content: dict) -> str:
-    """Hash of an entry linked to the one before it, so a silent edit breaks the chain."""
-    text = json.dumps([previous_hash, content], sort_keys=True, separators=(",", ":"))
+    """Hash of an entry linked to the one before it, so a silent edit breaks the chain.
+
+    The domain tag keeps these hashes apart from any other hash of the same bytes and lets a
+    future format change its rules without ambiguity.
+    """
+    text = f"{DOMAIN}\n{previous_hash}\n{canonical(content)}"
     return hashlib.sha256(text.encode()).hexdigest()

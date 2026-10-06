@@ -13,6 +13,7 @@ from embco.journal.changes import Change, compare
 class RunMemory:
     run_id: int
     changes: tuple[Change, ...]
+    closed: tuple[str, ...]
 
 
 def remember(
@@ -22,6 +23,11 @@ def remember(
     *,
     at: datetime | None = None,
 ) -> RunMemory:
-    changes = tuple(compare(d, journal.last_entry(d.invoice)) for d in decisions)
-    run_id = journal.record_run(decisions, policy, at or datetime.now(UTC))
-    return RunMemory(run_id, changes)
+    """`decisions` must cover every unpaid invoice: any open invoice missing here is closed."""
+    open_before = journal.open_invoices()
+    changes = tuple(
+        compare(d, journal.last_entry(d.invoice), d.invoice in open_before) for d in decisions
+    )
+    closed = tuple(sorted(open_before - {d.invoice for d in decisions}))
+    run_id = journal.record_run(changes, closed, policy, at or datetime.now(UTC))
+    return RunMemory(run_id, changes, closed)
