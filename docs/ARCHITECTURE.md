@@ -43,7 +43,8 @@ The code lives in `agent/src/embco/`, one package per concern.
 | `journal` | Memory between runs, stored as changes: every run, each new or changed decision, the policy when it changes, invoices that leave the unpaid list, owner answers, wallet challenges and the signatures that answer them. One append-only, hash-chained sequence; it grows with events, not with runs. `DecisionJournal` protocol, SQLite store | Done |
 | `runner` | One cycle (verify memory, decide, apply owner answers, remember, issue wallet challenges, plan), the interval loop that survives an ERP outage and stops on a tampered memory, and the text report | Done |
 | `settings`, `cli` | Settings from the environment or `.env`, checked once, secrets never shown; the `embco` command: `run`, `watch`, `answer`, `challenge`, `sign-wallet`, `history`, `verify` | Done |
-| `llm` | Document extraction and suggestions, provider interface | Planned |
+| `llm` | AI helper: a plain-language summary and next step for each HOLD or ASK decision, through Claude with structured output (default Claude Haiku 4.5, the lowest-cost model; newer models also get low effort and the server-side refusal fallback). Explained once per decision and stored; a failure is logged and retried next cycle; the output is display only and never changes a decision. `Explainer` protocol. Off unless `EMBCO_EXPLAIN=on` | Done |
+| `llm` (next) | Reading invoices from photos or PDFs | Planned |
 | `payments` | Circle wallets, simulation, idempotency, timeout recovery | Planned |
 | `evidence` | Public feed of the journal | Planned |
 | `api` | Approvals, pause switch, webhooks | Planned |

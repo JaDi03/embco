@@ -18,6 +18,7 @@ from pathlib import Path
 from embco.decision import Verdict
 from embco.journal import JournalError, SqliteJournal, answer_ask, submit_wallet_signature
 from embco.ledger import ErpnextAdapter, LedgerError
+from embco.llm import ClaudeExplainer, Explainer
 from embco.runner import format_report, run_cycle, watch
 from embco.settings import Settings, SettingsError
 from embco.signing import typed_data
@@ -54,18 +55,28 @@ def _ledger(settings: Settings) -> ErpnextAdapter:
     )
 
 
+def _explainer(settings: Settings) -> Explainer | None:
+    if not settings.explain:
+        return None
+    return ClaudeExplainer(settings.llm_model, api_key=settings.anthropic_api_key)
+
+
 def _run(args, settings, journal) -> int:
-    report = run_cycle(_ledger(settings), journal, settings.policy, settings.company)
+    report = run_cycle(_ledger(settings), journal, settings.policy, settings.company,
+                       explainer=_explainer(settings))
     print(format_report(report, verbose=True))
     return 0
 
 
 def _watch(args, settings, journal) -> int:
     ledger = _ledger(settings)
-    log.info("watching %s every %s", settings.company, settings.interval)
+    explainer = _explainer(settings)
+    log.info("watching %s every %s (AI explanations %s)", settings.company, settings.interval,
+             f"on, {explainer.model}" if explainer else "off")
 
     def cycle() -> None:
-        report = run_cycle(ledger, journal, settings.policy, settings.company)
+        report = run_cycle(ledger, journal, settings.policy, settings.company,
+                           explainer=explainer)
         log.info("%s", format_report(report))
 
     watch(cycle, settings.interval, cycles=args.cycles)

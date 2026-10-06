@@ -11,6 +11,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from embco.decision import PolicyConfig
+from embco.llm import DEFAULT_MODEL
 
 PREFIX = "EMBCO_"
 REQUIRED = (
@@ -23,6 +24,8 @@ REQUIRED = (
 )
 DEFAULT_JOURNAL = "data/journal.sqlite3"
 DEFAULT_INTERVAL_MINUTES = 15
+_TRUE = {"1", "true", "yes", "on"}
+_FALSE = {"", "0", "false", "no", "off"}
 
 
 class SettingsError(Exception):
@@ -38,6 +41,9 @@ class Settings:
     policy: PolicyConfig
     journal_path: Path = Path(DEFAULT_JOURNAL)
     interval: timedelta = timedelta(minutes=DEFAULT_INTERVAL_MINUTES)
+    explain: bool = False
+    llm_model: str = DEFAULT_MODEL
+    anthropic_api_key: str | None = field(default=None, repr=False)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> "Settings":
@@ -62,6 +68,9 @@ class Settings:
             policy=policy,
             journal_path=Path(get("JOURNAL_PATH") or DEFAULT_JOURNAL),
             interval=timedelta(minutes=_minutes(get("INTERVAL_MINUTES"))),
+            explain=_flag("EXPLAIN", get("EXPLAIN")),
+            llm_model=get("LLM_MODEL") or DEFAULT_MODEL,
+            anthropic_api_key=env.get("ANTHROPIC_API_KEY", "").strip() or None,
         )
 
     @classmethod
@@ -98,3 +107,12 @@ def _minutes(text: str) -> int:
     if not text.isdigit() or int(text) < 1:
         raise SettingsError(f"{PREFIX}INTERVAL_MINUTES must be a whole number of minutes")
     return int(text)
+
+
+def _flag(name: str, text: str) -> bool:
+    value = text.lower()
+    if value in _TRUE:
+        return True
+    if value in _FALSE:
+        return False
+    raise SettingsError(f"{PREFIX}{name} must be on or off")

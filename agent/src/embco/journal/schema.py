@@ -3,7 +3,8 @@
 One table, one hash chain, in the order things happened. Kinds of entry:
 POLICY when the policy changes, RUN for every run, DECISION when a decision is new or changed,
 CLOSED when an invoice leaves the unpaid list, ANSWER when the owner answers an ASK, CHALLENGE
-when the agent asks a supplier to sign for a wallet, PROOF when a valid signature comes back.
+when the agent asks a supplier to sign for a wallet, PROOF when a valid signature comes back,
+EXPLANATION when the AI helper explains a decision to the owner (display only).
 """
 
 VERSION = 1
