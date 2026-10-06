@@ -5,8 +5,8 @@ from decimal import Decimal
 import pytest
 
 from embco.controls import Finding, Outcome
-from embco.decision import Action, Decision, DecisionEngine, PolicyConfig
-from embco.journal import ChangeKind, JournalError, SqliteJournal, fingerprint, remember
+from embco.decision import Action, Decision, DecisionEngine, PolicyConfig, fingerprint
+from embco.journal import ChangeKind, JournalError, SqliteJournal, remember
 from support import FakeLedger
 
 POLICY = PolicyConfig(max_per_payment=Decimal(5000), weekly_budget=Decimal(2500))

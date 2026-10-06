@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Protocol
 
-from embco.decision import Decision, PolicyConfig
+from embco.decision import Decision, OwnerAnswer, PolicyConfig
 from embco.journal.models import JournalEntry
 
 
@@ -24,6 +24,10 @@ class DecisionJournal(Protocol):
     def history(self, invoice: str) -> list[JournalEntry]:
         """Every decision ever taken on the invoice, oldest first."""
         ...
+
+    def record_answer(self, answer: OwnerAnswer) -> None: ...
+
+    def latest_answer(self, invoice: str) -> OwnerAnswer | None: ...
 
     def verify(self) -> None:
         """Raise JournalError if any entry was changed after it was written."""
