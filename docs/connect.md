@@ -24,7 +24,8 @@ Supplier wallets are entered once, in ERPNext. Only roles that can edit Supplier
 Manager, Purchase Master Manager) can change them; give everyday staff Purchase User. A new or
 changed wallet is held until the supplier signs for it and the owner approves it, and the shop
 contract still pays only wallets the owner approved with their own signature: the dashboard
-lists the ones the agent is waiting to pay. The agent requires an `https://` ERPNext URL
+lists the ones the agent is waiting to pay, and approving one there also answers the agent's
+question about it, so the first payment needs one approval. The agent requires an `https://` ERPNext URL
 (plain `http://` only to the same machine).
 
 Credentials go in a local `.env` (see `.env.example`), never in the repository.

@@ -1,5 +1,6 @@
 import json
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
@@ -8,9 +9,12 @@ from eth_abi import decode, encode
 from eth_utils import keccak, to_checksum_address
 
 from embco.circle import CircleTransaction, CircleWallet
+from embco.controls import WalletProof
+from embco.controls.base import Finding, Outcome
 from embco.decision import Action, Decision, PaymentPlan, PolicyConfig
 from embco.journal import SqliteJournal
 from embco.ledger import LedgerError
+from embco.ledger.models import Supplier
 from embco.payments import (
     Payer,
     PaymentSetupError,
@@ -26,9 +30,11 @@ from embco.payments.encoding import (
     pay_call,
     usdc_units,
 )
-from embco.payments.payer import MAX_ATTEMPTS, idempotency_key
+from embco.payments.payer import CHAIN_APPROVER, MAX_ATTEMPTS, idempotency_key
 from embco.runner import format_report, run_cycle
-from support import WALLET_A, FakeLedger, make_invoice
+from support import WALLET_A, WALLET_B, FakeLedger, make_invoice
+
+WALLET_C = "0x" + "c3" * 20
 
 SHOP = "0x" + "5c" * 20
 AGENT = to_checksum_address("0x" + "a9" * 20)
@@ -390,3 +396,71 @@ def test_the_report_tells_the_owner_which_wallet_to_approve(journal):
     report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer)
     wallet = to_checksum_address(WALLET_A)
     assert f"approve wallet {wallet} in the dashboard" in format_report(report)
+
+
+# one approval for a new wallet: the owner's signature in the contract answers the question
+
+
+def new_wallet_ledger(journal) -> FakeLedger:
+    """The supplier moved to WALLET_B and proved it controls it: the agent asks the owner."""
+    ledger = matching_ledger()
+    ledger.supplier = Supplier(name="S", wallet_address=WALLET_B)
+    journal.record_wallet_proof(WalletProof(supplier="S", wallet=WALLET_B, nonce="n",
+                                            signature="0x", signed_at=NOW))
+    return ledger
+
+
+def test_a_new_wallet_is_listed_and_its_approval_answers_the_question(journal, tmp_path):
+    ledger = new_wallet_ledger(journal)
+    payer, chain, circle = make_payer(ledger)
+    chain.unapproved.add(WALLET_B.lower())
+    payer.approvals_file = tmp_path / "pending.json"
+    first = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer)
+    assert [d.action for d in first.decisions] == [Action.ASK]
+    assert [p.wallet for p in first.settlement.needs_approval] == [to_checksum_address(WALLET_B)]
+    assert circle.sent == []
+    chain.unapproved.clear()  # the owner signed setPayee in the dashboard, nothing else
+    second = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW + timedelta(minutes=15),
+                       payments=payer)
+    [paid] = second.decisions
+    assert paid.action is Action.PAY and "approved by owner (approved the wallet" in paid.reasons[0]
+    assert len(circle.sent) == 1
+    assert journal.latest_answer("PINV-1").answered_by == CHAIN_APPROVER
+
+
+def test_a_wallet_approved_before_the_question_does_not_answer_it(journal):
+    ledger = new_wallet_ledger(journal)
+    payer, _, circle = make_payer(ledger)  # WALLET_B already approved in the contract
+    for minutes in (0, 15):
+        report = run_cycle(ledger, journal, POLICY, "TEST Shop",
+                           at=NOW + timedelta(minutes=minutes), payments=payer)
+        assert [d.action for d in report.decisions] == [Action.ASK]
+        assert report.settlement.needs_approval == ()
+    assert circle.sent == [] and journal.latest_answer("PINV-1") is None
+
+
+def test_a_wallet_changed_after_listing_is_not_answered_by_the_old_approval(journal):
+    ledger = new_wallet_ledger(journal)
+    payer, chain, circle = make_payer(ledger)
+    chain.unapproved.add(WALLET_B.lower())
+    run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer)
+    ledger.supplier = Supplier(name="S", wallet_address=WALLET_C)
+    journal.record_wallet_proof(WalletProof(supplier="S", wallet=WALLET_C, nonce="m",
+                                            signature="0x", signed_at=NOW))
+    chain.unapproved.clear()  # WALLET_B approved, WALLET_C too, but nobody was asked about C
+    report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW + timedelta(minutes=15),
+                       payments=payer)
+    assert [d.action for d in report.decisions] == [Action.ASK] and circle.sent == []
+
+
+def test_a_question_with_other_reasons_is_not_answered_by_a_wallet_approval(journal, tmp_path):
+    payer, chain, _ = make_payer()
+    chain.unapproved.add(WALLET_A.lower())
+    payer.approvals_file = tmp_path / "pending.json"
+    asked = replace(decision(), action=Action.ASK, findings=(
+        Finding("payee_wallet", Outcome.ASK, "new wallet"),
+        Finding("price_anomaly", Outcome.ASK, "price up 40%"),
+    ))
+    result = payer.settle(PaymentPlan(pay_now=(), deferred=(), held=(), asked=(asked,),
+                                      budget_left=Decimal(0)), journal)
+    assert result.needs_approval == () and journal.latest_payment("PINV-1") is None
