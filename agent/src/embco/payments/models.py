@@ -28,3 +28,12 @@ class PaymentEvent:
     tx_hash: str | None = None
     reason: str = ""
     erp_entry: str | None = None  # the ERP's payment entry, once recorded
+
+
+@dataclass(frozen=True)
+class PendingApproval:
+    """A wallet the agent would pay now, once the owner approves it in the shop contract."""
+
+    wallet: str
+    invoice: str
+    amount: Decimal

@@ -51,6 +51,7 @@ class FakeLedger:
                                      posting_date=date(2026, 9, 1))]
         self.payments = [PaymentRecord(name="PAY-0", supplier="S", amount=Decimal(1000),
                                        payee_wallet=WALLET_A)]
+        self.changes = []
 
     def get_supplier(self, name: str) -> Supplier:
         return self.supplier
@@ -72,6 +73,9 @@ class FakeLedger:
 
     def list_payments(self, supplier: str) -> list[PaymentRecord]:
         return list(self.payments)
+
+    def wallet_changes(self, supplier: str) -> list:
+        return list(self.changes)
 
 
 def context_for(ledger: FakeLedger, invoice: PurchaseInvoice | None = None) -> Context:

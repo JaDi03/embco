@@ -97,6 +97,11 @@ class ArcRpc:
         (paid,) = decode(["bool"], self._view(shop, "paid(bytes32)", ["bytes32"], [ref]))
         return paid
 
+    def is_approved(self, shop: str, payee: str) -> bool:
+        (approved,) = decode(["bool"], self._view(shop, "approvedPayee(address)", ["address"],
+                                                  [to_checksum_address(payee)]))
+        return approved
+
     def remaining_this_week(self, shop: str) -> int:
         (units,) = decode(["uint256"], self._view(shop, "remainingThisWeek()", [], []))
         return units

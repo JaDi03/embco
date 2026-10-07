@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -40,6 +41,7 @@ class FakeChain:
         self.paid: set[bytes] = set()
         self.remaining = usdc_units(Decimal("2000"))
         self.revert: str | None = None
+        self.unapproved: set[str] = set()
         self.simulated: list[tuple[str, bytes, str | None]] = []
 
     def agent_of(self, shop):
@@ -47,6 +49,9 @@ class FakeChain:
 
     def is_paid(self, shop, ref):
         return ref in self.paid
+
+    def is_approved(self, shop, payee):
+        return payee.lower() not in self.unapproved
 
     def remaining_this_week(self, shop):
         return self.remaining
@@ -344,3 +349,44 @@ def test_the_report_does_not_call_open_what_was_recorded_in_the_same_cycle(journ
     report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer)
     text = format_report(report)
     assert "RECORDED" in text and "not yet closed" not in text
+
+
+
+# wallets waiting for the owner's approval
+
+
+def test_an_unapproved_wallet_is_listed_for_the_dashboard_and_not_tried(journal, tmp_path):
+    payer, chain, circle = make_payer()
+    chain.unapproved.add(WALLET_A.lower())
+    payer.approvals_file = tmp_path / "public" / "pending.json"
+    result = payer.settle(plan(decision()), journal)
+    assert circle.sent == [] and chain.simulated == []
+    [pending] = result.needs_approval
+    assert (pending.wallet, pending.invoice, pending.amount) == (
+        to_checksum_address(WALLET_A), "PINV-1", Decimal("125.5"))
+    published = json.loads(payer.approvals_file.read_text())
+    assert published["shop"] == SHOP
+    assert published["pending"] == [{"wallet": to_checksum_address(WALLET_A),
+                                     "invoice": "PINV-1", "amount": "125.5"}]
+    assert "S" not in json.dumps(published["pending"])  # no supplier names
+    assert "approve wallet" in journal.latest_payment("PINV-1").reason
+
+
+def test_once_approved_the_wallet_leaves_the_list_and_is_paid(journal, tmp_path):
+    payer, chain, circle = make_payer()
+    chain.unapproved.add(WALLET_A.lower())
+    payer.approvals_file = tmp_path / "pending.json"
+    payer.settle(plan(decision()), journal)
+    chain.unapproved.clear()  # the owner signed setPayee in the dashboard
+    result = payer.settle(plan(decision()), journal)
+    assert result.needs_approval == () and len(circle.sent) == 1
+    assert json.loads(payer.approvals_file.read_text())["pending"] == []
+
+
+def test_the_report_tells_the_owner_which_wallet_to_approve(journal):
+    ledger = matching_ledger()
+    payer, chain, _ = make_payer(ledger)
+    chain.unapproved.add(WALLET_A.lower())
+    report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer)
+    wallet = to_checksum_address(WALLET_A)
+    assert f"approve wallet {wallet} in the dashboard" in format_report(report)

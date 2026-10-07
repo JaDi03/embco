@@ -74,3 +74,19 @@ def test_payment_settings_hide_secrets_and_check_the_shop_address():
     assert settings.pay and CANARY not in repr(settings)
     with pytest.raises(SettingsError, match="SHOP_ADDRESS"):
         Settings.from_env({**env, "EMBCO_SHOP_ADDRESS": "shop"})
+
+
+@pytest.mark.parametrize("url, ok", [
+    ("https://erp.example.com", True),
+    ("http://127.0.0.1:8080", True),
+    ("http://erp.example.com", False),
+    ("erp.example.com", False),
+    ("ftp://erp.example.com", False),
+])
+def test_the_erpnext_url_must_be_encrypted_unless_local(url, ok):
+    env = {**ENV, "EMBCO_ERPNEXT_URL": url}
+    if ok:
+        Settings.from_env(env)
+    else:
+        with pytest.raises(SettingsError, match="https://"):
+            Settings.from_env(env)

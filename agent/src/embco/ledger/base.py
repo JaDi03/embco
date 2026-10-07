@@ -9,6 +9,7 @@ from embco.ledger.models import (
     PurchaseReceipt,
     SettledPayment,
     Supplier,
+    WalletChange,
 )
 
 
@@ -33,6 +34,10 @@ class LedgerAdapter(Protocol):
 
     def list_payments(self, supplier: str) -> list[PaymentRecord]:
         """Payments already made to a supplier, oldest first."""
+        ...
+
+    def wallet_changes(self, supplier: str) -> list[WalletChange]:
+        """Edits of the supplier's wallet in the ERP, newest first (who and when)."""
         ...
 
 

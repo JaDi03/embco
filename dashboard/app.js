@@ -4,7 +4,8 @@
 import { ethers } from "./vendor/ethers-6.17.0.min.js";
 import { ARC_TESTNET, FAUCET_URL } from "./config.js";
 import { describeError } from "./errors.js";
-import { factory, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
+import { pendingApprovals } from "./approvals.js";
+import { factory, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
 import { formatUsdc, parseUsdc, shortAddress, ZERO_ADDRESS } from "./units.js";
 import * as wallet from "./wallet.js";
 
@@ -112,7 +113,42 @@ async function renderShop() {
   $("pause-button").hidden = !isOwner || state.paused;
   $("resume-button").hidden = !isOwner || !state.paused;
 
-  await renderHistory(isOwner);
+  await Promise.all([renderHistory(isOwner), renderApprovals(isOwner)]);
+}
+
+async function renderApprovals(isOwner) {
+  const card = $("approvals-card");
+  card.hidden = true;
+  if (!isOwner) return;
+  let pending;
+  try {
+    const isApproved = (address) => read((provider) => shopContract(session.shop, provider).approvedPayee(address));
+    pending = await pendingApprovals(session.shop, isApproved);
+  } catch (error) {
+    notify(describeError(error), "error");
+    return;
+  }
+  if (!pending.length) return;
+  card.hidden = false;
+  $("approvals").replaceChildren(
+    ...pending.map(({ wallet: address, invoices }) => {
+      const li = document.createElement("li");
+      const total = invoices.reduce((sum, i) => sum + i.amount, 0n);
+      const detail = document.createElement("span");
+      detail.append(link(address, addressUrl(address), "mono"));
+      detail.append(` ${formatUsdc(total)} USDC for ${invoices.map((i) => i.invoice).join(", ")}`);
+      const approve = Object.assign(document.createElement("button"), {
+        className: "btn btn-primary",
+        type: "button",
+        textContent: "Approve",
+      });
+      approve.addEventListener("click", () =>
+        act(approve, "Approve supplier", (shop) => shop.setPayee(address, true)),
+      );
+      li.append(detail, approve);
+      return li;
+    }),
+  );
 }
 
 async function renderHistory(isOwner) {

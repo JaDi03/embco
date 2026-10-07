@@ -5,12 +5,14 @@ Every payment, in this order:
    to a valid wallet.
 2. Skip it if the contract already marks the invoice paid, or if the contract's weekly cap
    has no room left (it waits; nothing is recorded).
-3. Simulate the exact call through the Arc node. A call that would revert is not sent: it is
+3. Skip it if the owner has not approved the wallet in the contract yet: it is listed for the
+   dashboard, where the owner approves it with one signature.
+4. Simulate the exact call through the Arc node. A call that would revert is not sent: it is
    recorded as BLOCKED with the contract's reason.
-4. Send it through Circle with an idempotency key derived from the payment and the attempt
+5. Send it through Circle with an idempotency key derived from the payment and the attempt
    number, so a retry after a crash returns the same transaction instead of a new one.
-5. Follow it until Circle reports a final state, now or in a later cycle.
-6. Once final, write it into the ERP as a payment entry (when a writer is given), now or in a
+6. Follow it until Circle reports a final state, now or in a later cycle.
+7. Once final, write it into the ERP as a payment entry (when a writer is given), now or in a
    later cycle if the ERP is down. The invoice then leaves the unpaid list.
 
 The contract is the real limit: it refuses a payee the owner has not approved, an amount over
@@ -24,6 +26,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Protocol
 
 from eth_utils import to_checksum_address
@@ -33,6 +36,7 @@ from embco.controls.payee_wallet import is_evm_address
 from embco.decision import Decision, PaymentPlan
 from embco.ledger import LedgerAdapter, LedgerError, PaymentWriter
 from embco.ledger.models import SettledPayment
+from embco.payments.approvals import write_approvals
 from embco.payments.chain import ArcRpc, ChainError, Reverted
 from embco.payments.encoding import (
     MEMO_CONTRACT,
@@ -42,7 +46,7 @@ from embco.payments.encoding import (
     pay_call,
     usdc_units,
 )
-from embco.payments.models import PaymentEvent, PaymentStatus
+from embco.payments.models import PaymentEvent, PaymentStatus, PendingApproval
 
 log = logging.getLogger("embco.payments")
 
@@ -74,6 +78,7 @@ class Settlement:
     events: tuple[PaymentEvent, ...] = ()
     waiting: tuple[str, ...] = ()  # invoices left for later: no room under the weekly cap
     problem: str = ""  # why nothing could be paid this cycle, if so
+    needs_approval: tuple[PendingApproval, ...] = ()  # wallets the owner must approve on chain
 
 
 def idempotency_key(shop: str, ref: bytes, payee: str, units: int, attempt: int) -> str:
@@ -94,6 +99,7 @@ class Payer:
     sleep: Callable[[float], None] = time.sleep
     clock: Callable[[], datetime] = field(default=lambda: datetime.now(UTC))
     writer: PaymentWriter | None = None
+    approvals_file: Path | None = None
     _agent: str | None = None
 
     def agent_address(self) -> str:
@@ -116,12 +122,13 @@ class Payer:
             events.extend(self._follow(pending, book, wait=False))
         remaining = self.chain.remaining_this_week(self.shop)
         waiting: list[str] = []
+        pending: list[PendingApproval] = []
         for decision in plan.pay_now:
             last = book.latest_payment(decision.invoice)
             if last and last.status in IN_FLIGHT:
                 continue
             try:
-                outcome = self._pay(decision, book, agent, remaining, last)
+                outcome = self._pay(decision, book, agent, remaining, last, pending)
             except (ChainError, CircleError, LedgerError) as error:
                 log.warning("payment of %s skipped this cycle: %s", decision.invoice, error)
                 continue
@@ -135,7 +142,10 @@ class Payer:
         if self.writer is not None:
             for done in book.unrecorded_payments():
                 events.extend(self._record(done, book))
-        return Settlement(events=tuple(events), waiting=tuple(waiting))
+        if self.approvals_file is not None:
+            write_approvals(self.approvals_file, self.shop, pending, self.clock())
+        return Settlement(events=tuple(events), waiting=tuple(waiting),
+                          needs_approval=tuple(pending))
 
     def _record(self, done: PaymentEvent, book: PaymentBook) -> list[PaymentEvent]:
         if self.writer is None or not done.tx_hash:
@@ -164,6 +174,7 @@ class Payer:
         agent: str,
         remaining: int,
         last: PaymentEvent | None,
+        pending: list[PendingApproval],
     ) -> list[PaymentEvent] | None:
         name = decision.invoice
         ref = invoice_ref(name)
@@ -200,6 +211,9 @@ class Payer:
                             reason="the contract already marks this invoice paid")
             book.record_payment(event)
             return [event]
+        if not self.chain.is_approved(self.shop, payee):
+            pending.append(PendingApproval(wallet=payee, invoice=name, amount=decision.amount))
+            return blocked(f"waiting for the owner to approve wallet {payee} in the dashboard")
         if units > remaining:
             return None
         data = memo_call(self.shop, pay_call(payee, units, ref), ref, name)

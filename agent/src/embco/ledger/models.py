@@ -1,6 +1,6 @@
 """ERP-agnostic domain models. Amounts are Decimal, never float."""
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
@@ -82,3 +82,12 @@ class SettledPayment(_Frozen):
     tx_hash: str
     payee_wallet: str
     note: str
+
+
+class WalletChange(_Frozen):
+    """One edit of a supplier's wallet in the ERP, from its change history."""
+
+    old: str | None
+    new: str | None
+    changed_by: str
+    changed_at: datetime

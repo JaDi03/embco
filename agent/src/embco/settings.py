@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from embco.decision import PolicyConfig
 from embco.llm import DEFAULT_MODEL
@@ -50,6 +51,7 @@ class Settings:
     agent_wallet_id: str | None = None
     pay: bool = False
     erpnext_paid_from: str | None = None
+    approvals_file: Path | None = None
     shop_address: str | None = None
     arc_rpc_url: str | None = field(default=None, repr=False)
 
@@ -68,6 +70,7 @@ class Settings:
                 "MAX_PRICE_INCREASE", get("MAX_PRICE_INCREASE") or "0.15"
             ),
         )
+        _check_erpnext_url(get("ERPNEXT_URL"))
         pay = _flag("PAY", get("PAY"))
         settings = cls(
             erpnext_url=get("ERPNEXT_URL"),
@@ -85,6 +88,7 @@ class Settings:
             agent_wallet_id=get("AGENT_WALLET_ID") or None,
             pay=pay,
             erpnext_paid_from=get("ERPNEXT_PAID_FROM") or None,
+            approvals_file=Path(get("APPROVALS_FILE")) if get("APPROVALS_FILE") else None,
             shop_address=get("SHOP_ADDRESS") or None,
             arc_rpc_url=env.get("ARC_TESTNET_RPC_URL", "").strip() or None,
         )
@@ -122,6 +126,17 @@ def read_env_file(path: Path) -> dict[str, str]:
         key, _, value = line.partition("=")
         values[key.strip()] = value.strip().strip("'\"")
     return values
+
+
+def _check_erpnext_url(url: str) -> None:
+    """Supplier wallets travel on this connection, so it must be encrypted and verified.
+    Plain http is accepted only to the same machine."""
+    parts = urlsplit(url)
+    if parts.scheme == "https" and parts.hostname:
+        return
+    if parts.scheme == "http" and parts.hostname in ("localhost", "127.0.0.1", "::1"):
+        return
+    raise SettingsError(f"{PREFIX}ERPNEXT_URL must start with https:// (http only to localhost)")
 
 
 def _amount(name: str, text: str) -> Decimal:

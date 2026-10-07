@@ -63,6 +63,8 @@ def _payments(report: CycleReport) -> list[str]:
             lines.append(f"  {e.status.value:<9} {e.invoice}  {fmt(e.amount)} USDC to "
                          f"{e.payee or e.supplier}{where}{why}")
         lines.extend(f"  waiting for room under the weekly cap: {i}" for i in s.waiting)
+        lines.extend(f"  approve wallet {p.wallet} in the dashboard to pay {p.invoice} "
+                     f"({fmt(p.amount)} USDC)" for p in s.needs_approval)
     recorded = {e.invoice for e in s.events if e.erp_entry} if s is not None else set()
     still_open = [i for i in report.already_paid if i not in recorded]
     if still_open:

@@ -56,7 +56,8 @@ ERPNext (system of record)  ->  embco agent                    ->  owner
   payment can be matched to its invoice without asking anyone.
 - **An owner dashboard** at [app.embco.xyz](https://app.embco.xyz) (`dashboard/`). With
   MetaMask, the owner creates their shop contract, sets the limits and the allowance, approves
-  supplier wallets, pauses the agent and sees every payment. The page holds no keys.
+  supplier wallets (the ones the agent is waiting to pay appear there, ready to approve with one
+  signature), pauses the agent and sees every payment. The page holds no keys.
 
 | Arc Testnet | Address |
 |---|---|
