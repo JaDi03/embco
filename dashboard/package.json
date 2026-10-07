@@ -1,0 +1,9 @@
+{
+  "name": "embco-dashboard",
+  "private": true,
+  "type": "module",
+  "description": "Static owner dashboard. No build step and no runtime dependencies beyond vendor/.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
