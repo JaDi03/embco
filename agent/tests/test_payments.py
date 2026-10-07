@@ -9,6 +9,7 @@ from eth_utils import keccak, to_checksum_address
 from embco.circle import CircleTransaction, CircleWallet
 from embco.decision import Action, Decision, PaymentPlan, PolicyConfig
 from embco.journal import SqliteJournal
+from embco.ledger import LedgerError
 from embco.payments import (
     Payer,
     PaymentSetupError,
@@ -282,3 +283,64 @@ def test_a_payment_problem_is_reported_and_the_agent_still_decides(journal):
     report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer)
     assert report.decisions and "dashboard" in report.settlement.problem
     assert "payments skipped" in format_report(report)
+
+
+# recording in the ERP
+
+
+class FakeWriter:
+    def __init__(self, fail: int = 0) -> None:
+        self.fail = fail
+        self.recorded = []
+
+    def record_payment(self, payment):
+        if self.fail:
+            self.fail -= 1
+            raise LedgerError("ERPNext returned HTTP 502")
+        self.recorded.append(payment)
+        return f"ACC-PAY-{len(self.recorded):04d}"
+
+
+def test_a_completed_payment_is_recorded_in_the_erp(journal):
+    payer, _, circle = make_payer()
+    payer.writer = writer = FakeWriter()
+    result = payer.settle(plan(decision()), journal)
+    assert [e.status for e in result.events] == [
+        PaymentStatus.SUBMITTED, PaymentStatus.COMPLETE, PaymentStatus.RECORDED]
+    [settled] = writer.recorded
+    assert settled.tx_hash == "0x" + "11" * 32 and settled.amount == Decimal("125.5")
+    assert settled.payee_wallet == to_checksum_address(WALLET_A)
+    assert "tx-1" in settled.note
+    last = journal.latest_payment("PINV-1")
+    assert last.status is PaymentStatus.RECORDED and last.erp_entry == "ACC-PAY-0001"
+    payer.settle(plan(decision()), journal)
+    assert len(circle.sent) == 1 and len(writer.recorded) == 1
+    journal.verify()
+
+
+def test_an_erp_outage_leaves_the_payment_to_record_next_cycle(journal):
+    payer, _, circle = make_payer()
+    payer.writer = writer = FakeWriter(fail=1)
+    payer.settle(plan(decision()), journal)
+    assert journal.latest_payment("PINV-1").status is PaymentStatus.COMPLETE
+    result = payer.settle(plan(), journal)
+    assert [e.status for e in result.events] == [PaymentStatus.RECORDED]
+    assert len(circle.sent) == 1 and len(writer.recorded) == 1
+
+
+def test_a_payment_without_a_known_transaction_is_not_recorded(journal):
+    payer, chain, _ = make_payer()
+    payer.writer = writer = FakeWriter()
+    chain.paid.add(invoice_ref("PINV-1"))  # paid by someone else, transaction unknown
+    payer.settle(plan(decision()), journal)
+    assert writer.recorded == []
+
+
+def test_the_report_does_not_call_open_what_was_recorded_in_the_same_cycle(journal):
+    ledger = matching_ledger()
+    payer, _, _ = make_payer(ledger)
+    payer.writer = FakeWriter(fail=1)
+    run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer)
+    report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer)
+    text = format_report(report)
+    assert "RECORDED" in text and "not yet closed" not in text

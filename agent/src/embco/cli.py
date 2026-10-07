@@ -55,6 +55,7 @@ def _ledger(settings: Settings) -> ErpnextAdapter:
         settings.erpnext_api_key,
         settings.erpnext_api_secret,
         company=settings.company,
+        paid_from=settings.erpnext_paid_from,
     )
 
 
@@ -73,6 +74,7 @@ def _payer(settings: Settings, ledger: ErpnextAdapter) -> Payer | None:
         circle=CircleClient(settings.circle_api_key, settings.circle_entity_secret),
         shop=settings.shop_address,
         wallet_id=settings.agent_wallet_id,
+        writer=ledger,
     )
 
 

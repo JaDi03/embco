@@ -70,3 +70,15 @@ class PurchaseInvoice(_Frozen):
     outstanding_amount: Decimal
     docstatus: int
     lines: tuple[DocumentLine, ...] = ()
+
+
+class SettledPayment(_Frozen):
+    """A payment that is final on chain, to be written into the ledger."""
+
+    invoice: str
+    supplier: str
+    amount: Decimal
+    paid_on: date
+    tx_hash: str
+    payee_wallet: str
+    note: str

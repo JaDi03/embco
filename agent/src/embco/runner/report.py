@@ -57,13 +57,16 @@ def _payments(report: CycleReport) -> list[str]:
             lines.append(f"  payments skipped: {s.problem}")
         for e in s.events:
             where = f" tx {e.tx_hash}" if e.tx_hash else ""
+            if e.erp_entry:
+                where += f", ERP {e.erp_entry}"
             why = f" ({e.reason})" if e.reason else ""
             lines.append(f"  {e.status.value:<9} {e.invoice}  {fmt(e.amount)} USDC to "
                          f"{e.payee or e.supplier}{where}{why}")
         lines.extend(f"  waiting for room under the weekly cap: {i}" for i in s.waiting)
-    if report.already_paid:
-        lines.append(f"  paid by the agent, not yet closed in the ERP: "
-                     f"{', '.join(report.already_paid)}")
+    recorded = {e.invoice for e in s.events if e.erp_entry} if s is not None else set()
+    still_open = [i for i in report.already_paid if i not in recorded]
+    if still_open:
+        lines.append(f"  paid by the agent, not yet closed in the ERP: {', '.join(still_open)}")
     return lines
 
 
