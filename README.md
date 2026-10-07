@@ -42,6 +42,14 @@ ERPNext (system of record)  ->  embco agent                    ->  owner
   The agent can only pay suppliers the owner approved, once per invoice, within a per-payment
   and a weekly cap. Only the owner can change those limits, and revoking the contract's
   allowance stops everything.
+- **An owner dashboard** at [app.embco.xyz](https://app.embco.xyz) (`dashboard/`). With
+  MetaMask, the owner creates their shop contract, sets the limits and the allowance, approves
+  supplier wallets, pauses the agent and sees every payment. The page holds no keys.
+
+| Arc Testnet | Address |
+|---|---|
+| `ShopPayablesFactory` | [`0x4d8efEc867e9F46c05E8359e81dEC6C7D13c95A8`](https://explorer.testnet.arc.io/address/0x4d8efEc867e9F46c05E8359e81dEC6C7D13c95A8) (source verified on [Sourcify](https://repo.sourcify.dev/5042002/0x4d8efEc867e9F46c05E8359e81dEC6C7D13c95A8)) |
+| USDC (ERC-20 interface) | `0x3600000000000000000000000000000000000000` |
 
 ## Plug it into your ERPNext
 
@@ -55,6 +63,7 @@ the three-way match. See [docs/connect.md](docs/connect.md).
 |---|---|
 | `agent/` | The agent: reads ERPNext, runs the controls and decides. Code in `agent/src/embco/`, tests in `agent/tests/` |
 | `contracts/` | The shop contract and its factory (Solidity, Arc Foundry): the limits the agent cannot move |
+| `dashboard/` | The owner's page: a static site with MetaMask, no build step and no server code |
 | `connector/` | Prepares an ERPNext instance for the agent |
 | `docs/` | Architecture and how to connect your ERPNext |
 

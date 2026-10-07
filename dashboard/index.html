@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Embco · Shop owner</title>
+    <meta name="description" content="Pay your suppliers in USDC on Arc, within limits only you can change." />
+    <meta name="theme-color" content="#0f172a" />
+    <link rel="icon" href="brand/logo.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="style.css" />
+    <script src="app.js" type="module"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Embco home">
+        <img src="brand/logo.svg" alt="" width="36" height="36" />
+        <span class="wordmark">Embco</span>
+      </a>
+      <div class="topbar-right">
+        <span class="pill" id="network-pill" hidden>Arc Testnet</span>
+        <button class="btn btn-ghost" id="account-button" hidden></button>
+      </div>
+    </header>
+
+    <div class="testnet-banner">Test network: these are test dollars with no real value.</div>
+
+    <main class="container">
+      <p class="notice" id="notice" role="status" aria-live="polite" hidden></p>
+
+      <section id="view-welcome" class="view" hidden>
+        <h1>Pay your suppliers in USDC, within limits only you can change.</h1>
+        <p class="lead">
+          Your money stays in your own wallet. The Embco agent can only pay suppliers you approved, once
+          per invoice, up to the limits you set here. You can pause it at any time.
+        </p>
+        <button class="btn btn-primary" id="connect-button">Connect MetaMask</button>
+        <p class="hint" id="no-wallet" hidden>
+          MetaMask is not installed in this browser.
+          <a href="https://metamask.io/download/" target="_blank" rel="noopener">Install MetaMask</a>, then reload this page.
+        </p>
+      </section>
+
+      <section id="view-network" class="view" hidden>
+        <h1>Switch to Arc Testnet</h1>
+        <p class="lead">Embco runs on Arc Testnet. MetaMask will add the network if it does not have it yet.</p>
+        <button class="btn btn-primary" id="switch-button">Switch network</button>
+      </section>
+
+      <section id="view-create" class="view" hidden>
+        <h1>Create your shop contract</h1>
+        <p class="lead">
+          You will be its owner. Only you can change these limits later. The agent can never go above them.
+        </p>
+        <form id="create-form" class="card form" novalidate>
+          <label>
+            Most the agent may pay in one payment (USDC)
+            <input name="maxPerPayment" inputmode="decimal" placeholder="300" required />
+          </label>
+          <label>
+            Most the agent may pay in a week (USDC)
+            <input name="weeklyCap" inputmode="decimal" placeholder="1000" required />
+          </label>
+          <label>
+            Agent wallet <span class="optional">(optional, you can add it later)</span>
+            <input name="agent" placeholder="0x..." autocomplete="off" spellcheck="false" />
+          </label>
+          <button class="btn btn-primary" type="submit">Create my shop contract</button>
+        </form>
+      </section>
+
+      <section id="view-shop" class="view" hidden>
+        <div class="shop-head">
+          <h1>Your shop</h1>
+          <a class="mono" id="shop-link" target="_blank" rel="noopener"></a>
+          <p class="hint" id="not-owner" hidden>You are viewing this shop with a wallet that is not its owner.</p>
+        </div>
+
+        <div class="grid">
+          <article class="card">
+            <h2>Money</h2>
+            <dl class="facts">
+              <div><dt>In your wallet</dt><dd id="balance"></dd></div>
+              <div><dt>The agent may use</dt><dd id="allowance"></dd></div>
+            </dl>
+            <p class="hint">
+              The money never leaves your wallet until a payment is made. Revoking stops every payment at once.
+            </p>
+            <form id="allowance-form" class="inline-form owner-only" novalidate>
+              <input name="amount" inputmode="decimal" placeholder="Amount in USDC" aria-label="Amount the agent may use" />
+              <button class="btn btn-primary" type="submit">Set</button>
+              <button class="btn btn-danger" type="button" id="revoke-button">Revoke</button>
+            </form>
+          </article>
+
+          <article class="card">
+            <h2>Limits</h2>
+            <dl class="facts">
+              <div><dt>Per payment</dt><dd id="max-per-payment"></dd></div>
+              <div><dt>Per week</dt><dd id="weekly-cap"></dd></div>
+              <div><dt>Left this week</dt><dd id="remaining"></dd></div>
+            </dl>
+            <form id="limits-form" class="stack-form owner-only" novalidate>
+              <input name="maxPerPayment" inputmode="decimal" placeholder="Per payment (USDC)" aria-label="New per-payment limit" />
+              <input name="weeklyCap" inputmode="decimal" placeholder="Per week (USDC)" aria-label="New weekly limit" />
+              <button class="btn btn-primary" type="submit">Change limits</button>
+            </form>
+          </article>
+
+          <article class="card">
+            <h2>Agent</h2>
+            <dl class="facts">
+              <div><dt>Status</dt><dd id="agent-status"></dd></div>
+              <div><dt>Wallet</dt><dd class="mono" id="agent-address"></dd></div>
+            </dl>
+            <div class="row owner-only">
+              <button class="btn btn-danger" id="pause-button" type="button">Pause the agent</button>
+              <button class="btn btn-primary" id="resume-button" type="button">Resume the agent</button>
+            </div>
+            <form id="agent-form" class="inline-form owner-only" novalidate>
+              <input name="agent" placeholder="New agent wallet 0x..." autocomplete="off" spellcheck="false" aria-label="New agent wallet" />
+              <button class="btn btn-ghost" type="submit">Change</button>
+            </form>
+          </article>
+
+          <article class="card wide">
+            <h2>Approved suppliers</h2>
+            <p class="hint">The agent can only pay these wallets. Confirm a new wallet with the supplier on a number you already have before adding it.</p>
+            <ul class="list" id="suppliers"></ul>
+            <form id="supplier-form" class="inline-form owner-only" novalidate>
+              <input name="supplier" placeholder="Supplier wallet 0x..." autocomplete="off" spellcheck="false" aria-label="Supplier wallet" />
+              <button class="btn btn-primary" type="submit">Approve</button>
+            </form>
+          </article>
+
+          <article class="card wide">
+            <h2>Payments</h2>
+            <ul class="list" id="payments"></ul>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <a href="https://arc.network" target="_blank" rel="noopener" class="built-on">
+        <span>Built on</span>
+        <img src="built-on/arc.png" alt="Arc" height="20" />
+      </a>
+      <nav>
+        <a id="faucet-link" target="_blank" rel="noopener">Get test USDC</a>
+        <a id="explorer-link" target="_blank" rel="noopener">Arc explorer</a>
+      </nav>
+    </footer>
+  </body>
+</html>

@@ -21,6 +21,9 @@ ERPNext  --REST (limited user)-->  ledger/     domain models, LedgerAdapter, erp
 
 Arc Testnet:  ShopPayablesFactory --creates--> ShopPayables (one per shop, owned by the shop)
               pays from the owner's wallet, within limits only the owner can change
+                     ^
+                     |  owner signs every change in MetaMask
+              dashboard/ (app.embco.xyz)
 ```
 
 ## Principles
@@ -45,6 +48,7 @@ The agent lives in `agent/src/embco/`, one package per concern. The contracts li
 | `runner` | One cycle (verify memory, decide, apply owner answers, remember, issue wallet challenges, explain, plan), the interval loop that survives an ERP outage and stops on a tampered memory, and the text report |
 | `settings`, `cli` | Settings from the environment or `.env`, checked once, secrets never shown; the `embco` command: `run`, `watch`, `answer`, `challenge`, `sign-wallet`, `history`, `verify` |
 | `llm` | A plain-language summary and next step for each HOLD or ASK decision, through Claude with structured output (default Claude Haiku 4.5; newer models also get low effort and the server-side refusal fallback). Explained once per decision and stored; a failure is logged and retried next cycle; never changes a decision. Off unless `EMBCO_EXPLAIN=on` |
+| `dashboard/` | Static owner page (ethers 6.17.0 vendored, no build). Connects MetaMask, adds Arc Testnet, creates the shop from the factory, and lets the owner set the allowance and limits, approve suppliers, pause or resume the agent, and read suppliers and payments from the contract's events. Money is parsed and shown as exact 6-decimal integers. Chain reads go through the site's own `/rpc` proxy, which adds the node credential on the server, so the page never holds one. Served with a strict Content Security Policy |
 | `contracts/` (Solidity) | `ShopPayables`, one per shop, created by its owner from `ShopPayablesFactory`. The money stays in the owner's wallet; the agent can only pay approved suppliers, once per invoice, within a per-payment and a weekly cap; owner or agent can pause, only the owner resumes or changes limits. Unit and fuzz tests, plus a fork test against Arc Testnet's real USDC |
 
 ## ERP independence
