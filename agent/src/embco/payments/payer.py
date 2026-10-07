@@ -10,6 +10,8 @@ Every payment, in this order:
 4. Send it through Circle with an idempotency key derived from the payment and the attempt
    number, so a retry after a crash returns the same transaction instead of a new one.
 5. Follow it until Circle reports a final state, now or in a later cycle.
+6. Once final, write it into the ERP as a payment entry (when a writer is given), now or in a
+   later cycle if the ERP is down. The invoice then leaves the unpaid list.
 
 The contract is the real limit: it refuses a payee the owner has not approved, an amount over
 the per-payment limit or the weekly cap, and an invoice already paid.
@@ -29,7 +31,8 @@ from eth_utils import to_checksum_address
 from embco.circle import CircleClient, CircleError, CircleTransaction
 from embco.controls.payee_wallet import is_evm_address
 from embco.decision import Decision, PaymentPlan
-from embco.ledger import LedgerAdapter, LedgerError
+from embco.ledger import LedgerAdapter, LedgerError, PaymentWriter
+from embco.ledger.models import SettledPayment
 from embco.payments.chain import ArcRpc, ChainError, Reverted
 from embco.payments.encoding import (
     MEMO_CONTRACT,
@@ -44,7 +47,7 @@ from embco.payments.models import PaymentEvent, PaymentStatus
 log = logging.getLogger("embco.payments")
 
 PAYABLE_CURRENCY = "USD"  # the shop contract pays USDC
-IN_FLIGHT = (PaymentStatus.SUBMITTED, PaymentStatus.COMPLETE)
+IN_FLIGHT = (PaymentStatus.SUBMITTED, PaymentStatus.COMPLETE, PaymentStatus.RECORDED)
 MAX_ATTEMPTS = 3  # transactions sent for one invoice before it waits for a person
 
 
@@ -62,6 +65,8 @@ class PaymentBook(Protocol):
     def payment_attempts(self, invoice: str) -> int: ...
 
     def pending_payments(self) -> list[PaymentEvent]: ...
+
+    def unrecorded_payments(self) -> list[PaymentEvent]: ...
 
 
 @dataclass(frozen=True)
@@ -88,6 +93,7 @@ class Payer:
     poll_every: float = 2.0
     sleep: Callable[[float], None] = time.sleep
     clock: Callable[[], datetime] = field(default=lambda: datetime.now(UTC))
+    writer: PaymentWriter | None = None
     _agent: str | None = None
 
     def agent_address(self) -> str:
@@ -126,7 +132,30 @@ class Payer:
                 events.append(event)
                 if event.status is PaymentStatus.SUBMITTED:
                     remaining -= usdc_units(event.amount)
+        if self.writer is not None:
+            for done in book.unrecorded_payments():
+                events.extend(self._record(done, book))
         return Settlement(events=tuple(events), waiting=tuple(waiting))
+
+    def _record(self, done: PaymentEvent, book: PaymentBook) -> list[PaymentEvent]:
+        if self.writer is None or not done.tx_hash:
+            return []
+        note = (f"PAY decided by the embco agent; invoice ref {done.invoice_ref}; "
+                f"Circle transaction {done.circle_tx_id}")
+        try:
+            entry = self.writer.record_payment(SettledPayment(
+                invoice=done.invoice, supplier=done.supplier, amount=done.amount,
+                paid_on=done.at.date(), tx_hash=done.tx_hash, payee_wallet=done.payee,
+                note=note,
+            ))
+        except LedgerError as error:
+            log.warning("payment of %s not recorded in the ERP yet: %s", done.invoice, error)
+            return []
+        event = replace(done, status=PaymentStatus.RECORDED, at=self.clock(), erp_entry=entry,
+                        reason="")
+        book.record_payment(event)
+        log.info("payment of %s recorded in the ERP as %s", done.invoice, entry)
+        return [event]
 
     def _pay(
         self,

@@ -38,7 +38,8 @@ ERPNext (system of record)  ->  embco agent                    ->  owner
    so the agent knows what changed and nobody can rewrite the past unnoticed.
 5. **Explain**, optionally, each held or asked invoice in plain words, with Claude.
 6. **Pay** what it approved, optionally: it simulates the exact call first, sends it through
-   Circle with an idempotency key, follows it to a final state and records it. The contract
+   Circle with an idempotency key, follows it to a final state, records it, and submits the
+   Payment Entry in ERPNext so the invoice closes there too. The contract
    refuses anything outside the owner's limits, and each invoice can be paid only once.
 
 ## Built on Arc and Circle

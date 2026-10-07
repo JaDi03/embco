@@ -69,6 +69,10 @@ class DecisionJournal(Protocol):
         """Payments sent to Circle whose final result is not recorded yet."""
         ...
 
+    def unrecorded_payments(self) -> list[PaymentEvent]:
+        """Payments final on chain, with a transaction, not yet written into the ERP."""
+        ...
+
     def verify(self) -> None:
         """Raise JournalError if any entry was changed or removed after it was written."""
         ...

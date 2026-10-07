@@ -7,6 +7,7 @@ from embco.ledger.models import (
     PurchaseInvoice,
     PurchaseOrder,
     PurchaseReceipt,
+    SettledPayment,
     Supplier,
 )
 
@@ -32,4 +33,13 @@ class LedgerAdapter(Protocol):
 
     def list_payments(self, supplier: str) -> list[PaymentRecord]:
         """Payments already made to a supplier, oldest first."""
+        ...
+
+
+class PaymentWriter(Protocol):
+    """The one write the agent makes to the accounting system: a payment that is final on chain."""
+
+    def record_payment(self, payment: SettledPayment) -> str:
+        """Create and submit the payment entry and return its name. Writing the same
+        transaction twice returns the existing entry instead of a second one."""
         ...

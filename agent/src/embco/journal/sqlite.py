@@ -186,6 +186,8 @@ class SqliteJournal:
             "tx_hash": event.tx_hash,
             "reason": event.reason,
         }
+        if event.erp_entry:
+            body["erp_entry"] = event.erp_entry
         self._append_owner_entry("PAYMENT", event.at, body, event.invoice)
 
     def latest_payment(self, invoice: str) -> PaymentEvent | None:
@@ -197,6 +199,9 @@ class SqliteJournal:
 
     def pending_payments(self) -> list[PaymentEvent]:
         return [_payment(row) for row in self._db.execute(schema.PENDING_PAYMENTS)]
+
+    def unrecorded_payments(self) -> list[PaymentEvent]:
+        return [_payment(row) for row in self._db.execute(schema.UNRECORDED_PAYMENTS)]
 
     def verify(self) -> None:
         previous = GENESIS
@@ -300,6 +305,7 @@ def _payment(row: tuple) -> PaymentEvent:
         circle_tx_id=body["circle_tx_id"],
         tx_hash=body["tx_hash"],
         reason=body["reason"],
+        erp_entry=body.get("erp_entry"),
     )
 
 

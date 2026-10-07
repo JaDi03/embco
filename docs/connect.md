@@ -4,8 +4,10 @@ embco runs as its own service next to your ERPNext. You do not deploy a new syst
 not give it admin rights. The connection is three changes:
 
 1. **An API user with a limited role** (roles: Purchase User, Stock User, Accounts User). The
-   agent only reads suppliers, purchase orders, purchase receipts, purchase invoices and
-   payment entries.
+   agent reads suppliers, purchase orders, purchase receipts, purchase invoices and
+   payment entries. Its one write: when it pays, it submits the Payment Entry for that invoice,
+   with the Arc transaction hash. `EMBCO_ERPNEXT_PAID_FROM` names the account the money leaves
+   from (for example a "USDC Wallet" bank account); without it, ERPNext's default is used.
 2. **A wallet field on Supplier** (`custom_wallet_address`) and payee and transaction fields on
    Payment Entry. Created through Customize Form; no code.
 3. **Two settings in Buying Settings**: purchase order required and purchase receipt required.

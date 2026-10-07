@@ -11,6 +11,7 @@ class PaymentStatus(StrEnum):
     COMPLETE = "COMPLETE"  # final on chain
     FAILED = "FAILED"  # Circle or the chain rejected it; a new attempt may follow
     BLOCKED = "BLOCKED"  # not sent: the simulation or a check said it would fail
+    RECORDED = "RECORDED"  # final on chain and written into the ERP as a payment entry
 
 
 @dataclass(frozen=True)
@@ -26,3 +27,4 @@ class PaymentEvent:
     circle_tx_id: str | None = None
     tx_hash: str | None = None
     reason: str = ""
+    erp_entry: str | None = None  # the ERP's payment entry, once recorded

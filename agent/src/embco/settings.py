@@ -49,6 +49,7 @@ class Settings:
     circle_entity_secret: str | None = field(default=None, repr=False)
     agent_wallet_id: str | None = None
     pay: bool = False
+    erpnext_paid_from: str | None = None
     shop_address: str | None = None
     arc_rpc_url: str | None = field(default=None, repr=False)
 
@@ -83,6 +84,7 @@ class Settings:
             circle_entity_secret=env.get("CIRCLE_ENTITY_SECRET", "").strip() or None,
             agent_wallet_id=get("AGENT_WALLET_ID") or None,
             pay=pay,
+            erpnext_paid_from=get("ERPNEXT_PAID_FROM") or None,
             shop_address=get("SHOP_ADDRESS") or None,
             arc_rpc_url=env.get("ARC_TESTNET_RPC_URL", "").strip() or None,
         )
