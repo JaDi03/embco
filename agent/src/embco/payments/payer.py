@@ -7,6 +7,8 @@ Every payment, in this order:
    has no room left (it waits; nothing is recorded).
 3. Skip it if the owner has not approved the wallet in the contract yet: it is listed for the
    dashboard, where the owner approves it with one signature.
+   An invoice the agent asks about only because its wallet is new is listed the same way, and
+   that one signature is also the owner's answer: the owner approves the first payment once.
 4. Simulate the exact call through the Arc node. A call that would revert is not sent: it is
    recorded as BLOCKED with the contract's reason.
 5. Send it through Circle with an idempotency key derived from the payment and the attempt
@@ -32,8 +34,9 @@ from typing import Protocol
 from eth_utils import to_checksum_address
 
 from embco.circle import CircleClient, CircleError, CircleTransaction
-from embco.controls.payee_wallet import is_evm_address
-from embco.decision import Decision, PaymentPlan
+from embco.controls.base import Outcome
+from embco.controls.payee_wallet import PayeeWallet, is_evm_address
+from embco.decision import Action, Decision, OwnerAnswer, PaymentPlan, Verdict, fingerprint
 from embco.ledger import LedgerAdapter, LedgerError, PaymentWriter
 from embco.ledger.models import SettledPayment
 from embco.payments.approvals import write_approvals
@@ -53,6 +56,22 @@ log = logging.getLogger("embco.payments")
 PAYABLE_CURRENCY = "USD"  # the shop contract pays USDC
 IN_FLIGHT = (PaymentStatus.SUBMITTED, PaymentStatus.COMPLETE, PaymentStatus.RECORDED)
 MAX_ATTEMPTS = 3  # transactions sent for one invoice before it waits for a person
+CHAIN_APPROVER = "owner (approved the wallet in the contract)"
+
+
+def approve_wallet_reason(payee: str) -> str:
+    return f"waiting for the owner to approve wallet {payee} in the dashboard"
+
+
+def answer_by_approval_reason(payee: str) -> str:
+    return f"{approve_wallet_reason(payee)}; that approval also answers the question"
+
+
+def asks_only_about_wallet(decision: Decision) -> bool:
+    """An ASK whose only open question is a wallet never paid before."""
+    asking = [f for f in decision.findings if f.outcome is Outcome.ASK]
+    return (decision.action is Action.ASK and bool(asking)
+            and all(f.control == PayeeWallet.name for f in asking))
 
 
 class PaymentSetupError(Exception):
@@ -139,6 +158,13 @@ class Payer:
                 events.append(event)
                 if event.status is PaymentStatus.SUBMITTED:
                     remaining -= usdc_units(event.amount)
+        for decision in plan.asked:
+            if not asks_only_about_wallet(decision):
+                continue
+            try:
+                events.extend(self._list_for_approval(decision, book, pending))
+            except (ChainError, LedgerError) as error:
+                log.warning("wallet of %s not listed this cycle: %s", decision.invoice, error)
         if self.writer is not None:
             for done in book.unrecorded_payments():
                 events.extend(self._record(done, book))
@@ -146,6 +172,58 @@ class Payer:
             write_approvals(self.approvals_file, self.shop, pending, self.clock())
         return Settlement(events=tuple(events), waiting=tuple(waiting),
                           needs_approval=tuple(pending))
+
+    def answers_from_chain(
+        self, decisions: list[Decision], book: PaymentBook
+    ) -> list[OwnerAnswer]:
+        """Wallet questions the owner answered by approving the wallet in the contract.
+
+        Only for a wallet the agent listed as waiting (so the approval came after the question),
+        that is still the one on file. A wallet approved before the question was asked answers
+        nothing: the owner answers that question directly.
+        """
+        answers = []
+        for decision in decisions:
+            if not asks_only_about_wallet(decision):
+                continue
+            last = book.latest_payment(decision.invoice)
+            if (not last or last.status is not PaymentStatus.BLOCKED
+                    or last.reason != answer_by_approval_reason(last.payee)):
+                continue
+            wallet = self.ledger.get_supplier(decision.supplier).wallet_address or ""
+            if not is_evm_address(wallet) or to_checksum_address(wallet) != last.payee:
+                continue
+            if not self.chain.is_approved(self.shop, last.payee):
+                continue
+            answers.append(OwnerAnswer(
+                invoice=decision.invoice, fingerprint=fingerprint(decision),
+                verdict=Verdict.APPROVE, answered_by=CHAIN_APPROVER, answered_at=self.clock(),
+                note=f"wallet {last.payee} approved in the shop contract",
+            ))
+        return answers
+
+    def _list_for_approval(
+        self, decision: Decision, book: PaymentBook, pending: list[PendingApproval]
+    ) -> list[PaymentEvent]:
+        wallet = self.ledger.get_supplier(decision.supplier).wallet_address or ""
+        if not is_evm_address(wallet):
+            return []
+        payee = to_checksum_address(wallet)
+        if self.chain.is_approved(self.shop, payee):
+            return []  # approved before the question: the owner answers it directly
+        pending.append(PendingApproval(wallet=payee, invoice=decision.invoice,
+                                       amount=decision.amount))
+        reason = answer_by_approval_reason(payee)
+        last = book.latest_payment(decision.invoice)
+        if last and last.status is PaymentStatus.BLOCKED and last.reason == reason:
+            return []
+        event = PaymentEvent(
+            invoice=decision.invoice, status=PaymentStatus.BLOCKED, at=self.clock(),
+            supplier=decision.supplier, payee=payee, amount=decision.amount,
+            invoice_ref="0x" + invoice_ref(decision.invoice).hex(), reason=reason,
+        )
+        book.record_payment(event)
+        return [event]
 
     def _record(self, done: PaymentEvent, book: PaymentBook) -> list[PaymentEvent]:
         if self.writer is None or not done.tx_hash:
@@ -213,7 +291,7 @@ class Payer:
             return [event]
         if not self.chain.is_approved(self.shop, payee):
             pending.append(PendingApproval(wallet=payee, invoice=name, amount=decision.amount))
-            return blocked(f"waiting for the owner to approve wallet {payee} in the dashboard")
+            return blocked(approve_wallet_reason(payee))
         if units > remaining:
             return None
         data = memo_call(self.shop, pay_call(payee, units, ref), ref, name)

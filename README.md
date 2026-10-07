@@ -32,7 +32,7 @@ ERPNext (system of record)  ->  embco agent                    ->  owner
 1. **Read** the shop's documents from ERPNext through its REST API, with a limited user.
 2. **Check** them: three-way match, duplicates, price anomaly, payment limit, supplier status,
    and the supplier's wallet. A new wallet must be signed for by the supplier, then approved by
-   the owner.
+   the owner once, in the dashboard: that one signature in the contract is also the answer.
 3. **Decide** PAY, HOLD or ASK with a fixed rule, and write the reason. A model never decides.
 4. **Remember** every decision and every owner answer in an append-only, hash-chained journal,
    so the agent knows what changed and nobody can rewrite the past unnoticed.
