@@ -1,0 +1,28 @@
+"""What the agent remembers about each payment it tries. Amounts are Decimal, never float."""
+
+from dataclasses import dataclass
+from datetime import datetime
+from decimal import Decimal
+from enum import StrEnum
+
+
+class PaymentStatus(StrEnum):
+    SUBMITTED = "SUBMITTED"  # Circle accepted the transaction; it is on its way
+    COMPLETE = "COMPLETE"  # final on chain
+    FAILED = "FAILED"  # Circle or the chain rejected it; a new attempt may follow
+    BLOCKED = "BLOCKED"  # not sent: the simulation or a check said it would fail
+
+
+@dataclass(frozen=True)
+class PaymentEvent:
+    invoice: str
+    status: PaymentStatus
+    at: datetime
+    supplier: str
+    payee: str
+    amount: Decimal
+    invoice_ref: str  # 0x-prefixed bytes32 the contract stores
+    attempt: int = 0
+    circle_tx_id: str | None = None
+    tx_hash: str | None = None
+    reason: str = ""

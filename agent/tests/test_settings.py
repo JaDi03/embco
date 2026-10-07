@@ -58,3 +58,19 @@ def test_the_env_file_fills_only_what_the_environment_does_not_set(tmp_path, mon
     assert Settings.load(env_file).company == "From File"
     monkeypatch.setenv("EMBCO_COMPANY", "From Environment")
     assert Settings.load(env_file).company == "From Environment"
+
+
+def test_payments_are_off_by_default_and_need_everything_when_on():
+    assert Settings.from_env(ENV).pay is False
+    with pytest.raises(SettingsError, match="CIRCLE_API_KEY, CIRCLE_ENTITY_SECRET"):
+        Settings.from_env({**ENV, "EMBCO_PAY": "on"})
+
+
+def test_payment_settings_hide_secrets_and_check_the_shop_address():
+    env = {**ENV, "EMBCO_PAY": "on", "CIRCLE_API_KEY": CANARY, "CIRCLE_ENTITY_SECRET": CANARY,
+           "EMBCO_AGENT_WALLET_ID": "w-1", "ARC_TESTNET_RPC_URL": "https://node/" + CANARY,
+           "EMBCO_SHOP_ADDRESS": "0x" + "5c" * 20}
+    settings = Settings.from_env(env)
+    assert settings.pay and CANARY not in repr(settings)
+    with pytest.raises(SettingsError, match="SHOP_ADDRESS"):
+        Settings.from_env({**env, "EMBCO_SHOP_ADDRESS": "shop"})

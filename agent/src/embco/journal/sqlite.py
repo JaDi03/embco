@@ -22,6 +22,7 @@ from embco.journal.base import JournalError
 from embco.journal.changes import Change, ChangeKind
 from embco.journal.models import GENESIS, JournalEntry, canonical, chain_hash, digest
 from embco.llm.base import Explanation
+from embco.payments.models import PaymentEvent, PaymentStatus
 
 CLOSED_NOTE = "no longer among the unpaid invoices in the ERP"
 
@@ -173,6 +174,30 @@ class SqliteJournal:
             created_at=datetime.fromisoformat(row[2]),
         )
 
+    def record_payment(self, event: PaymentEvent) -> None:
+        body = {
+            "status": event.status.value,
+            "supplier": event.supplier,
+            "payee": event.payee,
+            "amount": str(event.amount),
+            "invoice_ref": event.invoice_ref,
+            "attempt": event.attempt,
+            "circle_tx_id": event.circle_tx_id,
+            "tx_hash": event.tx_hash,
+            "reason": event.reason,
+        }
+        self._append_owner_entry("PAYMENT", event.at, body, event.invoice)
+
+    def latest_payment(self, invoice: str) -> PaymentEvent | None:
+        row = self._db.execute(schema.LAST_OF_KIND, (invoice, "PAYMENT")).fetchone()
+        return _payment(row) if row else None
+
+    def payment_attempts(self, invoice: str) -> int:
+        return self._db.execute(schema.PAYMENT_ATTEMPTS, (invoice,)).fetchone()[0]
+
+    def pending_payments(self) -> list[PaymentEvent]:
+        return [_payment(row) for row in self._db.execute(schema.PENDING_PAYMENTS)]
+
     def verify(self) -> None:
         previous = GENESIS
         for number, (kind, run, invoice, at, body, stored) in enumerate(
@@ -197,7 +222,7 @@ class SqliteJournal:
     def _append_owner_entry(
         self, kind: str, at: datetime, body: dict, invoice: str | None = None
     ) -> None:
-        """Entries outside a run: owner answers and the wallet challenge exchange."""
+        """Entries outside a run: owner answers, the wallet challenge exchange, payments."""
         stamp = _timestamp(at)
         with self._transaction():
             self._append(self._head(), kind, None, invoice, stamp, body)
@@ -257,6 +282,24 @@ def _entry(row: tuple) -> JournalEntry:
         findings=tuple(Finding(c, Outcome(o), r) for c, o, r in body["findings"]),
         fingerprint=body["fingerprint"],
         entry_hash=entry_hash,
+    )
+
+
+def _payment(row: tuple) -> PaymentEvent:
+    _, invoice, at, text, _ = row
+    body = json.loads(text)
+    return PaymentEvent(
+        invoice=invoice,
+        status=PaymentStatus(body["status"]),
+        at=datetime.fromisoformat(at),
+        supplier=body["supplier"],
+        payee=body["payee"],
+        amount=Decimal(body["amount"]),
+        invoice_ref=body["invoice_ref"],
+        attempt=body["attempt"],
+        circle_tx_id=body["circle_tx_id"],
+        tx_hash=body["tx_hash"],
+        reason=body["reason"],
     )
 
 
