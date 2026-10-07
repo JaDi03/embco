@@ -4,6 +4,7 @@ Secrets never appear in errors, logs or repr.
 """
 
 import os
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -44,6 +45,12 @@ class Settings:
     explain: bool = False
     llm_model: str = DEFAULT_MODEL
     anthropic_api_key: str | None = field(default=None, repr=False)
+    circle_api_key: str | None = field(default=None, repr=False)
+    circle_entity_secret: str | None = field(default=None, repr=False)
+    agent_wallet_id: str | None = None
+    pay: bool = False
+    shop_address: str | None = None
+    arc_rpc_url: str | None = field(default=None, repr=False)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> "Settings":
@@ -60,7 +67,8 @@ class Settings:
                 "MAX_PRICE_INCREASE", get("MAX_PRICE_INCREASE") or "0.15"
             ),
         )
-        return cls(
+        pay = _flag("PAY", get("PAY"))
+        settings = cls(
             erpnext_url=get("ERPNEXT_URL"),
             erpnext_api_key=get("ERPNEXT_API_KEY"),
             erpnext_api_secret=get("ERPNEXT_API_SECRET"),
@@ -71,7 +79,30 @@ class Settings:
             explain=_flag("EXPLAIN", get("EXPLAIN")),
             llm_model=get("LLM_MODEL") or DEFAULT_MODEL,
             anthropic_api_key=env.get("ANTHROPIC_API_KEY", "").strip() or None,
+            circle_api_key=env.get("CIRCLE_API_KEY", "").strip() or None,
+            circle_entity_secret=env.get("CIRCLE_ENTITY_SECRET", "").strip() or None,
+            agent_wallet_id=get("AGENT_WALLET_ID") or None,
+            pay=pay,
+            shop_address=get("SHOP_ADDRESS") or None,
+            arc_rpc_url=env.get("ARC_TESTNET_RPC_URL", "").strip() or None,
         )
+        if pay:
+            settings._check_payments()
+        return settings
+
+    def _check_payments(self) -> None:
+        needed = {
+            "CIRCLE_API_KEY": self.circle_api_key,
+            "CIRCLE_ENTITY_SECRET": self.circle_entity_secret,
+            f"{PREFIX}AGENT_WALLET_ID": self.agent_wallet_id,
+            f"{PREFIX}SHOP_ADDRESS": self.shop_address,
+            "ARC_TESTNET_RPC_URL": self.arc_rpc_url,
+        }
+        missing = [name for name, value in needed.items() if not value]
+        if missing:
+            raise SettingsError(f"{PREFIX}PAY=on needs: {', '.join(missing)}")
+        if not re.fullmatch(r"0x[0-9a-fA-F]{40}", self.shop_address or ""):
+            raise SettingsError(f"{PREFIX}SHOP_ADDRESS must be the shop contract's address")
 
     @classmethod
     def load(cls, env_file: Path | None = None) -> "Settings":

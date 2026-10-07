@@ -9,6 +9,7 @@ from embco.decision import OwnerAnswer, PolicyConfig
 from embco.journal.changes import Change
 from embco.journal.models import JournalEntry
 from embco.llm.base import Explanation
+from embco.payments.models import PaymentEvent
 
 
 class JournalError(Exception):
@@ -55,6 +56,18 @@ class DecisionJournal(Protocol):
     def record_explanation(self, explanation: Explanation) -> None: ...
 
     def explanation_for(self, invoice: str, fingerprint: str) -> Explanation | None: ...
+
+    def record_payment(self, event: PaymentEvent) -> None: ...
+
+    def latest_payment(self, invoice: str) -> PaymentEvent | None: ...
+
+    def payment_attempts(self, invoice: str) -> int:
+        """How many transactions were sent to Circle for the invoice."""
+        ...
+
+    def pending_payments(self) -> list[PaymentEvent]:
+        """Payments sent to Circle whose final result is not recorded yet."""
+        ...
 
     def verify(self) -> None:
         """Raise JournalError if any entry was changed or removed after it was written."""

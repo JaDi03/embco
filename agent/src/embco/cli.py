@@ -7,6 +7,7 @@
     embco sign-wallet SUPPLIER SIGNATURE     the supplier's signature comes back
     embco history INVOICE                    every decision taken on an invoice
     embco verify                             check that the memory was not altered
+    embco create-wallet                      create the agent's paying wallet with Circle (once)
 """
 
 import argparse
@@ -15,10 +16,12 @@ import logging
 import sys
 from pathlib import Path
 
+from embco.circle import CircleClient, CircleError
 from embco.decision import Verdict
 from embco.journal import JournalError, SqliteJournal, answer_ask, submit_wallet_signature
 from embco.ledger import ErpnextAdapter, LedgerError
 from embco.llm import ClaudeExplainer, Explainer
+from embco.payments import ArcRpc, Payer
 from embco.runner import format_report, run_cycle, watch
 from embco.settings import Settings, SettingsError
 from embco.signing import typed_data
@@ -38,7 +41,7 @@ def main(argv: list[str] | None = None) -> int:
     except SettingsError as error:
         print(f"configuration error: {error}", file=sys.stderr)
         return 2
-    except (JournalError, LedgerError) as error:
+    except (JournalError, LedgerError, CircleError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
@@ -61,9 +64,22 @@ def _explainer(settings: Settings) -> Explainer | None:
     return ClaudeExplainer(settings.llm_model, api_key=settings.anthropic_api_key)
 
 
+def _payer(settings: Settings, ledger: ErpnextAdapter) -> Payer | None:
+    if not settings.pay:
+        return None
+    return Payer(
+        ledger=ledger,
+        chain=ArcRpc(settings.arc_rpc_url),
+        circle=CircleClient(settings.circle_api_key, settings.circle_entity_secret),
+        shop=settings.shop_address,
+        wallet_id=settings.agent_wallet_id,
+    )
+
+
 def _run(args, settings, journal) -> int:
-    report = run_cycle(_ledger(settings), journal, settings.policy, settings.company,
-                       explainer=_explainer(settings))
+    ledger = _ledger(settings)
+    report = run_cycle(ledger, journal, settings.policy, settings.company,
+                       explainer=_explainer(settings), payments=_payer(settings, ledger))
     print(format_report(report, verbose=True))
     return 0
 
@@ -71,12 +87,14 @@ def _run(args, settings, journal) -> int:
 def _watch(args, settings, journal) -> int:
     ledger = _ledger(settings)
     explainer = _explainer(settings)
-    log.info("watching %s every %s (AI explanations %s)", settings.company, settings.interval,
-             f"on, {explainer.model}" if explainer else "off")
+    payer = _payer(settings, ledger)
+    log.info("watching %s every %s (AI explanations %s, payments %s)", settings.company,
+             settings.interval, f"on, {explainer.model}" if explainer else "off",
+             f"on, shop {settings.shop_address}" if payer else "off")
 
     def cycle() -> None:
         report = run_cycle(ledger, journal, settings.policy, settings.company,
-                           explainer=explainer)
+                           explainer=explainer, payments=payer)
         log.info("%s", format_report(report))
 
     watch(cycle, settings.interval, cycles=args.cycles)
@@ -121,6 +139,20 @@ def _verify(args, settings, journal) -> int:
     return 0
 
 
+def _create_wallet(args, settings, journal) -> int:
+    if settings.agent_wallet_id:
+        print("EMBCO_AGENT_WALLET_ID is already set; the agent has a wallet", file=sys.stderr)
+        return 1
+    if not (settings.circle_api_key and settings.circle_entity_secret):
+        raise SettingsError("missing settings: CIRCLE_API_KEY, CIRCLE_ENTITY_SECRET")
+    circle = CircleClient(settings.circle_api_key, settings.circle_entity_secret)
+    wallet_set_id = circle.create_wallet_set(f"embco {settings.company}")
+    wallet = circle.create_eoa_wallet(wallet_set_id, f"embco agent {settings.company}")
+    print(f"wallet created on {wallet.blockchain}: {wallet.address}")
+    print(f"add to the settings: EMBCO_AGENT_WALLET_ID={wallet.id}")
+    return 0
+
+
 _COMMANDS = {
     "run": _run,
     "watch": _watch,
@@ -129,6 +161,7 @@ _COMMANDS = {
     "sign-wallet": _sign_wallet,
     "history": _history,
     "verify": _verify,
+    "create-wallet": _create_wallet,
 }
 
 
@@ -152,6 +185,7 @@ def _parser() -> argparse.ArgumentParser:
     history = sub.add_parser("history", help="show every decision taken on an invoice")
     history.add_argument("invoice")
     sub.add_parser("verify", help="check that the memory was not altered")
+    sub.add_parser("create-wallet", help="create the agent's paying wallet with Circle (once)")
     return parser
 
 
