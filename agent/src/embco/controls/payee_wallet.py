@@ -51,7 +51,7 @@ class PayeeWallet:
             f"wallet changed since the last payment ({short(last)} to {short(wallet)})"
             if last
             else f"first payment to this supplier, wallet {short(wallet)}"
-        )
+        ) + _who_changed(ctx, wallet)
         proof = ctx.wallet_proof
         if proof is None or needs_proof(ctx.supplier, last, proof):
             return hold(self.name, f"{what}; waiting for the supplier to sign the wallet challenge")
@@ -61,3 +61,13 @@ class PayeeWallet:
             f"{proof.signed_at:%Y-%m-%d}. Approve only if the supplier asked for this change "
             "(check on the number you already have)",
         )
+
+
+def _who_changed(ctx: Context, wallet: str) -> str:
+    """From the ERP's change history: who set the wallet now on file, and when."""
+    setting = [c for c in ctx.wallet_changes if (c.new or "").lower() == wallet.lower()]
+    if not setting:
+        return ""
+    latest = setting[0]
+    when = f"{latest.changed_at:%Y-%m-%d %H:%M}"
+    return f" (set in the ERP by {latest.changed_by} on {when}, ERP time)"

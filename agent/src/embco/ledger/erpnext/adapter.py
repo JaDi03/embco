@@ -5,6 +5,8 @@ Every request goes through the same permission and validation layer a person wou
 with a dedicated low-privilege API user.
 """
 
+import json
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -20,6 +22,7 @@ from embco.ledger.models import (
     PurchaseReceipt,
     SettledPayment,
     Supplier,
+    WalletChange,
 )
 
 DEFAULT_WALLET_FIELD = "custom_wallet_address"
@@ -27,6 +30,7 @@ DEFAULT_PAYEE_WALLET_FIELD = "custom_payee_wallet"
 TX_HASH_FIELD = "custom_tx_hash"
 DECISION_FIELD = "custom_agent_decision"
 DRAFT_PAYMENT = "erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry"
+DOC_INFO = "frappe.desk.form.load.get_docinfo"  # change history of a document the user can read
 
 
 class ErpnextAdapter:
@@ -90,6 +94,23 @@ class ErpnextAdapter:
             order_by="posting_date asc, name asc",
         )
         return [mappers.to_payment(row, self._payee_wallet_field) for row in rows]
+
+    def wallet_changes(self, supplier: str) -> list[WalletChange]:
+        info = self._frappe.get_method(DOC_INFO, {"doctype": "Supplier", "name": supplier})
+        versions = info.get("versions") if isinstance(info, dict) else None
+        changes = []
+        for version in versions or []:
+            try:
+                changed = json.loads(version.get("data") or "{}").get("changed") or []
+                at = datetime.fromisoformat(str(version["creation"]))
+            except (ValueError, KeyError, AttributeError):
+                continue
+            for field, old, new in (c for c in changed if len(c) == 3):
+                if field == self._wallet_field:
+                    changes.append(WalletChange(old=old or None, new=new or None,
+                                                changed_by=str(version.get("owner") or "unknown"),
+                                                changed_at=at))
+        return sorted(changes, key=lambda c: c.changed_at, reverse=True)
 
     def record_payment(self, payment: SettledPayment) -> str:
         """ERPNext drafts the entry from the invoice (accounts, party, references), so the agent

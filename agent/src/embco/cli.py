@@ -75,6 +75,7 @@ def _payer(settings: Settings, ledger: ErpnextAdapter) -> Payer | None:
         shop=settings.shop_address,
         wallet_id=settings.agent_wallet_id,
         writer=ledger,
+        approvals_file=settings.approvals_file,
     )
 
 

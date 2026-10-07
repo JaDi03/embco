@@ -52,6 +52,11 @@ class FrappeClient:
     def _get(self, path: str, params: dict[str, str] | None = None) -> Any:
         return self._send("GET", path, params=params).get("data")
 
+    def get_method(self, method: str, params: dict[str, str]) -> Any:
+        """A whitelisted read method. Frappe returns `docinfo` for get_docinfo, else `message`."""
+        body = self._send("GET", f"/api/method/{method}", params=params)
+        return body.get("docinfo", body.get("message"))
+
     def call_method(self, method: str, form: dict[str, str]) -> Any:
         """A whitelisted server method, such as the one that drafts a payment entry."""
         return self._send("POST", f"/api/method/{method}", data=form).get("message")

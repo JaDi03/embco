@@ -32,3 +32,6 @@ export function rpcUrl(origin = window.location.origin) {
 }
 
 export const FAUCET_URL = "https://faucet.circle.com";
+
+// Wallets the agent is waiting to pay, written by the agent on this site.
+export const APPROVALS_PATH = "/pending.json";
