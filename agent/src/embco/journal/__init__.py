@@ -3,6 +3,7 @@
 from embco.journal.answers import answer_ask, answers_for
 from embco.journal.base import DecisionJournal, JournalError
 from embco.journal.changes import Change, ChangeKind, compare
+from embco.journal.erp_answers import answers_from_erp
 from embco.journal.models import JournalEntry
 from embco.journal.remember import RunMemory, remember
 from embco.journal.sqlite import SqliteJournal
@@ -17,6 +18,7 @@ __all__ = [
     "RunMemory",
     "SqliteJournal",
     "answer_ask",
+    "answers_from_erp",
     "answers_for",
     "compare",
     "issue_wallet_challenges",

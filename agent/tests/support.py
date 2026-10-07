@@ -77,6 +77,9 @@ class FakeLedger:
     def wallet_changes(self, supplier: str) -> list:
         return list(self.changes)
 
+    def owner_mark(self, invoice: str):
+        return getattr(self, "marks", {}).get(invoice)
+
 
 def context_for(ledger: FakeLedger, invoice: PurchaseInvoice | None = None) -> Context:
     return ContextBuilder(ledger).build(invoice or ledger.pending[0])

@@ -82,7 +82,8 @@ def _payer(settings: Settings, ledger: ErpnextAdapter) -> Payer | None:
 def _run(args, settings, journal) -> int:
     ledger = _ledger(settings)
     report = run_cycle(ledger, journal, settings.policy, settings.company,
-                       explainer=_explainer(settings), payments=_payer(settings, ledger))
+                       explainer=_explainer(settings), payments=_payer(settings, ledger),
+                       owners=settings.owner_users)
     print(format_report(report, verbose=True))
     return 0
 
@@ -97,7 +98,7 @@ def _watch(args, settings, journal) -> int:
 
     def cycle() -> None:
         report = run_cycle(ledger, journal, settings.policy, settings.company,
-                           explainer=explainer, payments=payer)
+                           explainer=explainer, payments=payer, owners=settings.owner_users)
         log.info("%s", format_report(report))
 
     watch(cycle, settings.interval, cycles=args.cycles)

@@ -52,6 +52,7 @@ class Settings:
     pay: bool = False
     erpnext_paid_from: str | None = None
     approvals_file: Path | None = None
+    owner_users: tuple[str, ...] = ()  # ERP accounts whose mark on an invoice answers an ASK
     shop_address: str | None = None
     arc_rpc_url: str | None = field(default=None, repr=False)
 
@@ -90,6 +91,7 @@ class Settings:
             erpnext_paid_from=get("ERPNEXT_PAID_FROM") or None,
             approvals_file=Path(get("APPROVALS_FILE")) if get("APPROVALS_FILE") else None,
             shop_address=get("SHOP_ADDRESS") or None,
+            owner_users=tuple(u.strip() for u in get("OWNER_USERS").split(",") if u.strip()),
             arc_rpc_url=env.get("ARC_TESTNET_RPC_URL", "").strip() or None,
         )
         if pay:
