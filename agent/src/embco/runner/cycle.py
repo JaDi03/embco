@@ -3,7 +3,8 @@ optionally have the AI helper explain what needs the owner.
 
 With `payments`, the invoices planned for now are paid through the shop contract; without one,
 the plan is only reported. The owner's approval of a new wallet in the contract also answers
-the agent's question about it. Invoices the agent already paid or sent are not planned again.
+the agent's question about it, and so does an owner's mark on the invoice in the ERP. Invoices
+the agent already paid or sent are not planned again.
 """
 
 import logging
@@ -25,6 +26,7 @@ from embco.journal import (
     Change,
     DecisionJournal,
     answers_for,
+    answers_from_erp,
     issue_wallet_challenges,
     remember,
 )
@@ -59,6 +61,7 @@ def run_cycle(
     at: datetime | None = None,
     explainer: Explainer | None = None,
     payments: Payer | None = None,
+    owners: tuple[str, ...] = (),
 ) -> CycleReport:
     """Fails closed: a journal that does not verify stops the agent before it decides."""
     now = at or datetime.now(UTC)
@@ -67,6 +70,10 @@ def run_cycle(
     decisions = apply_answers(raw, answers_for(journal, raw))
     if payments:
         decisions = apply_answers(decisions, _answers_from_chain(payments, decisions, journal))
+    if owners:
+        decisions = apply_answers(
+            decisions, answers_from_erp(journal, ledger, decisions, owners, now)
+        )
     memory = remember(journal, decisions, policy, at=now)
     suppliers = [d.supplier for d in decisions]
     challenges = issue_wallet_challenges(journal, ledger, suppliers, payer, at=now)

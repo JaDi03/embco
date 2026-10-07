@@ -3,6 +3,7 @@
 from typing import Protocol
 
 from embco.ledger.models import (
+    OwnerMark,
     PaymentRecord,
     PurchaseInvoice,
     PurchaseOrder,
@@ -38,6 +39,10 @@ class LedgerAdapter(Protocol):
 
     def wallet_changes(self, supplier: str) -> list[WalletChange]:
         """Edits of the supplier's wallet in the ERP, newest first (who and when)."""
+        ...
+
+    def owner_mark(self, invoice: str) -> OwnerMark | None:
+        """The owner's answer on the invoice, if one is set and the ERP recorded who set it."""
         ...
 
 

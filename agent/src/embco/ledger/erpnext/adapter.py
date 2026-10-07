@@ -16,6 +16,7 @@ from embco.ledger.base import LedgerError
 from embco.ledger.erpnext import mappers
 from embco.ledger.erpnext.client import FrappeClient
 from embco.ledger.models import (
+    OwnerMark,
     PaymentRecord,
     PurchaseInvoice,
     PurchaseOrder,
@@ -30,6 +31,8 @@ DEFAULT_PAYEE_WALLET_FIELD = "custom_payee_wallet"
 TX_HASH_FIELD = "custom_tx_hash"
 DECISION_FIELD = "custom_agent_decision"
 DRAFT_PAYMENT = "erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry"
+OWNER_ANSWER_FIELD = "custom_owner_answer"
+OWNER_NOTE_FIELD = "custom_owner_note"
 DOC_INFO = "frappe.desk.form.load.get_docinfo"  # change history of a document the user can read
 
 
@@ -96,7 +99,26 @@ class ErpnextAdapter:
         return [mappers.to_payment(row, self._payee_wallet_field) for row in rows]
 
     def wallet_changes(self, supplier: str) -> list[WalletChange]:
-        info = self._frappe.get_method(DOC_INFO, {"doctype": "Supplier", "name": supplier})
+        return [WalletChange(old=old or None, new=new or None, changed_by=by, changed_at=at)
+                for old, new, by, at, _ in self._field_changes("Supplier", supplier,
+                                                              self._wallet_field)]
+
+    def owner_mark(self, invoice: str) -> OwnerMark | None:
+        doc = self._frappe.get_doc("Purchase Invoice", invoice)
+        verdict = str(doc.get(OWNER_ANSWER_FIELD) or "").strip()
+        if not verdict:
+            return None
+        for _, new, by, at, change_id in self._field_changes("Purchase Invoice", invoice,
+                                                             OWNER_ANSWER_FIELD):
+            if str(new or "").strip() == verdict:
+                note = str(doc.get(OWNER_NOTE_FIELD) or "").strip()
+                return OwnerMark(verdict=verdict, note=note, set_by=by, set_at=at,
+                                 change_id=change_id)
+        return None  # no recorded change: who set it is unknown
+
+    def _field_changes(self, doctype: str, name: str, fieldname: str) -> list[tuple]:
+        """(old, new, who, when, change id) for each edit of one field, newest first."""
+        info = self._frappe.get_method(DOC_INFO, {"doctype": doctype, "name": name})
         versions = info.get("versions") if isinstance(info, dict) else None
         changes = []
         for version in versions or []:
@@ -106,11 +128,10 @@ class ErpnextAdapter:
             except (ValueError, KeyError, AttributeError):
                 continue
             for field, old, new in (c for c in changed if len(c) == 3):
-                if field == self._wallet_field:
-                    changes.append(WalletChange(old=old or None, new=new or None,
-                                                changed_by=str(version.get("owner") or "unknown"),
-                                                changed_at=at))
-        return sorted(changes, key=lambda c: c.changed_at, reverse=True)
+                if field == fieldname:
+                    changes.append((old, new, str(version.get("owner") or "unknown"), at,
+                                    str(version.get("name") or "")))
+        return sorted(changes, key=lambda c: c[3], reverse=True)
 
     def record_payment(self, payment: SettledPayment) -> str:
         """ERPNext drafts the entry from the invoice (accounts, party, references), so the agent

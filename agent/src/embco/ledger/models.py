@@ -91,3 +91,13 @@ class WalletChange(_Frozen):
     new: str | None
     changed_by: str
     changed_at: datetime
+
+
+class OwnerMark(_Frozen):
+    """The owner's answer written on an invoice in the ERP, and the change that wrote it."""
+
+    verdict: str  # as written in the ERP, e.g. "Approve" or "Reject"
+    note: str
+    set_by: str
+    set_at: datetime
+    change_id: str  # the ERP's record of that change, so one mark answers one question

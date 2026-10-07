@@ -26,6 +26,13 @@ def test_settings_come_from_the_environment_with_defaults():
     assert settings.interval == timedelta(minutes=15)
 
 
+
+def test_owner_accounts_are_a_comma_separated_list_and_off_by_default():
+    assert Settings.from_env(ENV).owner_users == ()
+    env = {**ENV, "EMBCO_OWNER_USERS": " owner@shop.test, ,admin@shop.test "}
+    assert Settings.from_env(env).owner_users == ("owner@shop.test", "admin@shop.test")
+
+
 def test_missing_settings_are_listed_together():
     env = {k: v for k, v in ENV.items() if k not in ("EMBCO_COMPANY", "EMBCO_WEEKLY_BUDGET")}
     with pytest.raises(SettingsError, match="EMBCO_COMPANY, EMBCO_WEEKLY_BUDGET"):

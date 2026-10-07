@@ -95,7 +95,7 @@ Copy `.env.example` to `.env`, fill it in, then:
 ```bash
 uv run embco --env-file ../.env run      # one cycle, full report
 uv run embco --env-file ../.env watch    # a cycle every 15 minutes, on its own
-uv run embco --env-file ../.env answer ACC-PINV-0001 approve --by owner
+uv run embco --env-file ../.env answer ACC-PINV-0001 approve --by owner   # or answer on the invoice in ERPNext
 uv run embco --env-file ../.env verify   # check the memory was not altered
 uv run embco --env-file ../.env create-wallet   # once: the agent's wallet, with Circle
 ```
