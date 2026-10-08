@@ -41,6 +41,8 @@ class ShopConfig:
     wallet_bank: str | None = None
     payment_extra: dict[str, str] = field(default_factory=dict)
     interval_minutes: int = 15
+    agent_wallet_id: str | None = None  # the shop's own Circle wallet, when created
+    agent_wallet_address: str | None = None
 
 
 @dataclass(frozen=True)

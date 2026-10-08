@@ -9,6 +9,7 @@
     embco verify                             check that the memory was not altered
     embco create-wallet                      create the agent's paying wallet with Circle (once)
     embco shop --dir ROOT/SHOP               the hosted agent of one shop, settings from its folder
+    embco hub                                the API the dashboard uses to connect shops
 """
 
 import argparse
@@ -38,6 +39,8 @@ def main(argv: list[str] | None = None) -> int:
     logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per ERP request is noise
     if args.command == "shop":
         return _shop(args)
+    if args.command == "hub":
+        return _hub(args)
     try:
         settings = Settings.load(Path(args.env_file))
         settings.journal_path.parent.mkdir(parents=True, exist_ok=True)
@@ -56,6 +59,17 @@ def main(argv: list[str] | None = None) -> int:
 
 def _ledger(settings: Settings) -> ErpnextAdapter:
     return erp_for(settings)
+
+
+def _hub(args) -> int:
+    from embco.hub import serve  # the web server is only loaded by the hub
+
+    try:
+        serve(Path(args.env_file))
+    except SettingsError as error:
+        print(f"configuration error: {error}", file=sys.stderr)
+        return 2
+    return 0
 
 
 def _shop(args) -> int:
@@ -212,6 +226,7 @@ def _parser() -> argparse.ArgumentParser:
                                                            "/etc/embco/shops.key"),
                       help="the service key that encrypts ERP keys")
     shop.add_argument("--cycles", type=int, help="stop after this many cycles")
+    sub.add_parser("hub", help="serve the API the dashboard uses to connect shops")
     return parser
 
 
