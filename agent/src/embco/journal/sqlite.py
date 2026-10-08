@@ -203,6 +203,9 @@ class SqliteJournal:
     def unrecorded_payments(self) -> list[PaymentEvent]:
         return [_payment(row) for row in self._db.execute(schema.UNRECORDED_PAYMENTS)]
 
+    def latest_payments(self) -> list[PaymentEvent]:
+        return [_payment(row) for row in self._db.execute(schema.LATEST_PAYMENTS)]
+
     def verify(self) -> None:
         previous = GENESIS
         for number, (kind, run, invoice, at, body, stored) in enumerate(

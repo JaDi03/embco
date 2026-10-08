@@ -74,6 +74,13 @@ WHERE e.kind = 'PAYMENT' AND json_extract(e.body, '$.status') = 'COMPLETE'
 ORDER BY e.id
 """
 
+LATEST_PAYMENTS = """
+SELECT e.run, e.invoice, e.at, e.body, e.entry_hash FROM entries e
+WHERE e.kind = 'PAYMENT'
+  AND e.id = (SELECT MAX(id) FROM entries WHERE invoice = e.invoice AND kind = 'PAYMENT')
+ORDER BY e.id
+"""
+
 OPEN_INVOICES = """
 SELECT e.invoice FROM entries e
 WHERE e.kind = 'DECISION'

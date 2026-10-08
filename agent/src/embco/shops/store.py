@@ -4,6 +4,8 @@
     <root>/<shop>/erp.enc          the ERP API key and secret, encrypted with the service key
     <root>/<shop>/journal.sqlite3  the agent's memory for this shop
     <root>/<shop>/last_run.json    what the agent decided last time, for the dashboard
+    <root>/<shop>/suppliers.json   what each supplier may see on its own page
+    <root>/<shop>/inbox/           wallet signatures from suppliers, for the agent to check
 
 A shop is the address of its ShopPayables contract, in lower case. A shop's settings are built
 from its folder only, so no shop inherits another's. The only values from outside are the
@@ -26,6 +28,7 @@ CONFIG = "config.json"
 SECRETS = "erp.enc"
 JOURNAL = "journal.sqlite3"
 LAST_RUN = "last_run.json"
+SUPPLIER_VIEW = "suppliers.json"
 _SHOP = re.compile(r"^0x[0-9a-f]{40}$")
 PLATFORM = ("CIRCLE_API_KEY", "CIRCLE_ENTITY_SECRET", "ARC_TESTNET_RPC_URL")
 
@@ -150,6 +153,16 @@ class ShopStore:
     def last_run(self, shop: str) -> dict[str, Any] | None:
         try:
             return json.loads((self.folder(shop) / LAST_RUN).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+
+
+    def write_supplier_view(self, shop: str, view: dict[str, Any]) -> None:
+        _write(self.folder(shop) / SUPPLIER_VIEW, json.dumps(view, indent=1).encode())
+
+    def supplier_view(self, shop: str) -> dict[str, Any] | None:
+        try:
+            return json.loads((self.folder(shop) / SUPPLIER_VIEW).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return None
 
