@@ -8,7 +8,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from embco.circle import CircleClient
-from embco.hub.api import create_app
+from embco.hub.api import PUBLIC_URL, create_app
 from embco.hub.auth import Auth
 from embco.hub.chain import ShopChain
 from embco.hub.units import SystemdUnits
@@ -40,6 +40,7 @@ def build_app(env: Mapping[str, str]) -> FastAPI:
         limits_of=chain.limits,
         units=SystemdUnits(),
         circle=circle,
+        public_url=(env.get("EMBCO_PUBLIC_URL") or PUBLIC_URL).rstrip("/"),
     )
 
 

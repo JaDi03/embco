@@ -5,8 +5,10 @@ it checks and records them at the start of its next cycle. A file is removed onc
 the ERP cannot be reached it stays for the next cycle.
 """
 
+import hashlib
 import json
 import logging
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -18,6 +20,18 @@ log = logging.getLogger("embco")
 INBOX = "inbox"
 ACCEPTED = "ACCEPTED"
 REJECTED = "REJECTED"
+
+
+def drop_signature(folder: Path, supplier: str, signature: str, at: datetime) -> None:
+    """One file per supplier: a newer signature replaces one the agent has not read yet."""
+    inbox = folder / INBOX
+    inbox.mkdir(mode=0o700, exist_ok=True)
+    name = hashlib.sha256(supplier.encode()).hexdigest()[:16]
+    tmp = inbox / f"{name}.tmp"
+    tmp.write_text(json.dumps({"supplier": supplier, "signature": signature,
+                               "received_at": at.isoformat()}), encoding="utf-8")
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, inbox / f"{name}.json")
 
 
 def take_signatures(

@@ -7,7 +7,7 @@ from embco.cli import main
 from embco.journal import SqliteJournal
 from embco.ledger import LedgerError
 from embco.shops import ErpCredentials, ShopConfig, ShopError, ShopStore, new_key, run_shop
-from support import FakeLedger
+from support import WALLET_A, FakeLedger
 
 SHOP_A = "0x" + "a1" * 20
 SHOP_B = "0x" + "b2" * 20
@@ -132,7 +132,8 @@ def test_a_cycle_leaves_a_summary_for_the_dashboard(store):
     assert sum(summary["counts"].values()) == 1
     with SqliteJournal(store.folder(SHOP_A) / "journal.sqlite3") as journal:
         journal.verify()
-    assert set(store.supplier_view(SHOP_A)["suppliers"]) == {"S"}
+    suppliers = store.supplier_view(SHOP_A)["suppliers"]
+    assert set(suppliers) == {"S"} and suppliers["S"]["wallet"] == WALLET_A
 
 
 def test_an_erp_error_is_left_for_the_dashboard_and_the_loop_goes_on(store):

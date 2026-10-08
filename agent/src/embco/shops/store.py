@@ -157,6 +157,12 @@ class ShopStore:
             return None
 
 
+    def shops(self) -> list[str]:
+        """Every shop with a folder, connected or not."""
+        if not self.root.exists():
+            return []
+        return sorted(p.name for p in self.root.iterdir() if _SHOP.match(p.name))
+
     def write_supplier_view(self, shop: str, view: dict[str, Any]) -> None:
         _write(self.folder(shop) / SUPPLIER_VIEW, json.dumps(view, indent=1).encode())
 

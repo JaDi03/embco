@@ -84,6 +84,13 @@ def run_shop(
     log.info("shop %s: watching %s every %s (payments %s)", shop, settings.company,
              settings.interval, "on, testnet drafts in the ERP" if payments else "off")
     signatures: dict[str, dict[str, str]] = {}  # the last outcome per supplier, for its page
+
+    def wallet_of(supplier: str) -> str | None:
+        try:
+            return ledger.get_supplier(supplier).wallet_address
+        except LedgerError:
+            return None  # the supplier cannot sign in to its page until the ERP answers
+
     with SqliteJournal(settings.journal_path) as journal:
 
         def cycle() -> None:
@@ -97,7 +104,7 @@ def run_shop(
                 raise
             store.write_last_run(shop, summarize(report))
             store.write_supplier_view(shop, supplier_view(report, journal, settings.company,
-                                                          signatures))
+                                                          signatures, wallet_of=wallet_of))
             log.info("shop %s: %s", shop, format_report(report))
 
         return watch(cycle, settings.interval, cycles=cycles, sleep=sleep)
