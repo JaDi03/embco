@@ -13,6 +13,7 @@ class _Frozen(BaseModel):
 class Supplier(_Frozen):
     name: str
     wallet_address: str | None = None
+    wallet_problem: str | None = None  # why the ERP gives no single wallet, when it says
     disabled: bool = False
 
 

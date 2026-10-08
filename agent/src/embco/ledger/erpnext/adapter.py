@@ -6,6 +6,7 @@ with a dedicated low-privilege API user.
 """
 
 import json
+from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -13,7 +14,7 @@ from typing import Any
 import httpx
 
 from embco.ledger.base import LedgerError
-from embco.ledger.erpnext import mappers
+from embco.ledger.erpnext import bank_wallets, mappers
 from embco.ledger.erpnext.client import FrappeClient
 from embco.ledger.models import (
     OwnerMark,
@@ -33,6 +34,11 @@ DECISION_FIELD = "custom_agent_decision"
 DRAFT_PAYMENT = "erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry"
 OWNER_ANSWER_FIELD = "custom_owner_answer"
 OWNER_NOTE_FIELD = "custom_owner_note"
+# What a payment's extra fields may not touch: the draft is checked against the chain.
+PROTECTED_PAYMENT_FIELDS = frozenset({
+    "payment_type", "party", "party_type", "paid_amount", "received_amount", "references",
+    "reference_no", "reference_date", "posting_date", "docstatus",
+})
 DOC_INFO = "frappe.desk.form.load.get_docinfo"  # change history of a document the user can read
 
 
@@ -47,6 +53,8 @@ class ErpnextAdapter:
         payee_wallet_field: str = DEFAULT_PAYEE_WALLET_FIELD,
         company: str | None = None,
         paid_from: str | None = None,
+        payment_extra: Mapping[str, str] | None = None,
+        wallet_bank: str | None = None,
         client: httpx.Client | None = None,
         timeout: int = 20,
     ) -> None:
@@ -54,10 +62,21 @@ class ErpnextAdapter:
         self._payee_wallet_field = payee_wallet_field
         self._company_filter = [["company", "=", company]] if company else []
         self._paid_from = paid_from
+        self._payment_extra = dict(payment_extra or {})
+        self._wallet_bank = wallet_bank  # set: wallets are Bank Account rows, no custom fields
+        clash = sorted(PROTECTED_PAYMENT_FIELDS & self._payment_extra.keys())
+        if clash:
+            raise ValueError(f"payment fields the agent sets itself: {', '.join(clash)}")
         self._frappe = FrappeClient(base_url, api_key, api_secret, client=client, timeout=timeout)
 
     def get_supplier(self, name: str) -> Supplier:
-        return mappers.to_supplier(self._frappe.get_doc("Supplier", name), self._wallet_field)
+        doc = self._frappe.get_doc("Supplier", name)
+        if not self._wallet_bank:
+            return mappers.to_supplier(doc, self._wallet_field)
+        accounts = bank_wallets.active_accounts(self._frappe, self._wallet_bank, name)
+        wallet, problem = bank_wallets.wallet_on_file(accounts, self._wallet_bank)
+        return Supplier(name=doc["name"], wallet_address=wallet, wallet_problem=problem,
+                        disabled=bool(doc.get("disabled")))
 
     def get_purchase_order(self, name: str) -> PurchaseOrder:
         return mappers.to_purchase_order(self._frappe.get_doc("Purchase Order", name))
@@ -85,9 +104,10 @@ class ErpnextAdapter:
         return [self.get_purchase_invoice(name) for name in names]
 
     def list_payments(self, supplier: str) -> list[PaymentRecord]:
+        wallet_field = "remarks" if self._wallet_bank else self._payee_wallet_field
         rows = self._frappe.list_rows(
             "Payment Entry",
-            fields=["name", "party", "posting_date", "paid_amount", self._payee_wallet_field],
+            fields=["name", "party", "posting_date", "paid_amount", wallet_field],
             filters=[
                 ["docstatus", "=", 1],
                 ["party_type", "=", "Supplier"],
@@ -96,12 +116,30 @@ class ErpnextAdapter:
             ],
             order_by="posting_date asc, name asc",
         )
-        return [mappers.to_payment(row, self._payee_wallet_field) for row in rows]
+        if self._wallet_bank:
+            rows = [{**row, "remarks": bank_wallets.wallet_from_remarks(row.get("remarks"))}
+                    for row in rows]
+        return [mappers.to_payment(row, wallet_field) for row in rows]
 
     def wallet_changes(self, supplier: str) -> list[WalletChange]:
+        if self._wallet_bank:
+            return self._bank_wallet_changes(supplier)
         return [WalletChange(old=old or None, new=new or None, changed_by=by, changed_at=at)
                 for old, new, by, at, _ in self._field_changes("Supplier", supplier,
                                                               self._wallet_field)]
+
+    def _bank_wallet_changes(self, supplier: str) -> list[WalletChange]:
+        """Edits of each active account's number, plus its creation, newest first."""
+        changes = []
+        for account in bank_wallets.active_accounts(self._frappe, self._wallet_bank, supplier):
+            edits = self._field_changes("Bank Account", account["name"], bank_wallets.WALLET_FIELD)
+            changes += [WalletChange(old=old or None, new=new or None, changed_by=by, changed_at=at)
+                        for old, new, by, at, _ in edits]
+            first = edits[-1][0] if edits else account.get(bank_wallets.WALLET_FIELD)
+            created = bank_wallets.creation_change(account, first or None)
+            if created:
+                changes.append(created)
+        return sorted(changes, key=lambda c: c.changed_at, reverse=True)
 
     def owner_mark(self, invoice: str) -> OwnerMark | None:
         doc = self._frappe.get_doc("Purchase Invoice", invoice)
@@ -139,7 +177,7 @@ class ErpnextAdapter:
         `paid_from` is set. The draft must match what was paid on chain, or nothing is written."""
         existing = self._frappe.list_names(
             "Payment Entry",
-            filters=[[TX_HASH_FIELD, "=", payment.tx_hash], ["docstatus", "!=", 2]],
+            filters=[["reference_no", "=", payment.tx_hash], ["docstatus", "!=", 2]],
             order_by="creation asc",
         )
         if existing:
@@ -154,6 +192,7 @@ class ErpnextAdapter:
             # ERPNext fills the account's currency and balance again when it validates
             draft.update(paid_from=self._paid_from, paid_from_account_currency=None,
                          paid_from_account_balance=None)
+        draft.update(self._payment_extra)  # fields this ERP requires, e.g. a payment form
         draft.update({
             "reference_no": payment.tx_hash,
             "reference_date": payment.paid_on.isoformat(),
@@ -164,6 +203,18 @@ class ErpnextAdapter:
             "remarks": f"Paid in USDC on Arc by the embco agent. {payment.note}",
             "docstatus": 1,
         })
+        if self._wallet_bank:
+            accounts = bank_wallets.active_accounts(self._frappe, self._wallet_bank,
+                                                    payment.supplier)
+            draft.update({
+                "custom_remarks": 1,  # keep these remarks: they hold the wallet that was paid
+                "remarks": "Paid in USDC on Arc by the embco agent "
+                           f"{bank_wallets.paid_wallet_remark(payment.payee_wallet)}. "
+                           f"{payment.note}",
+            })
+            account = bank_wallets.account_for(accounts, payment.payee_wallet)
+            if account:
+                draft["party_bank_account"] = account
         return self._frappe.insert_doc(draft)["name"]
 
 

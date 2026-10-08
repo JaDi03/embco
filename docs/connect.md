@@ -34,4 +34,28 @@ lists the ones the agent is waiting to pay, and approving one there also answers
 question about it, so the first payment needs one approval. The agent requires an `https://`
 ERPNext URL (plain `http://` only to the same machine).
 
+## Hosted ERPNext, without custom fields
+
+On a hosted ERPNext (for example Frappe Cloud) the shop may not want custom fields. Set
+`EMBCO_ERPNEXT_WALLET_BANK` and the agent uses standard records only:
+
+- **Wallets**: create a Bank with that name (for example `USDC on Arc`) and, for each supplier,
+  one Bank Account at that bank with the wallet as Bank Account No. The supplier's real bank
+  account and its default stay as they are. Bank Account No holds 30 characters by default and
+  a wallet has 42: raise its Length to 64 once in Customize Form (Bank Account). Two active
+  accounts with different wallets hold the invoice: the agent does not choose between them.
+  Who set a wallet comes from the account's change history, or from who created it.
+- **Payments**: the transaction hash goes in Reference No, and the wallet paid in the remarks,
+  which ERPNext keeps unchanged once the entry is submitted.
+- **Required fields**: if your ERP requires extra fields on a Payment Entry (for example a
+  local payment form), set them in `EMBCO_ERPNEXT_PAYMENT_EXTRA` as JSON. They cannot change
+  the amount, the party, the invoice or the hash.
+
+The limited API user and the Buying Settings are the same as above. The owner answers the
+agent's questions with `embco answer` or, for a new wallet, in the dashboard.
+
+Tested on Frappe Cloud with ERPNext v16.50.0: the agent read a shop's purchases and submitted a
+Payment Entry with a limited API user. A site with an app that blocks supplier payments (seen
+with a Mexican e-invoicing app) cannot submit them by hand either; fix that on the ERP first.
+
 Credentials go in a local `.env` (see `.env.example`), never in the repository.
