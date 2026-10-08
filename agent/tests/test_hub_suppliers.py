@@ -160,6 +160,7 @@ def test_a_supplier_signs_in_with_its_wallet_and_sees_only_its_part(hub):
     assert entry["company"] == "TEST Shop"
     assert [i["invoice"] for i in entry["invoices"]] == ["PINV-5"]
     assert "Other Supplier" not in json.dumps(body)
+    assert entry["signature_received"] is False
 
 
 def test_a_wallet_with_nothing_on_file_sees_nothing(hub):
@@ -202,6 +203,7 @@ def test_a_right_signature_is_left_for_the_agent(hub):
     response = client.post("/api/supplier/signature", json={
         "shop": SHOP, "supplier": SUPPLIER, "signature": signature})
     assert response.status_code == 200, response.text
+    assert client.get("/api/supplier/me").json()["shops"][0]["signature_received"]
     [item] = list((hub["store"].folder(SHOP) / INBOX).glob("*.json"))
     assert json.loads(item.read_text()) | {"received_at": None} == {
         "supplier": SUPPLIER, "signature": signature, "received_at": None}

@@ -189,6 +189,16 @@
             </div>
           </article>
 
+          <article class="card wide owner-only" id="suppliers-card" hidden>
+            <h2>Your suppliers</h2>
+            <p class="hint">
+              Each supplier signs in at <b id="supplier-site">app.embco.xyz/supplier</b> with the wallet you pay it to. There
+              it sees its invoices and payments, and confirms a new wallet when the agent asks. The notice you send never
+              carries a link, so your suppliers learn to type the address themselves.
+            </p>
+            <ul class="list" id="supplier-list"></ul>
+          </article>
+
           <article class="card wide owner-only" id="approvals-card" hidden>
             <h2>Waiting for your approval</h2>
             <p class="hint">The agent checked these invoices and would pay them now. Before approving, find the wallet in ERPNext (Supplier, wallet address) and make sure it is the supplier you expect.</p>

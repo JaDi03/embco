@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Embco · Supplier</title>
+    <meta name="description" content="See what shops paying through Embco owe your wallet, and confirm the wallet you are paid to." />
+    <meta name="theme-color" content="#0f172a" />
+    <link rel="icon" href="../brand/logo.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="../icons/icon-192.png" />
+    <link rel="stylesheet" href="../style.css" />
+    <script src="../supplier-app.js" type="module"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Embco supplier page">
+        <img src="../brand/logo.svg" alt="" width="36" height="36" />
+        <span class="wordmark">Embco</span>
+      </a>
+      <div class="topbar-right">
+        <span class="pill">Supplier</span>
+        <button class="btn btn-ghost" id="sign-out" hidden>Sign out</button>
+      </div>
+    </header>
+
+    <div class="testnet-banner">Test network: payments are made in test USDC with no real value.</div>
+
+    <main class="container">
+      <p class="notice" id="notice" role="status" aria-live="polite" hidden></p>
+
+      <section id="view-welcome" class="view" hidden>
+        <h1>Your payments from shops that use Embco</h1>
+        <p class="lead">
+          Sign in with the wallet you are paid to. You will see your invoices and payments with each shop, and you can
+          confirm your wallet when a shop asks you to.
+        </p>
+        <button class="btn btn-primary" id="sign-in" type="button">Sign in with MetaMask</button>
+        <div id="no-wallet" hidden>
+          <p class="hint">There is no wallet in this browser.</p>
+          <div class="row">
+            <a class="btn btn-primary" id="open-in-metamask" rel="noopener">Open in the MetaMask app</a>
+            <a class="btn btn-ghost" href="https://metamask.io/download/" target="_blank" rel="noopener">Install MetaMask</a>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-page" class="view" hidden>
+        <div class="shop-head">
+          <h1>Your payments</h1>
+          <p class="hint">Signed in as <span class="mono" id="wallet"></span></p>
+        </div>
+        <div class="grid" id="shops"></div>
+        <p class="hint" id="no-shops" hidden>
+          No shop has this wallet on file for you. If a shop pays you through Embco, ask it to check the wallet it has
+          for you in its records.
+        </p>
+      </section>
+
+      <article class="card safety">
+        <h2>Stay safe</h2>
+        <ul class="hint">
+          <li>Always type <b>app.embco.xyz/supplier</b> yourself. Do not use links in emails or messages that ask you to sign.</li>
+          <li>Signing in and confirming your wallet are signatures, not payments: they move no money and cost nothing.</li>
+          <li>Nobody from Embco or the shop will ever ask for your private key or recovery phrase.</li>
+        </ul>
+        <details>
+          <summary>How to sign, step by step</summary>
+          <ol class="hint">
+            <li>Install MetaMask on your computer, or open this page inside the MetaMask app on your phone.</li>
+            <li>In MetaMask, choose the wallet you are paid to.</li>
+            <li>Press <b>Sign in with MetaMask</b>. MetaMask asks to add or switch to the Arc test network: accept.</li>
+            <li>MetaMask shows a sign-in message with your wallet. Read it and press Sign.</li>
+            <li>If a shop asks you to confirm your wallet, press <b>Confirm my wallet</b>. MetaMask shows the shop, your
+              name and your wallet. Sign only if that wallet is yours.</li>
+          </ol>
+        </details>
+      </article>
+    </main>
+
+    <footer class="footer">
+      <a href="https://arc.network" target="_blank" rel="noopener" class="built-on">
+        <span>Built on</span>
+        <img src="../built-on/arc.png" alt="Arc" height="20" />
+      </a>
+      <nav>
+        <a id="explorer-link" target="_blank" rel="noopener">Arc explorer</a>
+      </nav>
+    </footer>
+  </body>
+</html>
