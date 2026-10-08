@@ -7,6 +7,7 @@ is shown as under review, without the reason.
 """
 
 from collections import defaultdict
+from collections.abc import Callable
 from typing import Any
 
 from embco.controls import WalletChallenge
@@ -30,8 +31,10 @@ def supplier_view(
     company: str,
     signatures: dict[str, dict[str, str]] | None = None,
     chain_id: int = ARC_TESTNET_CHAIN_ID,
+    wallet_of: Callable[[str], str | None] = lambda supplier: None,
 ) -> dict[str, Any]:
-    """One entry per supplier with an open invoice, a payment or a challenge."""
+    """One entry per supplier with an open invoice, a payment or a challenge. `wallet` is the
+    one on file in the ERP: only whoever signs in with it sees the entry."""
     payments = {p.invoice: p for p in journal.latest_payments()}
     challenges = {c.supplier: c for c in report.challenges}
     scheduled = {d.invoice for d in report.plan.pay_now}
@@ -64,6 +67,7 @@ def supplier_view(
         "network": NETWORK,
         "suppliers": {
             name: {
+                "wallet": wallet_of(name),
                 "invoices": invoices.get(name, []),
                 "payments": paid.get(name, []),
                 "challenge": _challenge(challenges.get(name), chain_id),

@@ -16,8 +16,11 @@ from pydantic import BaseModel, Field, field_validator
 from embco.circle import CircleClient, CircleError
 from embco.hub.auth import SESSION_LIFETIME, Auth, AuthError
 from embco.hub.chain import ShopLimits
+from embco.hub.errors import HubError
 from embco.hub.guard import UnsafeUrl, check_erp_url
 from embco.hub.probe import probe
+from embco.hub.supplier_auth import SupplierAuth
+from embco.hub.suppliers import supplier_routes
 from embco.hub.units import UnitError, Units
 from embco.hub.wallets import create_agent_wallet
 from embco.ledger.erpnext.adapter import PROTECTED_PAYMENT_FIELDS
@@ -26,6 +29,7 @@ from embco.payments.chain import ChainError
 from embco.shops.store import ErpCredentials, ShopConfig, ShopError, ShopStore, check_shop
 
 COOKIE = "embco_session"
+PUBLIC_URL = "https://app.embco.xyz"
 
 
 class SignIn(BaseModel):
@@ -50,12 +54,6 @@ class Connect(BaseModel):
         return value
 
 
-class HubError(Exception):
-    def __init__(self, status: int, message: str, **extra: Any) -> None:
-        super().__init__(message)
-        self.status, self.extra = status, extra
-
-
 def create_app(
     *,
     store: ShopStore,
@@ -65,6 +63,8 @@ def create_app(
     circle: CircleClient | None = None,
     frappe_for: Callable[[str, str, str], FrappeClient] | None = None,
     check_url: Callable[[str], str] = check_erp_url,
+    public_url: str = PUBLIC_URL,
+    supplier_auth: SupplierAuth | None = None,
 ) -> FastAPI:
     app = FastAPI(title="embco hub", docs_url=None, redoc_url=None, openapi_url=None)
     frappe_for = frappe_for or (lambda url, key, secret: FrappeClient(url, key, secret,
@@ -205,4 +205,7 @@ def create_app(
         store.disconnect(shop)
         return {"connected": False}
 
+    app.include_router(supplier_routes(store=store, auth=supplier_auth or SupplierAuth(),
+                                       shop_of=shop_of, owner_session=owner_session,
+                                       frappe_for=frappe_for, public_url=public_url))
     return app
