@@ -124,6 +124,71 @@
             </form>
           </article>
 
+          <article class="card wide owner-only" id="erp-card">
+            <h2>Your ERPNext</h2>
+            <p class="hint" id="erp-error" hidden></p>
+            <div id="erp-signin" hidden>
+              <p class="hint">
+                Sign in with your wallet to connect your ERPNext and see what the agent decides. It is a signature, not a
+                transaction: it costs nothing.
+              </p>
+              <button class="btn btn-primary" id="erp-signin-button" type="button">Sign in</button>
+            </div>
+            <form id="erp-form" class="form" novalidate hidden>
+              <p class="hint">
+                In ERPNext, create a user for the agent with the roles Accounts User, Purchase User and Stock User, generate
+                its API keys and paste them here. They are stored encrypted and never shown again.
+              </p>
+              <label>
+                ERPNext address
+                <input name="erpUrl" placeholder="https://your-shop.frappe.cloud" autocomplete="off" spellcheck="false" required />
+              </label>
+              <label>
+                Company <span class="optional">(as written in ERPNext)</span>
+                <input name="company" autocomplete="off" required />
+              </label>
+              <label>
+                API key
+                <input name="apiKey" autocomplete="off" spellcheck="false" required />
+              </label>
+              <label>
+                API secret
+                <input name="apiSecret" type="password" autocomplete="new-password" required />
+              </label>
+              <label>
+                Bank that holds supplier wallets <span class="optional">(Bank Account rows with the wallet as account number)</span>
+                <input name="walletBank" value="USDC on Arc" autocomplete="off" />
+              </label>
+              <label>
+                Extra payment fields <span class="optional">(optional, only if your ERPNext requires them)</span>
+                <input name="paymentExtra" placeholder='{"payment_form": "03"}' autocomplete="off" spellcheck="false" />
+              </label>
+              <button class="btn btn-primary" type="submit">Test and connect</button>
+            </form>
+            <ul class="list checks" id="erp-checks" hidden></ul>
+            <div id="erp-connected" hidden>
+              <dl class="facts">
+                <div><dt>ERPNext</dt><dd class="mono" id="erp-url"></dd></div>
+                <div><dt>Company</dt><dd id="erp-company"></dd></div>
+                <div><dt>Agent wallet</dt><dd class="mono" id="erp-agent-wallet"></dd></div>
+                <div><dt>Last check</dt><dd id="erp-last-at"></dd></div>
+              </dl>
+              <div id="erp-set-agent" hidden>
+                <p class="hint">
+                  This is your shop's own agent wallet. Make it the agent of your contract so it can pay approved suppliers
+                  within your limits.
+                </p>
+                <button class="btn btn-primary" id="erp-set-agent-button" type="button">Make it the agent</button>
+              </div>
+              <p id="erp-summary"></p>
+              <ul class="list" id="erp-decisions"></ul>
+              <div class="row">
+                <button class="btn btn-ghost" id="erp-refresh" type="button">Refresh</button>
+                <button class="btn btn-danger" id="erp-disconnect" type="button">Disconnect</button>
+              </div>
+            </div>
+          </article>
+
           <article class="card wide owner-only" id="approvals-card" hidden>
             <h2>Waiting for your approval</h2>
             <p class="hint">The agent checked these invoices and would pay them now. Before approving, find the wallet in ERPNext (Supplier, wallet address) and make sure it is the supplier you expect.</p>

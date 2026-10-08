@@ -108,3 +108,18 @@ input:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
   h1 { font-size: 1.45rem; }
   .wordmark { font-size: 1.2rem; }
 }
+
+/* The agent on the owner's ERPNext */
+.badge {
+  display: inline-block; min-width: 3.2em; text-align: center; font-size: 0.78rem; font-weight: 700;
+  padding: 2px 8px; border-radius: 999px; margin-right: 8px;
+}
+.badge-pay { background: #ecfdf5; color: #065f46; }
+.badge-hold { background: #fef2f2; color: #991b1b; }
+.badge-ask { background: #eff6ff; color: #1e40af; }
+.decision { display: grid; gap: 4px; flex: 1 1 320px; }
+.decision .reasons { color: var(--muted); font-size: 0.88rem; }
+.checks { margin-top: 12px; }
+.checks .ok::before { content: "✓ "; color: var(--green); font-weight: 700; }
+.checks .fail::before { content: "✗ "; color: var(--red); font-weight: 700; }
+#erp-set-agent { margin: 8px 0 12px; }

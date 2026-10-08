@@ -35,3 +35,6 @@ export const FAUCET_URL = "https://faucet.circle.com";
 
 // Wallets the agent is waiting to pay, written by the agent on this site.
 export const APPROVALS_PATH = "/pending.json";
+
+// The hub API on this site: sign in with the owner's wallet, connect the ERP, read the agent.
+export const HUB_PATH = "/api";

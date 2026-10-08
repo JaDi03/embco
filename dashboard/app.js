@@ -5,6 +5,7 @@ import { ethers } from "./vendor/ethers-6.17.0.min.js";
 import { ARC_TESTNET, FAUCET_URL } from "./config.js";
 import { describeError } from "./errors.js";
 import { pendingApprovals } from "./approvals.js";
+import * as hub from "./hub.js";
 import { factory, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
 import { formatUsdc, parseUsdc, shortAddress, ZERO_ADDRESS } from "./units.js";
 import * as wallet from "./wallet.js";
@@ -113,7 +114,85 @@ async function renderShop() {
   $("pause-button").hidden = !isOwner || state.paused;
   $("resume-button").hidden = !isOwner || !state.paused;
 
-  await Promise.all([renderHistory(isOwner), renderApprovals(isOwner)]);
+  await Promise.all([renderHistory(isOwner), renderApprovals(isOwner), renderErp(isOwner, state)]);
+}
+
+// The shop's own agent on the owner's ERPNext, through the hub API.
+
+function showErp(part) {
+  for (const id of ["erp-signin", "erp-form", "erp-connected"]) $(id).hidden = id !== part;
+}
+
+function erpError(text) {
+  $("erp-error").textContent = text;
+  $("erp-error").hidden = !text;
+}
+
+function renderChecks(probe) {
+  const list = $("erp-checks");
+  list.hidden = !probe;
+  if (!probe) return;
+  list.replaceChildren(
+    ...probe.checks.map((check) =>
+      Object.assign(document.createElement("li"), {
+        className: check.ok ? "ok" : "fail",
+        textContent: check.detail,
+      }),
+    ),
+  );
+}
+
+async function renderErp(isOwner, state) {
+  if (!isOwner) return;
+  erpError("");
+  let shop;
+  try {
+    shop = await hub.status(session.shop);
+  } catch (error) {
+    showErp(null);
+    erpError(`The embco service is not reachable right now (${error.message}).`);
+    return;
+  }
+  if (!shop) {
+    renderChecks(null);
+    showErp("erp-signin");
+    return;
+  }
+  if (!shop.connected) {
+    showErp("erp-form");
+    return;
+  }
+  renderChecks(null);
+  showErp("erp-connected");
+  $("erp-url").textContent = shop.erp_url;
+  $("erp-company").textContent = shop.company;
+  $("erp-agent-wallet").replaceChildren(
+    shop.agent_wallet ? link(shortAddress(shop.agent_wallet), addressUrl(shop.agent_wallet)) : "not created",
+  );
+  $("erp-set-agent").hidden = !hub.needsSetAgent(shop.agent_wallet, state.agent);
+  const view = hub.lastRunView(shop.last_run);
+  $("erp-last-at").textContent = view.at ? new Date(view.at).toLocaleString() : "not yet";
+  $("erp-summary").textContent = view.text;
+  $("erp-summary").className = view.state === "error" ? "status-off" : "";
+  $("erp-decisions").replaceChildren(
+    ...(view.decisions ?? []).map((d) => {
+      const li = document.createElement("li");
+      const badge = Object.assign(document.createElement("span"), {
+        className: `badge badge-${d.action.toLowerCase()}`,
+        textContent: d.action,
+      });
+      const what = Object.assign(document.createElement("div"), { className: "decision" });
+      const title = document.createElement("span");
+      title.append(badge, `${d.invoice} · ${d.supplier} · ${d.amount}`);
+      const reasons = Object.assign(document.createElement("span"), {
+        className: "reasons",
+        textContent: d.reasons.join("; "),
+      });
+      what.append(title, reasons);
+      li.append(what);
+      return li;
+    }),
+  );
 }
 
 async function renderApprovals(isOwner) {
@@ -329,6 +408,69 @@ function wireActions() {
       return;
     }
     act(button, "Change the agent", (shop) => shop.setAgent(agent)).then((ok) => ok && form.reset());
+  });
+
+  $("erp-signin-button").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      notify("Sign in: confirm the signature in MetaMask (it is free)...");
+      await hub.signIn(await session.provider.getSigner(), session.shop);
+      notify("");
+      await renderShop();
+    } catch (error) {
+      notify(describeError(error), "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  onSubmit("erp-form", async (data, button, form) => {
+    let request;
+    try {
+      request = hub.connectRequest(Object.fromEntries(data));
+    } catch (error) {
+      notify(describeError(error), "error");
+      return;
+    }
+    button.disabled = true;
+    renderChecks(null);
+    try {
+      notify("Testing your ERPNext keys...");
+      const result = await hub.connectErp(session.shop, request);
+      form.reset();
+      notify("Connected. Your shop's agent checks your ERPNext every 15 minutes.", "success");
+      await renderShop();
+      renderChecks(result.probe);
+    } catch (error) {
+      renderChecks(error.details?.probe ?? null);
+      notify(describeError(error), "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  $("erp-refresh").addEventListener("click", () => renderShop().catch((error) => notify(describeError(error), "error")));
+
+  $("erp-disconnect").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      await hub.disconnectErp(session.shop);
+      notify("Disconnected. The agent stopped and your ERPNext keys were deleted.", "success");
+      await renderShop();
+    } catch (error) {
+      notify(describeError(error), "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  $("erp-set-agent-button").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    const shop = await hub.status(session.shop).catch(() => null);  // the address from the hub, not the page
+    if (!shop?.agent_wallet) return;
+    act(button, "Make it the agent", (contract) => contract.setAgent(shop.agent_wallet));
   });
 
   onSubmit("supplier-form", (data, button, form) => {
