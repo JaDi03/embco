@@ -277,3 +277,24 @@ def test_contract_amounts_are_read_exactly_and_written_plainly(units, text):
     from embco.hub.chain import _usdc
 
     assert str(_usdc(units)) == text
+
+
+def test_circle_names_stay_short_and_keys_stay_the_same_for_a_shop():
+    from embco.hub.wallets import create_agent_wallet, wallet_names
+
+    assert all(len(name) <= 30 for name in wallet_names(SHOP))  # Circle refused 53 characters
+    calls = []
+
+    class Recording(FakeCircle):
+        def create_wallet_set(self, name, *, idempotency_key=None):
+            calls.append((name, idempotency_key))
+            return "set-1"
+
+        def create_eoa_wallet(self, wallet_set_id, name, *, idempotency_key=None):
+            calls.append((name, idempotency_key))
+            return super().create_eoa_wallet(wallet_set_id, name)
+
+    create_agent_wallet(Recording(), SHOP)
+    create_agent_wallet(Recording(), SHOP)
+    assert calls[:2] == calls[2:]  # a retry sends the same names and idempotency keys
+    assert calls[0] == ("embco " + SHOP[:10], calls[0][1])
