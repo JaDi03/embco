@@ -123,3 +123,15 @@ input:focus { outline: 2px solid var(--blue); border-color: var(--blue); }
 .checks .ok::before { content: "✓ "; color: var(--green); font-weight: 700; }
 .checks .fail::before { content: "✗ "; color: var(--red); font-weight: 700; }
 #erp-set-agent { margin: 8px 0 12px; }
+
+/* Suppliers: the owner's list and the supplier's own page */
+h3 { font-size: 0.95rem; margin: 16px 0 8px; }
+.confirm {
+  margin: 8px 0 12px; padding: 14px 16px; border-radius: 10px;
+  background: #eff6ff; border: 1px solid #bfdbfe;
+}
+.confirm p { margin: 0 0 10px; line-height: 1.45; }
+.safety { margin-top: 24px; }
+.safety ul, .safety ol { padding-left: 20px; margin: 0 0 8px; display: grid; gap: 6px; }
+.safety summary { cursor: pointer; font-weight: 600; margin: 8px 0; }
+.supplier-row { display: grid; gap: 4px; flex: 1 1 260px; }

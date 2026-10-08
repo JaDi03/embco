@@ -6,6 +6,7 @@ import { ARC_TESTNET, FAUCET_URL } from "./config.js";
 import { describeError } from "./errors.js";
 import { pendingApprovals } from "./approvals.js";
 import * as hub from "./hub.js";
+import * as suppliers from "./suppliers.js";
 import { factory, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
 import { formatUsdc, parseUsdc, shortAddress, ZERO_ADDRESS } from "./units.js";
 import * as wallet from "./wallet.js";
@@ -143,6 +144,7 @@ function renderChecks(probe) {
 }
 
 async function renderErp(isOwner, state) {
+  $("suppliers-card").hidden = true;
   if (!isOwner) return;
   erpError("");
   let shop;
@@ -193,6 +195,63 @@ async function renderErp(isOwner, state) {
       return li;
     }),
   );
+  await renderSuppliers(shop);
+}
+
+async function renderSuppliers(shop) {
+  let list;
+  try {
+    list = await suppliers.listSuppliers(session.shop);
+  } catch {
+    return;  // the card stays hidden; the ERP card already reports a service problem
+  }
+  $("suppliers-card").hidden = false;
+  $("supplier-site").textContent = list.site;
+  if (!list.suppliers.length) {
+    $("supplier-list").replaceChildren(Object.assign(document.createElement("li"), {
+      className: "empty", textContent: "The agent has not seen any supplier yet.",
+    }));
+    return;
+  }
+  $("supplier-list").replaceChildren(...list.suppliers.map((row) => supplierRow(shop, list.site, row)));
+}
+
+function supplierRow(shop, site, row) {
+  const li = document.createElement("li");
+  const what = Object.assign(document.createElement("div"), { className: "supplier-row" });
+  const title = document.createElement("span");
+  if (row.signature_needed) {
+    title.append(Object.assign(document.createElement("span"), { className: "badge badge-ask", textContent: "SIGN" }));
+  }
+  title.append(row.supplier);
+  const detail = Object.assign(document.createElement("span"), {
+    className: "reasons",
+    textContent: `${row.wallet ? shortAddress(row.wallet) : "no wallet on file"} · ${row.open_invoices} open · ${row.payments} paid`
+      + (row.signature_needed ? " · waiting for the supplier to confirm its wallet" : ""),
+  });
+  what.append(title, detail);
+
+  const actions = Object.assign(document.createElement("div"), { className: "row" });
+  const email = Object.assign(document.createElement("button"), {
+    className: "btn btn-ghost", type: "button", textContent: "Email notice",
+  });
+  email.addEventListener("click", async () => {
+    email.disabled = true;
+    try {
+      await suppliers.emailNotice(session.shop, row.supplier);
+      notify(`Notice sent to ${row.supplier} from your ERPNext.`, "success");
+    } catch (error) {
+      notify(describeError(error), "error");
+    } finally {
+      email.disabled = false;
+    }
+  });
+  const text = suppliers.noticeText({
+    company: shop.company, supplier: row.supplier, wallet: row.wallet, signatureNeeded: row.signature_needed, site,
+  });
+  actions.append(email, link("WhatsApp", suppliers.whatsappUrl(text), "btn btn-ghost"));
+  li.append(what, actions);
+  return li;
 }
 
 async function renderApprovals(isOwner) {

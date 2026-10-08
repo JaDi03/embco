@@ -24,7 +24,7 @@ from embco.hub.supplier_auth import SupplierAuth, SupplierSession
 from embco.ledger.base import LedgerError
 from embco.ledger.erpnext.client import FrappeClient
 from embco.ledger.erpnext.mail import email_supplier_notice
-from embco.shops.inbox import drop_signature
+from embco.shops.inbox import drop_signature, signature_waiting
 from embco.shops.store import ShopError, ShopStore
 
 COOKIE = "embco_supplier"
@@ -115,7 +115,9 @@ def supplier_routes(
                 if _wallet_of(entry).lower() == wallet.lower():
                     found.append({"shop": shop, "company": view.get("company"),
                                   "network": view.get("network"), "at": view.get("at"),
-                                  "supplier": name, **entry})
+                                  "supplier": name, **entry,
+                                  "signature_received": signature_waiting(store.folder(shop),
+                                                                          name)})
         return found
 
     @router.post("/api/supplier/sign-in-request")

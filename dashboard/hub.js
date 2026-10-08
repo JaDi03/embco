@@ -15,7 +15,7 @@ export class HubError extends Error {
 
 const shopPath = (shop) => `${HUB_PATH}/shops/${shop.toLowerCase()}`;
 
-async function call(path, { method = "GET", body, fetchImpl = fetch } = {}) {
+export async function call(path, { method = "GET", body, fetchImpl = fetch } = {}) {
   const response = await fetchImpl(path, {
     method,
     credentials: "same-origin",

@@ -22,16 +22,24 @@ ACCEPTED = "ACCEPTED"
 REJECTED = "REJECTED"
 
 
+def _name(supplier: str) -> str:
+    return hashlib.sha256(supplier.encode()).hexdigest()[:16]
+
+
 def drop_signature(folder: Path, supplier: str, signature: str, at: datetime) -> None:
     """One file per supplier: a newer signature replaces one the agent has not read yet."""
     inbox = folder / INBOX
     inbox.mkdir(mode=0o700, exist_ok=True)
-    name = hashlib.sha256(supplier.encode()).hexdigest()[:16]
-    tmp = inbox / f"{name}.tmp"
+    tmp = inbox / f"{_name(supplier)}.tmp"
     tmp.write_text(json.dumps({"supplier": supplier, "signature": signature,
                                "received_at": at.isoformat()}), encoding="utf-8")
     os.chmod(tmp, 0o600)
-    os.replace(tmp, inbox / f"{name}.json")
+    os.replace(tmp, inbox / f"{_name(supplier)}.json")
+
+
+def signature_waiting(folder: Path, supplier: str) -> bool:
+    """A signature from this supplier is in the inbox and the agent has not read it yet."""
+    return (folder / INBOX / f"{_name(supplier)}.json").exists()
 
 
 def take_signatures(
