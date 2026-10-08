@@ -75,6 +75,42 @@ def test_the_process_environment_does_not_reach_a_shop(store, monkeypatch):
     assert not settings.pay and settings.erpnext_url == "https://erp.example.com"
 
 
+def platform():
+    return {"CIRCLE_API_KEY": secrets.token_hex(8), "CIRCLE_ENTITY_SECRET": secrets.token_hex(8),
+            "ARC_TESTNET_RPC_URL": "https://rpc.example.com"}
+
+
+def test_a_shop_with_its_agent_wallet_pays_on_testnet_and_leaves_drafts(store):
+    store.save(config(agent_wallet_id="wallet-a"), creds())
+    shared = platform()
+    settings = store.settings(SHOP_A, shared)
+    assert settings.pay and settings.erpnext_draft_payments
+    assert settings.shop_address == SHOP_A and settings.agent_wallet_id == "wallet-a"
+    assert settings.circle_api_key == shared["CIRCLE_API_KEY"]
+
+
+@pytest.mark.parametrize("missing", ["CIRCLE_API_KEY", "CIRCLE_ENTITY_SECRET",
+                                     "ARC_TESTNET_RPC_URL"])
+def test_without_the_platform_accounts_a_shop_only_observes(store, missing):
+    store.save(config(agent_wallet_id="wallet-a"), creds())
+    shared = platform() | {missing: ""}
+    assert not store.settings(SHOP_A, shared).pay
+
+
+def test_a_shop_without_its_agent_wallet_only_observes(store):
+    store.save(config(), creds())
+    settings = store.settings(SHOP_A, platform())
+    assert not settings.pay and settings.erpnext_draft_payments
+
+
+def test_the_shop_loop_gets_a_payer_when_payments_are_on(store):
+    store.save(config(agent_wallet_id="wallet-a"), creds())
+    seen = []
+    run_shop(store, SHOP_A, cycles=1, erp=lambda settings: FakeLedger(), platform=platform(),
+             payer=lambda settings, ledger: seen.append(settings.pay))
+    assert seen == [True]
+
+
 def test_disconnecting_forgets_the_keys_and_keeps_the_memory(store):
     store.save(config(), creds())
     run_shop(store, SHOP_A, cycles=1, erp=lambda settings: FakeLedger())

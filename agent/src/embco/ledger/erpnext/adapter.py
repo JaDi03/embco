@@ -39,6 +39,7 @@ PROTECTED_PAYMENT_FIELDS = frozenset({
     "payment_type", "party", "party_type", "paid_amount", "received_amount", "references",
     "reference_no", "reference_date", "posting_date", "docstatus",
 })
+TESTNET_REMARK = "TESTNET: paid in test USDC, no real money moved. Do not submit."
 DOC_INFO = "frappe.desk.form.load.get_docinfo"  # change history of a document the user can read
 
 
@@ -55,6 +56,7 @@ class ErpnextAdapter:
         paid_from: str | None = None,
         payment_extra: Mapping[str, str] | None = None,
         wallet_bank: str | None = None,
+        draft_payments: bool = False,
         client: httpx.Client | None = None,
         timeout: int = 20,
     ) -> None:
@@ -64,6 +66,7 @@ class ErpnextAdapter:
         self._paid_from = paid_from
         self._payment_extra = dict(payment_extra or {})
         self._wallet_bank = wallet_bank  # set: wallets are Bank Account rows, no custom fields
+        self._draft_payments = draft_payments  # testnet: test USDC must not settle real invoices
         clash = sorted(PROTECTED_PAYMENT_FIELDS & self._payment_extra.keys())
         if clash:
             raise ValueError(f"payment fields the agent sets itself: {', '.join(clash)}")
@@ -215,6 +218,12 @@ class ErpnextAdapter:
             account = bank_wallets.account_for(accounts, payment.payee_wallet)
             if account:
                 draft["party_bank_account"] = account
+        if self._draft_payments:
+            draft.update({
+                "docstatus": 0,
+                "custom_remarks": 1,
+                "remarks": f"{TESTNET_REMARK} {draft['remarks']}",
+            })
         return self._frappe.insert_doc(draft)["name"]
 
 

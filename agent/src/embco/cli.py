@@ -27,7 +27,7 @@ from embco.llm import ClaudeExplainer, Explainer
 from embco.payments import ArcRpc, Payer
 from embco.runner import format_report, run_cycle, watch
 from embco.settings import Settings, SettingsError
-from embco.shops import ShopError, ShopStore, erp_for, read_key, run_shop
+from embco.shops import PLATFORM, ShopError, ShopStore, erp_for, read_key, run_shop
 from embco.signing import typed_data
 
 log = logging.getLogger("embco")
@@ -73,11 +73,13 @@ def _hub(args) -> int:
 
 
 def _shop(args) -> int:
-    """Settings come from the shop's folder only, never from this process's environment."""
+    """Settings come from the shop's folder; from this process's environment, only the
+    platform's Circle account and Arc node."""
     folder = Path(args.dir)
     try:
         store = ShopStore(folder.parent, read_key(Path(args.key_file)))
-        run_shop(store, folder.name, cycles=args.cycles)
+        platform = {name: os.environ.get(name, "") for name in PLATFORM}
+        run_shop(store, folder.name, cycles=args.cycles, platform=platform)
     except (ShopError, SettingsError) as error:
         print(f"configuration error: {error}", file=sys.stderr)
         return 2

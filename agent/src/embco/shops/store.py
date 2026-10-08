@@ -6,12 +6,14 @@
     <root>/<shop>/last_run.json    what the agent decided last time, for the dashboard
 
 A shop is the address of its ShopPayables contract, in lower case. A shop's settings are built
-from its folder only, never from the process environment, so no shop inherits another's.
+from its folder only, so no shop inherits another's. The only values from outside are the
+platform's own: the Circle account that holds every shop's agent wallet and the Arc node.
 """
 
 import json
 import os
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -25,6 +27,7 @@ SECRETS = "erp.enc"
 JOURNAL = "journal.sqlite3"
 LAST_RUN = "last_run.json"
 _SHOP = re.compile(r"^0x[0-9a-f]{40}$")
+PLATFORM = ("CIRCLE_API_KEY", "CIRCLE_ENTITY_SECRET", "ARC_TESTNET_RPC_URL")
 
 
 class ShopError(Exception):
@@ -113,9 +116,13 @@ class ShopStore:
         return sorted(p.name for p in self.root.iterdir()
                       if _SHOP.match(p.name) and (p / SECRETS).exists())
 
-    def settings(self, shop: str) -> Settings:
-        """Observation only: payments and AI explanations stay off in this phase."""
+    def settings(self, shop: str, platform: Mapping[str, str] | None = None) -> Settings:
+        """Payments are on once the shop has its agent wallet and the platform gives the Circle
+        account and the Arc node. Testnet only for now: each payment is left in the ERP as a
+        draft marked TESTNET, never submitted. AI explanations stay off."""
         config, credentials = self.config(shop), self.credentials(shop)
+        shared = {name: (platform or {}).get(name, "").strip() for name in PLATFORM}
+        pay = bool(config.agent_wallet_id) and all(shared.values())
         env = {
             "EMBCO_ERPNEXT_URL": config.erp_url,
             "EMBCO_ERPNEXT_API_KEY": credentials.api_key,
@@ -128,9 +135,13 @@ class ShopStore:
             "EMBCO_ERPNEXT_WALLET_BANK": config.wallet_bank or "",
             "EMBCO_ERPNEXT_PAYMENT_EXTRA": json.dumps(config.payment_extra)
             if config.payment_extra else "",
-            "EMBCO_PAY": "off",
+            "EMBCO_PAY": "on" if pay else "off",
+            "EMBCO_ERPNEXT_DRAFT_PAYMENTS": "on",
             "EMBCO_EXPLAIN": "off",
         }
+        if pay:
+            env.update(shared, EMBCO_AGENT_WALLET_ID=config.agent_wallet_id,
+                       EMBCO_SHOP_ADDRESS=shop)
         return Settings.from_env(env)
 
     def write_last_run(self, shop: str, summary: dict[str, Any]) -> None:
