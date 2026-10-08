@@ -56,6 +56,8 @@ def _ledger(settings: Settings) -> ErpnextAdapter:
         settings.erpnext_api_secret,
         company=settings.company,
         paid_from=settings.erpnext_paid_from,
+        payment_extra=settings.erpnext_payment_extra,
+        wallet_bank=settings.erpnext_wallet_bank,
     )
 
 

@@ -3,6 +3,7 @@
 Secrets never appear in errors, logs or repr.
 """
 
+import json
 import os
 import re
 from collections.abc import Mapping
@@ -13,6 +14,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from embco.decision import PolicyConfig
+from embco.ledger.erpnext.adapter import PROTECTED_PAYMENT_FIELDS
 from embco.llm import DEFAULT_MODEL
 
 PREFIX = "EMBCO_"
@@ -51,6 +53,8 @@ class Settings:
     agent_wallet_id: str | None = None
     pay: bool = False
     erpnext_paid_from: str | None = None
+    erpnext_wallet_bank: str | None = None  # wallets in Bank Account rows of this bank
+    erpnext_payment_extra: Mapping[str, str] = field(default_factory=dict)  # required by the ERP
     approvals_file: Path | None = None
     owner_users: tuple[str, ...] = ()  # ERP accounts whose mark on an invoice answers an ASK
     shop_address: str | None = None
@@ -89,6 +93,8 @@ class Settings:
             agent_wallet_id=get("AGENT_WALLET_ID") or None,
             pay=pay,
             erpnext_paid_from=get("ERPNEXT_PAID_FROM") or None,
+            erpnext_wallet_bank=get("ERPNEXT_WALLET_BANK") or None,
+            erpnext_payment_extra=_payment_extra(get("ERPNEXT_PAYMENT_EXTRA")),
             approvals_file=Path(get("APPROVALS_FILE")) if get("APPROVALS_FILE") else None,
             shop_address=get("SHOP_ADDRESS") or None,
             owner_users=tuple(u.strip() for u in get("OWNER_USERS").split(",") if u.strip()),
@@ -157,6 +163,24 @@ def _minutes(text: str) -> int:
     if not text.isdigit() or int(text) < 1:
         raise SettingsError(f"{PREFIX}INTERVAL_MINUTES must be a whole number of minutes")
     return int(text)
+
+
+def _payment_extra(text: str) -> dict[str, str]:
+    name = PREFIX + "ERPNEXT_PAYMENT_EXTRA"
+    if not text:
+        return {}
+    try:
+        value = json.loads(text)
+    except ValueError:
+        value = None
+    if not isinstance(value, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in value.items()
+    ):
+        raise SettingsError(f'{name} must be a JSON object of text values, e.g. {{"field": "01"}}')
+    clash = sorted(PROTECTED_PAYMENT_FIELDS & value.keys())
+    if clash:
+        raise SettingsError(f"{name} cannot set {', '.join(clash)}")
+    return value
 
 
 def _flag(name: str, text: str) -> bool:

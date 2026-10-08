@@ -31,6 +31,7 @@ class FakeErp:
         path = request.url.path
         if request.method == "GET" and path == "/api/resource/Payment Entry":
             assert TX in request.url.params["filters"]
+            assert "reference_no" in request.url.params["filters"]  # standard, not custom
             rows = [{"name": n} for n in self.existing]
             return httpx.Response(200, json={"data": rows})
         if path.endswith("get_payment_entry"):
@@ -68,6 +69,22 @@ def test_the_account_the_money_left_from_can_be_set():
     [doc] = erp.inserted
     assert doc["paid_from"] == "USDC Wallet - TS"
     assert doc["paid_from_account_currency"] is None
+
+
+def test_fields_the_erp_requires_are_added_to_the_entry():
+    erp = FakeErp()
+    adapter(erp, payment_extra={"payment_form": "03"}).record_payment(PAYMENT)
+    [doc] = erp.inserted
+    assert doc["payment_form"] == "03"
+    assert doc["reference_no"] == TX
+
+
+@pytest.mark.parametrize(
+    "field", ["paid_amount", "party", "references", "reference_no", "docstatus"]
+)
+def test_extra_fields_cannot_change_what_was_paid(field):
+    with pytest.raises(ValueError, match=field):
+        adapter(FakeErp(), payment_extra={field: "x"})
 
 
 def test_the_same_transaction_is_never_recorded_twice():

@@ -97,3 +97,21 @@ def test_the_erpnext_url_must_be_encrypted_unless_local(url, ok):
     else:
         with pytest.raises(SettingsError, match="https://"):
             Settings.from_env(env)
+
+
+def test_extra_payment_fields_come_from_a_json_object():
+    assert Settings.from_env(ENV).erpnext_payment_extra == {}
+    env = {**ENV, "EMBCO_ERPNEXT_PAYMENT_EXTRA": ' {"payment_form": "03"} '}
+    assert Settings.from_env(env).erpnext_payment_extra == {"payment_form": "03"}
+
+
+@pytest.mark.parametrize("text", ["payment_form=03", "[1]", '{"a": 3}', '{"paid_amount": "1"}'])
+def test_extra_payment_fields_must_be_text_pairs_the_agent_does_not_own(text):
+    with pytest.raises(SettingsError, match="EMBCO_ERPNEXT_PAYMENT_EXTRA"):
+        Settings.from_env({**ENV, "EMBCO_ERPNEXT_PAYMENT_EXTRA": text})
+
+
+def test_the_wallet_bank_is_optional():
+    assert Settings.from_env(ENV).erpnext_wallet_bank is None
+    env = {**ENV, "EMBCO_ERPNEXT_WALLET_BANK": " USDC on Arc "}
+    assert Settings.from_env(env).erpnext_wallet_bank == "USDC on Arc"

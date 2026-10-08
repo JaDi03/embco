@@ -40,6 +40,8 @@ class PayeeWallet:
 
     def check(self, ctx: Context) -> Finding:
         wallet = ctx.supplier.wallet_address
+        if ctx.supplier.wallet_problem:
+            return hold(self.name, ctx.supplier.wallet_problem)
         if not wallet:
             return hold(self.name, "the supplier has no wallet on file")
         if not is_evm_address(wallet):
