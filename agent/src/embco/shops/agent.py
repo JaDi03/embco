@@ -6,12 +6,14 @@ stops does not touch another. After every cycle it leaves a summary for the dash
 
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any
 
+from embco.circle import CircleClient
 from embco.journal import JournalError, SqliteJournal
 from embco.ledger import ErpnextAdapter, LedgerError
+from embco.payments import ArcRpc, Payer
 from embco.runner import CycleReport, format_report, run_cycle, watch
 from embco.settings import Settings
 from embco.shops.store import ShopStore
@@ -28,6 +30,20 @@ def erp_for(settings: Settings) -> ErpnextAdapter:
         paid_from=settings.erpnext_paid_from,
         payment_extra=settings.erpnext_payment_extra,
         wallet_bank=settings.erpnext_wallet_bank,
+        draft_payments=settings.erpnext_draft_payments,
+    )
+
+
+def payer_for(settings: Settings, ledger: ErpnextAdapter) -> Payer | None:
+    if not settings.pay:
+        return None
+    return Payer(
+        ledger=ledger,
+        chain=ArcRpc(settings.arc_rpc_url),
+        circle=CircleClient(settings.circle_api_key, settings.circle_entity_secret),
+        shop=settings.shop_address,
+        wallet_id=settings.agent_wallet_id,
+        writer=ledger,
     )
 
 
@@ -56,17 +72,21 @@ def run_shop(
     cycles: int | None = None,
     sleep: Callable[[float], None] = time.sleep,
     erp: Callable[[Settings], ErpnextAdapter] = erp_for,
+    platform: Mapping[str, str] | None = None,
+    payer: Callable[[Settings, ErpnextAdapter], Payer | None] = payer_for,
 ) -> int:
     """Returns how many cycles ran without an ERP error."""
-    settings = store.settings(shop)
+    settings = store.settings(shop, platform)
     ledger = erp(settings)
-    log.info("shop %s: watching %s every %s (observing, payments off)", shop, settings.company,
-             settings.interval)
+    payments = payer(settings, ledger)
+    log.info("shop %s: watching %s every %s (payments %s)", shop, settings.company,
+             settings.interval, "on, testnet drafts in the ERP" if payments else "off")
     with SqliteJournal(settings.journal_path) as journal:
 
         def cycle() -> None:
             try:
-                report = run_cycle(ledger, journal, settings.policy, settings.company)
+                report = run_cycle(ledger, journal, settings.policy, settings.company,
+                                   payments=payments)
             except (LedgerError, JournalError) as error:
                 store.write_last_run(shop, {"ok": False, "at": datetime.now(UTC).isoformat(),
                                             "error": str(error)})

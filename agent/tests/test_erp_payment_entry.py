@@ -63,6 +63,16 @@ def test_a_payment_is_drafted_by_erpnext_and_submitted_with_the_chain_details():
     assert doc["paid_amount"] == Decimal("125.50")  # a JSON number with its exact digits
 
 
+def test_on_testnet_the_entry_is_left_as_a_draft_that_says_so():
+    erp = FakeErp()
+    assert adapter(erp, draft_payments=True).record_payment(PAYMENT) == "ACC-PAY-0001"
+    [doc] = erp.inserted
+    assert doc["docstatus"] == 0
+    assert doc["custom_remarks"] == 1  # ERPNext keeps the remark instead of writing its own
+    assert doc["remarks"].startswith("TESTNET") and "Do not submit" in doc["remarks"]
+    assert doc["reference_no"] == TX
+
+
 def test_the_account_the_money_left_from_can_be_set():
     erp = FakeErp()
     adapter(erp, paid_from="USDC Wallet - TS").record_payment(PAYMENT)

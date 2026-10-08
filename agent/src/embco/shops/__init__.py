@@ -1,7 +1,8 @@
 """Hosted agents: one folder and one process per shop."""
 
-from embco.shops.agent import erp_for, run_shop, summarize
+from embco.shops.agent import erp_for, payer_for, run_shop, summarize
 from embco.shops.store import (
+    PLATFORM,
     ErpCredentials,
     ShopConfig,
     ShopError,
@@ -12,6 +13,7 @@ from embco.shops.store import (
 )
 
 __all__ = [
+    "PLATFORM",
     "ErpCredentials",
     "ShopConfig",
     "ShopError",
@@ -19,6 +21,7 @@ __all__ = [
     "check_shop",
     "erp_for",
     "new_key",
+    "payer_for",
     "read_key",
     "run_shop",
     "summarize",
