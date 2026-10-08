@@ -8,11 +8,13 @@
     embco history INVOICE                    every decision taken on an invoice
     embco verify                             check that the memory was not altered
     embco create-wallet                      create the agent's paying wallet with Circle (once)
+    embco shop --dir ROOT/SHOP               the hosted agent of one shop, settings from its folder
 """
 
 import argparse
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -24,6 +26,7 @@ from embco.llm import ClaudeExplainer, Explainer
 from embco.payments import ArcRpc, Payer
 from embco.runner import format_report, run_cycle, watch
 from embco.settings import Settings, SettingsError
+from embco.shops import ShopError, ShopStore, erp_for, read_key, run_shop
 from embco.signing import typed_data
 
 log = logging.getLogger("embco")
@@ -33,6 +36,8 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per ERP request is noise
+    if args.command == "shop":
+        return _shop(args)
     try:
         settings = Settings.load(Path(args.env_file))
         settings.journal_path.parent.mkdir(parents=True, exist_ok=True)
@@ -50,15 +55,24 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _ledger(settings: Settings) -> ErpnextAdapter:
-    return ErpnextAdapter(
-        settings.erpnext_url,
-        settings.erpnext_api_key,
-        settings.erpnext_api_secret,
-        company=settings.company,
-        paid_from=settings.erpnext_paid_from,
-        payment_extra=settings.erpnext_payment_extra,
-        wallet_bank=settings.erpnext_wallet_bank,
-    )
+    return erp_for(settings)
+
+
+def _shop(args) -> int:
+    """Settings come from the shop's folder only, never from this process's environment."""
+    folder = Path(args.dir)
+    try:
+        store = ShopStore(folder.parent, read_key(Path(args.key_file)))
+        run_shop(store, folder.name, cycles=args.cycles)
+    except (ShopError, SettingsError) as error:
+        print(f"configuration error: {error}", file=sys.stderr)
+        return 2
+    except JournalError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        log.info("stopped")
+    return 0
 
 
 def _explainer(settings: Settings) -> Explainer | None:
@@ -192,6 +206,12 @@ def _parser() -> argparse.ArgumentParser:
     history.add_argument("invoice")
     sub.add_parser("verify", help="check that the memory was not altered")
     sub.add_parser("create-wallet", help="create the agent's paying wallet with Circle (once)")
+    shop = sub.add_parser("shop", help="run the hosted agent of one shop from its folder")
+    shop.add_argument("--dir", required=True, help="the shop's folder: ROOT/<contract address>")
+    shop.add_argument("--key-file", default=os.environ.get("EMBCO_SHOP_KEY_FILE",
+                                                           "/etc/embco/shops.key"),
+                      help="the service key that encrypts ERP keys")
+    shop.add_argument("--cycles", type=int, help="stop after this many cycles")
     return parser
 
 
