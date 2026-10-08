@@ -73,6 +73,10 @@ class DecisionJournal(Protocol):
         """Payments final on chain, with a transaction, not yet written into the ERP."""
         ...
 
+    def latest_payments(self) -> list[PaymentEvent]:
+        """The last event of every invoice the agent tried to pay, oldest first."""
+        ...
+
     def verify(self) -> None:
         """Raise JournalError if any entry was changed or removed after it was written."""
         ...

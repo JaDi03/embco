@@ -16,7 +16,9 @@ from embco.ledger import ErpnextAdapter, LedgerError
 from embco.payments import ArcRpc, Payer
 from embco.runner import CycleReport, format_report, run_cycle, watch
 from embco.settings import Settings
+from embco.shops.inbox import take_signatures
 from embco.shops.store import ShopStore
+from embco.shops.supplier_view import supplier_view
 
 log = logging.getLogger("embco")
 
@@ -81,10 +83,12 @@ def run_shop(
     payments = payer(settings, ledger)
     log.info("shop %s: watching %s every %s (payments %s)", shop, settings.company,
              settings.interval, "on, testnet drafts in the ERP" if payments else "off")
+    signatures: dict[str, dict[str, str]] = {}  # the last outcome per supplier, for its page
     with SqliteJournal(settings.journal_path) as journal:
 
         def cycle() -> None:
             try:
+                signatures.update(take_signatures(store.folder(shop), journal, ledger))
                 report = run_cycle(ledger, journal, settings.policy, settings.company,
                                    payments=payments)
             except (LedgerError, JournalError) as error:
@@ -92,6 +96,8 @@ def run_shop(
                                             "error": str(error)})
                 raise
             store.write_last_run(shop, summarize(report))
+            store.write_supplier_view(shop, supplier_view(report, journal, settings.company,
+                                                          signatures))
             log.info("shop %s: %s", shop, format_report(report))
 
         return watch(cycle, settings.interval, cycles=cycles, sleep=sleep)

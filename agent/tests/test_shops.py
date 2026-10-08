@@ -132,6 +132,7 @@ def test_a_cycle_leaves_a_summary_for_the_dashboard(store):
     assert sum(summary["counts"].values()) == 1
     with SqliteJournal(store.folder(SHOP_A) / "journal.sqlite3") as journal:
         journal.verify()
+    assert set(store.supplier_view(SHOP_A)["suppliers"]) == {"S"}
 
 
 def test_an_erp_error_is_left_for_the_dashboard_and_the_loop_goes_on(store):
