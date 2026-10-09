@@ -11,6 +11,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
+from agent.cost import estimate, shown
 from agent.guardrails.rules import PolicyConfig
 from agent.memory import JournalError, SqliteJournal
 from agent.models import Wake
@@ -24,13 +25,15 @@ from services.hub.chain import DEFAULT_FACTORY, ShopChain, ShopLimits
 from services.payments import ArcRpc, ChainError, Payer, PaymentEvent
 from services.payments.encoding import ref_scope
 from services.settings import Settings
-from services.shops import activity
+from services.shops import activity, chat
 from services.shops.inbox import take_answers, take_signatures
 from services.shops.owner_view import decision_view
 from services.shops.store import ShopStore
 from services.shops.supplier_view import supplier_view
 
 log = logging.getLogger("embco")
+
+MESSAGE_POLL = 3  # seconds between looks at the inbox while waiting for the next check
 
 
 def erp_for(settings: Settings) -> ErpnextAdapter:
@@ -97,6 +100,24 @@ def inbox_wakes(signed: Mapping[str, Mapping[str, str]],
     return wakes
 
 
+def chat_replies(report: CycleReport, owner_waiting: bool) -> list[dict[str, Any]]:
+    """The agent's answers from this cycle's session, the cost on the last one; or a word from
+    the service when the owner is waiting and the session could not answer."""
+    session = report.thought.session if report.thought else None
+    if session is None:
+        return []
+    at = session.at.isoformat()
+    if session.finished and session.replies:
+        cost = shown(estimate(session.usage, session.model))
+        replies = [{"from": chat.AGENT, "at": at, "text": r} for r in session.replies]
+        replies[-1] |= {"cost": cost, "model": session.model}
+        return replies
+    if owner_waiting and not session.finished:
+        return [{"from": chat.SYSTEM, "at": at, "text": "The agent could not answer right now "
+                 f"({session.error}). It tries again in a few minutes."}]
+    return []
+
+
 def summarize(
     report: CycleReport,
     payments: Mapping[str, PaymentEvent] | None = None,
@@ -134,7 +155,7 @@ def run_shop(
     shop: str,
     *,
     cycles: int | None = None,
-    sleep: Callable[[float], None] = time.sleep,
+    sleep: Callable[[float], None] | None = None,
     erp: Callable[[Settings], ErpnextAdapter] = erp_for,
     platform: Mapping[str, str] | None = None,
     payer: Callable[[Settings, ErpnextAdapter], Payer | None] = payer_for,
@@ -187,9 +208,16 @@ def run_shop(
                       if read_limits else [])])
                 limits_changed = seen["limits"] not in (None, policy["now"])
                 seen["limits"] = policy["now"]
+                chat.take_messages(folder)
+                waiting = chat.unanswered(folder)
+                wakes = inbox_wakes(signed, answered, limits_changed)
+                if waiting:
+                    wakes.append(Wake("message", f"The owner wrote to you ({len(waiting)} "
+                                                 "message(s)); answer with reply_owner."))
                 report = run_cycle(ledger, journal, policy["now"], settings.company,
-                                   payments=payments, brain=brain,
-                                   wakes=inbox_wakes(signed, answered, limits_changed))
+                                   payments=payments, brain=brain, wakes=wakes,
+                                   messages=[m["text"] for m in waiting],
+                                   conversation=chat.read_chat(folder, limit=12))
             except (LedgerError, JournalError) as error:
                 store.write_last_run(shop, {"ok": False, "at": datetime.now(UTC).isoformat(),
                                             "error": str(error)})
@@ -197,10 +225,19 @@ def run_shop(
                 raise
             activity.append_activity(folder, [*activity.agent_events(report),
                                               *activity.cycle_events(report, minutes)])
+            chat.append_chat(folder, chat_replies(report, bool(waiting)))
             latest = {p.invoice: p for p in journal.latest_payments()}
             store.write_last_run(shop, summarize(report, latest, answers, policy["now"]))
             store.write_supplier_view(shop, supplier_view(report, journal, settings.company,
                                                           signatures, wallet_of=wallet_of))
             log.info("shop %s: %s", shop, format_report(report))
 
-        return watch(cycle, settings.interval, cycles=cycles, sleep=sleep)
+        def nap(seconds: float) -> None:
+            """Wait for the next check, but wake at once when the owner writes."""
+            end = time.monotonic() + seconds
+            while (left := end - time.monotonic()) > 0:
+                if chat.messages_waiting(folder):
+                    return
+                time.sleep(min(MESSAGE_POLL, left))
+
+        return watch(cycle, settings.interval, cycles=cycles, sleep=sleep or nap)

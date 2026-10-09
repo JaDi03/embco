@@ -6,6 +6,7 @@ import { ARC_TESTNET, FAUCET_URL } from "./config.js";
 import { describeError } from "./errors.js";
 import { pendingApprovals } from "./approvals.js";
 import * as activity from "./activity.js";
+import * as chat from "./chat.js";
 import * as hub from "./hub.js";
 import { groupTasks, raisedLimits, taskFor } from "./needs.js";
 import * as suppliers from "./suppliers.js";
@@ -197,13 +198,13 @@ async function renderErp(isOwner, state) {
 
 // The agent's activity, live: polled every few seconds while the page is visible.
 
-const terminal = { shop: null, events: [], interval: null, timer: null, ticker: null, loaded: false };
+const terminal = { shop: null, events: [], interval: null, timer: null, ticker: null, loaded: false, chat: [], waiting: false };
 
 function startTerminal() {
   $("terminal-card").hidden = false;
   if (terminal.shop === session.shop && terminal.timer) return;  // already running for this shop
   stopTerminal();
-  Object.assign(terminal, { shop: session.shop, events: [], interval: null, loaded: false });
+  Object.assign(terminal, { shop: session.shop, events: [], interval: null, loaded: false, chat: [], waiting: false });
   pollTerminal();
   terminal.timer = setInterval(pollTerminal, 4000);
   terminal.ticker = setInterval(paintNextCheck, 1000);
@@ -232,6 +233,7 @@ async function pollTerminal() {
   if (fresh.length || !terminal.loaded) paintTerminal(fresh.length > 0);
   terminal.loaded = true;
   paintNextCheck();
+  await pollChat();
   if (finished) renderShop().catch(() => null);  // the agent finished a check: refresh the cards
 }
 
@@ -251,6 +253,36 @@ function paintTerminal(scroll) {
       text);
   }));
   if (scroll && (atBottom || !terminal.loaded)) box.scrollTop = box.scrollHeight;
+}
+
+async function pollChat() {
+  const after = terminal.chat.at(-1)?.seq ?? 0;
+  let body;
+  try {
+    body = await chat.fetchChat(terminal.shop, after);
+  } catch {
+    return;
+  }
+  const fresh = body.entries ?? [];
+  terminal.chat = activity.merge(terminal.chat, fresh, 200);
+  terminal.waiting = Boolean(body.waiting);
+  if (fresh.length || !$("chat-log").childElementCount) paintChat();
+  $("chat-status").textContent = terminal.waiting ? "The agent is reading your message..." : "";
+}
+
+function paintChat() {
+  const box = $("chat-log");
+  if (!terminal.chat.length) {
+    box.replaceChildren(el("div", { className: "empty", textContent: "Ask what is due, why something is on hold, or tell the agent what to do." }));
+    return;
+  }
+  box.replaceChildren(...terminal.chat.map((entry) => {
+    const b = chat.bubbleOf(entry);
+    const bubble = el("div", { className: `bubble ${b.side}`, textContent: b.text });
+    if (b.meta) bubble.append(el("span", { className: "meta", textContent: b.meta }));
+    return bubble;
+  }));
+  box.scrollTop = box.scrollHeight;
 }
 
 function paintNextCheck() {
@@ -732,6 +764,30 @@ function wireActions() {
       return;
     }
     act(button, "Change limits", (shop) => shop.setLimits(maxPerPayment, weeklyCap)).then((ok) => ok && form.reset());
+  });
+
+  $("chat-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const input = $("chat-input");
+    const checked = chat.checkMessage(input.value);
+    if (checked.error) {
+      $("chat-status").textContent = checked.error;
+      return;
+    }
+    const button = event.currentTarget.querySelector("button[type=submit]");
+    button.disabled = true;
+    try {
+      await chat.sendMessage(session.shop, checked.text);
+      input.value = "";
+      terminal.chat = [...terminal.chat, { seq: Number.MAX_SAFE_INTEGER, from: "owner", text: checked.text, local: true }];
+      paintChat();
+      terminal.chat = terminal.chat.filter((e) => !e.local);  // the hub's copy replaces it on the next poll
+      $("chat-status").textContent = "The agent is reading your message...";
+    } catch (error) {
+      $("chat-status").textContent = describeError(error);
+    } finally {
+      button.disabled = false;
+    }
   });
 
   $("agent-off").addEventListener("click", (event) => switchAgent(event.currentTarget, false));

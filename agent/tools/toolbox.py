@@ -25,6 +25,7 @@ MAX_ALARMS = 5
 MAX_NOTES = 10
 MAX_NOTE_CHARS = 600
 MAX_ALARM_DAYS = 60
+MAX_REPLY_CHARS = 1500
 RECENT = 10
 INPUTS = {t["name"]: set(t["input_schema"]["properties"]) for t in TOOLS}
 
@@ -45,9 +46,11 @@ class Toolbox:
     standing: Mapping[str, AgentDecision] = field(default_factory=dict)
     room: Callable[[], Decimal | None] = lambda: None  # what the contract allows this week
     past_notes: tuple[Note, ...] = ()
+    messages: tuple[str, ...] = ()  # what the owner wrote since the agent's last reply
     chosen: dict[str, AgentDecision] = field(default_factory=dict)
     alarms: list[Alarm] = field(default_factory=list)
     notes: list[Note] = field(default_factory=list)
+    replies: list[str] = field(default_factory=list)
     summary: str | None = None
 
     def __post_init__(self) -> None:
@@ -228,10 +231,21 @@ class Toolbox:
                                at=self.now))
         return "noted"
 
+    def _reply_owner(self, text: str) -> str:
+        if not self.messages:
+            raise ToolError("the owner did not write; put what you have to say in the summary")
+        if not text.strip():
+            raise ToolError("the answer is empty")
+        _refuse_workarounds(text)
+        self.replies.append(text.strip()[:MAX_REPLY_CHARS])
+        return "sent to the owner"
+
     def _finish(self, summary: str) -> str:
         missing = self.undecided()
         if missing:
             raise ToolError("decide on these invoices first: " + ", ".join(missing))
+        if self.messages and not self.replies:
+            raise ToolError("answer the owner's message with reply_owner first")
         if not summary.strip():
             raise ToolError("the summary for the owner is empty")
         _refuse_workarounds(summary)

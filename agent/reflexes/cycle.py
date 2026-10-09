@@ -9,9 +9,10 @@ invoice in the ERP. Invoices the agent already paid or sent are not planned agai
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from typing import Any
 
 from agent.explain import Explainer, Explanation
 from agent.guardrails.controls import WalletChallenge
@@ -71,6 +72,8 @@ def run_cycle(
     owners: tuple[str, ...] = (),
     brain: BrainSetup | None = None,
     wakes: Sequence[Wake] = (),
+    messages: Sequence[str] = (),
+    conversation: Sequence[Mapping[str, Any]] = (),
 ) -> CycleReport:
     """Fails closed: a journal that does not verify stops the agent before it decides.
 
@@ -100,7 +103,8 @@ def run_cycle(
         plan = _without_brain(plan_payments(unpaid, policy.weekly_budget))
     else:
         thought = think(brain, journal=journal, ledger=ledger, decisions=decisions,
-                        changes=memory.changes, policy=policy, done=done, now=now, extra=wakes)
+                        changes=memory.changes, policy=policy, done=done, now=now, extra=wakes,
+                        messages=messages, conversation=conversation)
         plan = agent_plan(unpaid, thought.agent, now.astimezone(brain.zone).date(),
                           policy.weekly_budget, brain.autonomy)
     settlement = _settle(payments, plan, journal) if payments else None

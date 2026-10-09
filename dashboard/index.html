@@ -96,6 +96,17 @@
               <span class="live"><span class="dot" id="live-dot"></span><span id="next-check"></span></span>
             </div>
             <div class="terminal" id="terminal" role="log" aria-live="polite" aria-label="What the agent does"></div>
+            <section class="chat" aria-label="Ask your agent">
+              <h3>Ask your agent</h3>
+              <div class="chat-log" id="chat-log" role="log" aria-live="polite"></div>
+              <form class="chat-form" id="chat-form" novalidate>
+                <label class="sr-only" for="chat-input">Message to the agent</label>
+                <input id="chat-input" name="text" maxlength="1000" autocomplete="off"
+                       placeholder="Ask about your invoices, or tell the agent what to do" />
+                <button class="btn btn-primary" type="submit">Send</button>
+              </form>
+              <p class="hint" id="chat-status"></p>
+            </section>
           </article>
 
           <article class="card">

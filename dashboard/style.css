@@ -189,3 +189,17 @@ h3 { font-size: 0.95rem; margin: 16px 0 8px; }
 .terminal a { color: #93c5fd; }
 .terminal .empty { color: #64748b; }
 @media (max-width: 560px) { .terminal .line { grid-template-columns: 4.8em 1fr; } .terminal .time { display: none; } }
+
+/* talking to the agent, under its activity */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.chat { display: grid; gap: 8px; margin-top: 12px; }
+.chat h3 { margin: 0; font-size: 14px; }
+.chat-log { display: grid; gap: 8px; max-height: 320px; overflow-y: auto; }
+.chat-log .empty { color: var(--muted, #5b6577); font-size: 13px; }
+.bubble { max-width: 85%; padding: 8px 12px; border-radius: 12px; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bubble.me { justify-self: end; background: #1d4ed8; color: #fff; border-bottom-right-radius: 3px; }
+.bubble.agent { justify-self: start; background: #0f172a; color: #e2e8f0; border-bottom-left-radius: 3px; }
+.bubble.system { justify-self: start; background: #fdf1e2; color: #92400e; }
+.bubble .meta { display: block; margin-top: 4px; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; opacity: .7; }
+.chat-form { display: flex; gap: 8px; }
+.chat-form input { flex: 1; min-width: 0; font: inherit; padding: 9px 12px; border-radius: 8px; border: 1px solid #cbd5e1; }
