@@ -5,6 +5,7 @@ import { ethers } from "./vendor/ethers-6.17.0.min.js";
 import { ARC_TESTNET, FAUCET_URL } from "./config.js";
 import { describeError } from "./errors.js";
 import { pendingApprovals } from "./approvals.js";
+import * as activity from "./activity.js";
 import * as hub from "./hub.js";
 import { groupTasks, raisedLimits, taskFor } from "./needs.js";
 import * as suppliers from "./suppliers.js";
@@ -147,6 +148,7 @@ function renderChecks(probe) {
 async function renderErp(isOwner, state) {
   $("suppliers-card").hidden = true;
   $("tasks-card").hidden = true;
+  $("terminal-card").hidden = true;
   if (!isOwner) return;
   erpError("");
   let shop;
@@ -186,6 +188,75 @@ async function renderErp(isOwner, state) {
   }
   await renderTasks(shop, state, list);
   renderSuppliers(shop, list);
+  startTerminal();
+}
+
+// The agent's activity, live: polled every few seconds while the page is visible.
+
+const terminal = { shop: null, events: [], interval: null, timer: null, ticker: null, loaded: false };
+
+function startTerminal() {
+  $("terminal-card").hidden = false;
+  if (terminal.shop === session.shop && terminal.timer) return;  // already running for this shop
+  stopTerminal();
+  Object.assign(terminal, { shop: session.shop, events: [], interval: null, loaded: false });
+  pollTerminal();
+  terminal.timer = setInterval(pollTerminal, 4000);
+  terminal.ticker = setInterval(paintNextCheck, 1000);
+}
+
+function stopTerminal() {
+  clearInterval(terminal.timer);
+  clearInterval(terminal.ticker);
+  terminal.timer = terminal.ticker = null;
+}
+
+async function pollTerminal() {
+  if (document.visibilityState === "hidden" || !terminal.shop) return;
+  const after = terminal.events.at(-1)?.seq ?? 0;
+  let body;
+  try {
+    body = await activity.fetchActivity(terminal.shop, after);
+  } catch (error) {
+    if (error.status === 401) stopTerminal();  // signed out: the ERP card asks to sign in again
+    return;
+  }
+  terminal.interval = body.interval_minutes ?? terminal.interval;
+  const fresh = body.events ?? [];
+  const finished = terminal.loaded && fresh.some((e) => e.kind === "done");
+  terminal.events = activity.merge(terminal.events, fresh);
+  if (fresh.length || !terminal.loaded) paintTerminal(fresh.length > 0);
+  terminal.loaded = true;
+  paintNextCheck();
+  if (finished) renderShop().catch(() => null);  // the agent finished a check: refresh the cards
+}
+
+function paintTerminal(scroll) {
+  const box = $("terminal");
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  if (!terminal.events.length) {
+    box.replaceChildren(el("div", { className: "empty", textContent: "Waiting for the agent's first check..." }));
+    return;
+  }
+  box.replaceChildren(...terminal.events.map((e) => {
+    const text = el("span", { textContent: e.text });
+    if (e.tx) text.append(" ", link("tx", txUrl(e.tx)));
+    return el("div", { className: "line" },
+      el("span", { className: "time", textContent: activity.timeOf(e.at) }),
+      el("span", { className: `tag tag-${e.kind}`, textContent: activity.labelOf(e.kind) }),
+      text);
+  }));
+  if (scroll && (atBottom || !terminal.loaded)) box.scrollTop = box.scrollHeight;
+}
+
+function paintNextCheck() {
+  const next = activity.nextCheck(terminal.events, terminal.interval);
+  $("live-dot").className = next.state === "checking" ? "dot on" : "dot";
+  $("next-check").textContent = next.state === "checking"
+    ? "Checking now..."
+    : next.state === "waiting"
+      ? next.seconds > 0 ? `Next check in ${activity.countdown(next.seconds)}` : "Next check any moment"
+      : "";
 }
 
 // What the agent needs from the owner: one checklist per invoice, each step with its button.

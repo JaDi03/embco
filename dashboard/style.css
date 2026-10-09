@@ -167,3 +167,25 @@ h3 { font-size: 0.95rem; margin: 16px 0 8px; }
 .pay-state { font-weight: 600; }
 .pay-state.paid { color: #065f46; }
 .pay-state.blocked { color: #991b1b; }
+
+/* The agent's live activity */
+.live { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.88rem; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+.dot.on { background: var(--green); box-shadow: 0 0 0 0 rgba(0, 184, 123, 0.6); animation: pulse 1.6s infinite; }
+@keyframes pulse { 70% { box-shadow: 0 0 0 7px rgba(0, 184, 123, 0); } 100% { box-shadow: 0 0 0 0 rgba(0, 184, 123, 0); } }
+.terminal {
+  margin-top: 12px; background: #0b1220; color: #cbd5e1; border-radius: 10px; padding: 12px 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; line-height: 1.55;
+  height: 300px; overflow-y: auto;
+}
+.terminal .line { display: grid; grid-template-columns: 4.8em 6.2em 1fr; gap: 10px; }
+.terminal .time { color: #64748b; }
+.terminal .tag { font-weight: 700; }
+.terminal .tag-check, .terminal .tag-done { color: #60a5fa; }
+.terminal .tag-new, .terminal .tag-changed, .terminal .tag-closed, .terminal .tag-limits { color: #e2e8f0; }
+.terminal .tag-sending, .terminal .tag-waiting { color: #fbbf24; }
+.terminal .tag-paid, .terminal .tag-recorded, .terminal .tag-signature, .terminal .tag-answer { color: #34d399; }
+.terminal .tag-not_paid, .terminal .tag-error { color: #f87171; }
+.terminal a { color: #93c5fd; }
+.terminal .empty { color: #64748b; }
+@media (max-width: 560px) { .terminal .line { grid-template-columns: 4.8em 1fr; } .terminal .time { display: none; } }

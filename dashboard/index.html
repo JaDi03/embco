@@ -90,6 +90,14 @@
             <div id="tasks"></div>
           </article>
 
+          <article class="card wide owner-only" id="terminal-card" hidden>
+            <div class="tasks-head">
+              <h2>Agent activity</h2>
+              <span class="live"><span class="dot" id="live-dot"></span><span id="next-check"></span></span>
+            </div>
+            <div class="terminal" id="terminal" role="log" aria-live="polite" aria-label="What the agent does"></div>
+          </article>
+
           <article class="card">
             <h2>Money</h2>
             <dl class="facts">
