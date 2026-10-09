@@ -96,3 +96,20 @@ test("the owner is asked to set the agent only when the contract has another one
   assert.equal(hub.needsSetAgent(wallet, "0x0000000000000000000000000000000000000000"), true);
   assert.equal(hub.needsSetAgent(null, "0x0000000000000000000000000000000000000000"), false);
 });
+
+test("the agent is on only when its process runs and the contract allows payments", () => {
+  assert.deepEqual(hub.agentSwitchView(true, false), { on: true, status: "On", note: "" });
+  assert.equal(hub.agentSwitchView(false, true).on, false);
+  assert.match(hub.agentSwitchView(false, false).note, /still allowed in the contract/);
+  assert.match(hub.agentSwitchView(true, true).note, /paused in the contract/);
+  assert.match(hub.agentSwitchView(null, false).note, /Sign in/);
+});
+
+test("turning the agent off or on is one call with the owner's choice", async () => {
+  const { impl, calls } = fakeFetch({
+    [`POST /api/shops/${SHOP.toLowerCase()}/agent`]: [200, { agent_on: false }],
+  });
+  assert.deepEqual(await hub.setAgent(SHOP, false, impl), { agent_on: false });
+  assert.deepEqual(calls[0].body, { on: false });
+  assert.equal(calls[0].credentials, "same-origin");
+});

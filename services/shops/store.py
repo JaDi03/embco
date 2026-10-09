@@ -6,6 +6,7 @@
     <root>/<shop>/last_run.json    what the agent decided last time, for the dashboard
     <root>/<shop>/suppliers.json   what each supplier may see on its own page
     <root>/<shop>/inbox/           wallet signatures from suppliers, for the agent to check
+    <root>/<shop>/agent_off        present while the owner has the agent turned off
 
 A shop is the address of its ShopPayables contract, in lower case. A shop's settings are built
 from its folder only, so no shop inherits another's. The only values from outside are the
@@ -29,6 +30,7 @@ SECRETS = "erp.enc"
 JOURNAL = "journal.sqlite3"
 LAST_RUN = "last_run.json"
 SUPPLIER_VIEW = "suppliers.json"
+AGENT_OFF = "agent_off"
 _SHOP = re.compile(r"^0x[0-9a-f]{40}$")
 PLATFORM = ("CIRCLE_API_KEY", "CIRCLE_ENTITY_SECRET", "ARC_TESTNET_RPC_URL")
 BRAIN_PLATFORM = ("ANTHROPIC_API_KEY",)  # the platform's model account, for shops with a brain
@@ -50,7 +52,7 @@ class ShopConfig:
     interval_minutes: int = 15
     agent_wallet_id: str | None = None  # the shop's own Circle wallet, when created
     agent_wallet_address: str | None = None
-    brain: bool = False  # the agent decides what is paid and when (Claude)
+    brain: bool = True  # Claude decides what is paid and when; off means nothing is paid
     autonomy: str = "act"  # or "observe": the agent decides and explains, pays nothing
     utc_offset: str = ""  # the shop's local time, like +01:00
     round_hour: int = 8  # the daily round, in the shop's local time
@@ -168,6 +170,19 @@ class ShopStore:
         except (OSError, ValueError):
             return None
 
+
+    def agent_on(self, shop: str) -> bool:
+        """Off only when the owner turned it off; a new shop starts on."""
+        return not (self.folder(shop) / AGENT_OFF).exists()
+
+    def set_agent_on(self, shop: str, on: bool, at: str) -> None:
+        """Kept apart from the configuration, so reconnecting the ERP does not turn it back on."""
+        flag = self.folder(shop) / AGENT_OFF
+        if on:
+            flag.unlink(missing_ok=True)
+        else:
+            self.folder(shop).mkdir(parents=True, exist_ok=True)
+            _write(flag, at.encode())
 
     def shops(self) -> list[str]:
         """Every shop with a folder, connected or not."""

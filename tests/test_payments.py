@@ -41,7 +41,7 @@ from services.payments.payer import (
     idempotency_key,
     paid_or_sent,
 )
-from support import WALLET_A, WALLET_B, FakeLedger, make_invoice
+from support import WALLET_A, WALLET_B, FakeLedger, agreeing_brain, make_invoice
 
 WALLET_C = "0x" + "c3" * 20
 
@@ -312,6 +312,7 @@ def test_nothing_is_paid_when_the_contract_has_another_agent(journal):
 
 
 POLICY = PolicyConfig(max_per_payment=Decimal("1500"), weekly_budget=Decimal("2000"))
+DECIDES = {"brain": agreeing_brain()}  # payments wait for the agent's decision
 
 
 def matching_ledger() -> FakeLedger:
@@ -324,11 +325,11 @@ def matching_ledger() -> FakeLedger:
 def test_the_cycle_pays_then_stops_planning_what_it_paid(journal):
     ledger = matching_ledger()
     payer, _, circle = make_payer(ledger)
-    first = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer)
+    first = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer, **DECIDES)
     assert [d.action for d in first.decisions] == [Action.PAY]
     assert [e.status for e in first.settlement.events][-1] is PaymentStatus.COMPLETE
     second = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW + timedelta(minutes=15),
-                       payments=payer)
+                       payments=payer, **DECIDES)
     assert second.plan.pay_now == () and second.already_paid == ("PINV-1",)
     assert len(circle.sent) == 1
     assert "not yet closed in the ERP: PINV-1" in format_report(second)
@@ -338,7 +339,7 @@ def test_a_payment_problem_is_reported_and_the_agent_still_decides(journal):
     ledger = matching_ledger()
     payer, chain, _ = make_payer(ledger)
     chain.agent = to_checksum_address("0x" + "ee" * 20)
-    report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer)
+    report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer, **DECIDES)
     assert report.decisions and "dashboard" in report.settlement.problem
     assert "payments skipped" in format_report(report)
 
@@ -398,8 +399,8 @@ def test_the_report_does_not_call_open_what_was_recorded_in_the_same_cycle(journ
     ledger = matching_ledger()
     payer, _, _ = make_payer(ledger)
     payer.writer = FakeWriter(fail=1)
-    run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer)
-    report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer)
+    run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer, **DECIDES)
+    report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer, **DECIDES)
     text = format_report(report)
     assert "RECORDED" in text and "not yet closed" not in text
 
@@ -440,7 +441,7 @@ def test_the_report_tells_the_owner_which_wallet_to_approve(journal):
     ledger = matching_ledger()
     payer, chain, _ = make_payer(ledger)
     chain.unapproved.add(WALLET_A.lower())
-    report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer)
+    report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer, **DECIDES)
     wallet = to_checksum_address(WALLET_A)
     assert f"approve wallet {wallet} in the dashboard" in format_report(report)
 
@@ -462,13 +463,13 @@ def test_a_new_wallet_is_listed_and_its_approval_answers_the_question(journal, t
     payer, chain, circle = make_payer(ledger)
     chain.unapproved.add(WALLET_B.lower())
     payer.approvals_file = tmp_path / "pending.json"
-    first = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer)
+    first = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer, **DECIDES)
     assert [d.action for d in first.decisions] == [Action.ASK]
     assert [p.wallet for p in first.settlement.needs_approval] == [to_checksum_address(WALLET_B)]
     assert circle.sent == []
     chain.unapproved.clear()  # the owner signed setPayee in the dashboard, nothing else
     second = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW + timedelta(minutes=15),
-                       payments=payer)
+                       payments=payer, **DECIDES)
     [paid] = second.decisions
     assert paid.action is Action.PAY and "approved by owner (approved the wallet" in paid.reasons[0]
     assert len(circle.sent) == 1
@@ -480,7 +481,7 @@ def test_a_wallet_approved_before_the_question_does_not_answer_it(journal):
     payer, _, circle = make_payer(ledger)  # WALLET_B already approved in the contract
     for minutes in (0, 15):
         report = run_cycle(ledger, journal, POLICY, "TEST Shop",
-                           at=NOW + timedelta(minutes=minutes), payments=payer)
+                           at=NOW + timedelta(minutes=minutes), payments=payer, **DECIDES)
         assert [d.action for d in report.decisions] == [Action.ASK]
         assert report.settlement.needs_approval == ()
     assert circle.sent == [] and journal.latest_answer("PINV-1") is None
@@ -490,13 +491,13 @@ def test_a_wallet_changed_after_listing_is_not_answered_by_the_old_approval(jour
     ledger = new_wallet_ledger(journal)
     payer, chain, circle = make_payer(ledger)
     chain.unapproved.add(WALLET_B.lower())
-    run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer)
+    run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer, **DECIDES)
     ledger.supplier = Supplier(name="S", wallet_address=WALLET_C)
     journal.record_wallet_proof(WalletProof(supplier="S", wallet=WALLET_C, nonce="m",
                                             signature="0x", signed_at=NOW))
     chain.unapproved.clear()  # WALLET_B approved, WALLET_C too, but nobody was asked about C
     report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW + timedelta(minutes=15),
-                       payments=payer)
+                       payments=payer, **DECIDES)
     assert [d.action for d in report.decisions] == [Action.ASK] and circle.sent == []
 
 

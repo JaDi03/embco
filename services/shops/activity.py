@@ -28,9 +28,10 @@ CHECK, DONE, NEW, CHANGED, CLOSED = "check", "done", "new", "changed", "closed"
 SENDING, PAID, RECORDED, NOT_PAID = "sending", "paid", "recorded", "not_paid"
 SIGNATURE, ANSWER, LIMITS, ERROR, WAITING = "signature", "answer", "limits", "error", "waiting"
 AGENT, REFLEX = "agent", "reflex"  # what the agent decided; what woke it
+YOU = "you"  # what the owner did from the dashboard
 SHOWN_WAKES = 3
 
-_ACTION = {Action.PAY: "will be paid", Action.HOLD: "on hold", Action.ASK: "needs you"}
+_ACTION = {Action.PAY: "the checks pass", Action.HOLD: "on hold", Action.ASK: "needs you"}
 
 
 def _short(wallet: str) -> str:
@@ -40,6 +41,13 @@ def _short(wallet: str) -> str:
 def _event(at: datetime, kind: str, text: str, **extra: Any) -> dict[str, Any]:
     return {"at": at.isoformat(), "kind": kind, "text": text,
             **{k: v for k, v in extra.items() if v}}
+
+
+def switched(at: datetime, on: bool) -> dict[str, Any]:
+    if on:
+        return _event(at, YOU, "You turned the agent on. It checks your ERPNext now.")
+    return _event(at, YOU, "You turned the agent off. Nothing runs until you turn it on: no "
+                           "checks, no Claude, no payments.")
 
 
 def check_started(at: datetime) -> dict[str, Any]:
