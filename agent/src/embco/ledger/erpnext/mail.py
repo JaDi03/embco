@@ -13,11 +13,25 @@ from embco.ledger.erpnext.client import FrappeClient
 SEND_EMAIL = "frappe.core.doctype.communication.email.make"
 
 
+def supplier_email(frappe: FrappeClient, supplier: str) -> str:
+    """The supplier's email: the one ERPNext copies from its primary contact, or else the email
+    of a contact linked to the supplier, the primary one first."""
+    email = str(frappe.get_doc("Supplier", supplier).get("email_id") or "").strip()
+    if email:
+        return email
+    contacts = frappe.list_rows(
+        "Contact", ["email_id", "is_primary_contact"],
+        [["Dynamic Link", "link_doctype", "=", "Supplier"],
+         ["Dynamic Link", "link_name", "=", supplier], ["email_id", "is", "set"]],
+        order_by="is_primary_contact desc, creation asc", limit=1,
+    )
+    return str(contacts[0].get("email_id") or "").strip() if contacts else ""
+
+
 def email_supplier_notice(frappe: FrappeClient, supplier: str, company: str, site: str,
                           wallet: str | None, signature_needed: bool) -> None:
     """Tell the supplier to visit its page, at the email on its record in the ERP."""
-    doc = frappe.get_doc("Supplier", supplier)
-    recipient = str(doc.get("email_id") or "").strip()
+    recipient = supplier_email(frappe, supplier)
     if not recipient:
         raise LedgerError(f"{supplier} has no email in the ERP; add one to its contact")
     if signature_needed:
