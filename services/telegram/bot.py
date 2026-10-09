@@ -8,8 +8,9 @@ Commands never go through the model:
   /status the agent's state and what it is waiting for.
 Any other text is a message to the agent; its answers come back to the chat.
 
-Only a chat linked from the dashboard is heard; any other chat is told how to link and nothing
-else. A /link code is tried at most a few times per chat and hour.
+Only a private chat linked from the dashboard is heard: never a group, whose members could read
+the answers and stop the agent. Any other chat is told how to link and nothing else. A /link code
+is tried at most a few times per chat and hour, and a chat that loses the link is told.
 """
 
 import logging
@@ -37,6 +38,7 @@ LINK_TRIES = 5  # per chat and hour
 HELP = ("Commands:\n/stop - turn the agent off now (no checks, no Claude, no payments)\n"
         "/pause - pause payments; the agent keeps watching and answering\n/status - how it is\n"
         "Anything else is a message to your agent.")
+NOT_PRIVATE = "For your shop's safety I only work in a private chat with its owner, not in a group."
 NOT_LINKED = ("This chat is not linked to a shop. In the embco dashboard, Agent card, choose "
               "Connect Telegram and send me /link followed by the code.")
 
@@ -70,6 +72,9 @@ class Bot:
         chat_id = (message.get("chat") or {}).get("id")
         text = (message.get("text") or "").strip()
         if not isinstance(chat_id, int) or not text:
+            return
+        if (message.get("chat") or {}).get("type") != "private":
+            self.api.send(chat_id, NOT_PRIVATE)
             return
         command = text.split()[0].split("@")[0].lower()
         if command == "/link":
@@ -122,7 +127,15 @@ class Bot:
             return "Too many tries. Wait an hour and ask the dashboard for a new code."
         self.tries[chat_id] = [*recent, now]
         for shop in self.store.shops():
-            if links.claim(self.store.folder(shop), code, chat_id, now):
+            claimed, before = links.claim(self.store.folder(shop), code, chat_id, now)
+            if before is not None:
+                try:
+                    self.api.send(before, f"Shop {shop} was linked to another Telegram chat. "
+                                          "If that was not you, unlink it in the dashboard now "
+                                          "and pause the agent.")
+                except TelegramError:
+                    log.warning("could not tell the old chat of %s it lost the link", shop)
+            if claimed:
                 links.set_forwarded(self.store.folder(shop),
                                     max([e["seq"] for e in chat.read_chat(
                                         self.store.folder(shop))] or [0]))

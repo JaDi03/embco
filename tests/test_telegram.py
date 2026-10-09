@@ -31,8 +31,8 @@ class FakeApi:
         return [t for c, t in self.sent if c == chat_id][-1]
 
 
-def say(chat_id, text):
-    return {"update_id": 1, "message": {"chat": {"id": chat_id}, "text": text}}
+def say(chat_id, text, kind="private"):
+    return {"update_id": 1, "message": {"chat": {"id": chat_id, "type": kind}, "text": text}}
 
 
 @pytest.fixture
@@ -160,3 +160,21 @@ def test_the_token_never_shows_in_an_error():
     with pytest.raises(TelegramError) as caught:
         api.send(1, "hi")
     assert token not in str(caught.value) and token not in repr(api)
+
+
+def test_a_group_can_never_link_or_command(bot):
+    code, _ = links.new_code(bot.store.folder(SHOP), NOW)
+    bot.handle(say(-500, f"/link {code}", kind="group"))
+    assert "private chat" in bot.api.last(-500)
+    assert bot.shops_of(-500) == []
+    linked(bot)
+    bot.handle(say(OWNER_CHAT, "/stop", kind="supergroup"))
+    assert bot.store.agent_on(SHOP)
+
+
+def test_the_old_chat_is_told_when_the_shop_is_linked_to_another(bot):
+    linked(bot)
+    code, _ = links.new_code(bot.store.folder(SHOP), NOW)
+    bot.handle(say(STRANGER, f"/link {code}"))
+    assert "linked to another Telegram chat" in bot.api.last(OWNER_CHAT)
+    assert bot.shops_of(OWNER_CHAT) == [] and bot.shops_of(STRANGER) == [SHOP]

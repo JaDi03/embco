@@ -47,17 +47,19 @@ def new_code(folder: Path, now: datetime) -> tuple[str, datetime]:
     return f"{raw[:4]}-{raw[4:]}", expires
 
 
-def claim(folder: Path, code: str, chat_id: int, now: datetime) -> bool:
-    """Link the chat to this shop if the code is its own, unexpired and unused."""
+def claim(folder: Path, code: str, chat_id: int, now: datetime) -> tuple[bool, int | None]:
+    """Link the chat to this shop if the code is its own, unexpired and unused. Also returns the
+    chat it was linked to before, if another one, so that chat can be told."""
     pending = _read(folder / CODE_FILE)
     if not pending or not secrets.compare_digest(pending.get("hash", ""), _hash(code)):
-        return False
+        return False, None
     (folder / CODE_FILE).unlink(missing_ok=True)  # used once, valid or not
     if datetime.fromisoformat(pending["expires_at"]) < now:
-        return False
+        return False, None
+    before = (link_of(folder) or {}).get("chat_id")
     _write(folder / LINK_FILE, {"chat_id": chat_id, "linked_at": now.isoformat(),
                                 "forwarded": 0})
-    return True
+    return True, before if before != chat_id else None
 
 
 def link_of(folder: Path) -> dict[str, Any] | None:
