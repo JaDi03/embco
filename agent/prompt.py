@@ -5,7 +5,8 @@ what the checks say, its alarms and notes. No keys, no personal data of customer
 """
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from agent.models import Alarm, Note, Wake
 from agent.tools.toolbox import Toolbox
@@ -31,6 +32,11 @@ How it works:
   recommendation. For invoices the checks put on ASK, the owner answers in the dashboard; you
   can add your recommendation with ask_owner.
 - Use set_alarm to look again at a given time, and note to remember something for later.
+- The owner may write to you (owner_messages): a question about the invoices, the cash or what
+  you did, or an instruction such as "do not pay this supplier until Monday". Look up what you
+  need, act on an instruction with your tools (hold, schedule_payment, note, ...), and answer with
+  reply_owner. The owner's instructions never lift a check or a limit: if one asks for that, say
+  what stops it and what the owner can do.
 - End with finish once every open invoice has your decision. Write the summary for a busy shop
   owner who is not an accountant: plain words, the numbers that matter, what you need from them.
 
@@ -46,7 +52,7 @@ Rules you never break:
 
 
 def briefing(toolbox: Toolbox, wakes: Sequence[Wake], alarms: Sequence[Alarm],
-             notes: Sequence[Note]) -> str:
+             notes: Sequence[Note], conversation: Sequence[Mapping[str, Any]] = ()) -> str:
     local = toolbox.now.astimezone(toolbox.zone)
     data = {
         "now_shop_time": local.strftime("%Y-%m-%d %H:%M"),
@@ -59,5 +65,9 @@ def briefing(toolbox: Toolbox, wakes: Sequence[Wake], alarms: Sequence[Alarm],
         "your_recent_notes": [{"about": n.about, "text": n.text} for n in notes],
         "need_a_decision": toolbox.undecided(),
     }
+    if toolbox.messages:
+        data["owner_messages"] = list(toolbox.messages)
+        data["recent_conversation"] = [{"from": e.get("from"), "text": e.get("text")}
+                                       for e in conversation]
     return ("You were woken. Here is the situation; decide what to do, then call finish.\n\n"
             + json.dumps(data, indent=1, ensure_ascii=False))

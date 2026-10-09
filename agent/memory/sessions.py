@@ -25,6 +25,7 @@ def session_body(session: Session) -> dict[str, Any]:
                   "cache_read": session.usage.cache_read_tokens,
                   "cache_write": session.usage.cache_write_tokens},
         "error": session.error,
+        "replies": list(session.replies),
     }
 
 
@@ -58,6 +59,7 @@ def session_from(at: datetime, body: dict[str, Any],
         usage=Usage(int(usage.get("input", 0)), int(usage.get("output", 0)),
                     int(usage.get("cache_read", 0)), int(usage.get("cache_write", 0))),
         error=body.get("error", ""),
+        replies=tuple(body.get("replies", [])),
     )
 
 

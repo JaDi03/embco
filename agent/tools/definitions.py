@@ -71,6 +71,10 @@ TOOLS: list[dict[str, Any]] = [
           "Keep a short note for your future sessions (about a supplier, an invoice or the shop).",
           about=_text("A supplier name, an invoice name, or 'shop'."),
           text=_text("The note, at most a few sentences.")),
+    _tool("reply_owner",
+          "Answer the owner's message. Plain words, the facts and numbers that matter, what you "
+          "did about it. Call it once per session that has owner messages, before finish.",
+          text=_text("Your answer to the owner, a few sentences at most.")),
     _tool("finish",
           "End the session once every open invoice has your decision. The summary is what the "
           "owner reads first.",

@@ -94,3 +94,4 @@ class Session:
     model: str = ""
     usage: Usage = field(default_factory=Usage)
     error: str = ""  # why the session did not finish, when it did not
+    replies: tuple[str, ...] = ()  # what the agent answered the owner in this session

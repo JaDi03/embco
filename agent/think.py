@@ -5,10 +5,11 @@ decision: the payments planned from it are the ones the agent had already decide
 """
 
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, tzinfo
 from decimal import Decimal
+from typing import Any
 
 from agent.agent import Brain
 from agent.guardrails.rules import Decision, PolicyConfig
@@ -55,7 +56,11 @@ def think(
     done: set[str],
     now: datetime,
     extra: Sequence[Wake] = (),
+    messages: Sequence[str] = (),
+    conversation: Sequence[Mapping[str, Any]] = (),
 ) -> Thought:
+    """`messages` are what the owner wrote since the agent's last reply; `conversation` the
+    recent exchange, for context."""
     sessions = journal.sessions()
     standing = journal.latest_agent_decisions()
     wakes = wakes_for(now=now, zone=setup.zone, decisions=decisions, changes=changes,
@@ -76,8 +81,10 @@ def think(
                        skipped="the agent's daily budget is used up")
     toolbox = Toolbox(decisions=list(decisions), ledger=ledger, journal=journal, policy=policy,
                       now=now, zone=setup.zone, done=set(done), standing=standing,
-                      room=setup.room, past_notes=tuple(recent_notes(sessions)))
-    text = briefing(toolbox, wakes, pending_alarms(sessions, now), recent_notes(sessions))
+                      room=setup.room, past_notes=tuple(recent_notes(sessions)),
+                      messages=tuple(messages))
+    text = briefing(toolbox, wakes, pending_alarms(sessions, now), recent_notes(sessions),
+                    conversation)
     try:
         run = setup.brain.run(toolbox, text)
         finished, error, steps, usage = run.finished, run.error, run.steps, run.usage
@@ -90,6 +97,7 @@ def think(
         alarms=tuple(toolbox.alarms) if finished else (),
         notes=tuple(toolbox.notes) if finished else (),
         steps=steps, model=setup.brain.model, error=error,
+        replies=tuple(toolbox.replies) if finished else (),
         **({"usage": usage} if usage else {}),
     )
     journal.record_session(session)
