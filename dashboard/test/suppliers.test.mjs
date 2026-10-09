@@ -102,3 +102,19 @@ test("amounts are shown exactly, and odd ones as written", () => {
   assert.equal(suppliers.formatAmount("1250.5"), "1,250.5");
   assert.equal(suppliers.formatAmount("0"), "0");
 });
+
+test("a wallet is shown in groups of four after 0x", () => {
+  assert.deepEqual(suppliers.addressGroups("0x213793c4a7bd"), ["0x", "2137", "93c4", "a7bd"]);
+});
+
+test("the wallet check ignores case and marks the exact characters that differ", () => {
+  const onFile = "0x213793c4A7bd";
+  assert.equal(suppliers.compareAddress(onFile, "").state, "empty");
+  assert.equal(suppliers.compareAddress(onFile, " 0X213793C4a7BD ".replace("0X", "0x")).state, "match");
+  assert.equal(suppliers.compareAddress(onFile, "0x2137").state, "partial");
+  assert.equal(suppliers.compareAddress(onFile, "213793c4a7bd").state, "match");
+  const wrong = suppliers.compareAddress(onFile, "0x213793c4a7be");
+  assert.equal(wrong.state, "mismatch");
+  assert.deepEqual(wrong.chars.filter((c) => c.state === "wrong").map((c) => c.c), ["d"]);
+  assert.equal(suppliers.compareAddress(onFile, "0x213793c4a7bd00").extra, 2);
+});

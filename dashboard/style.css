@@ -135,3 +135,10 @@ h3 { font-size: 0.95rem; margin: 16px 0 8px; }
 .safety ul, .safety ol { padding-left: 20px; margin: 0 0 8px; display: grid; gap: 6px; }
 .safety summary { cursor: pointer; font-weight: 600; margin: 8px 0; }
 .supplier-row { display: grid; gap: 4px; flex: 1 1 260px; }
+.wallet-check { display: grid; gap: 8px; margin: 0 0 12px; }
+.wallet-groups { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 0; font-size: 1rem; font-weight: 600; }
+.wallet-groups .ch-ok { color: var(--green); }
+.wallet-groups .ch-wrong { color: #fff; background: var(--red); border-radius: 3px; }
+.wallet-groups .ch-missing { color: var(--muted); }
+.check-ok { color: #065f46; font-weight: 600; }
+.check-bad { color: #991b1b; font-weight: 600; }

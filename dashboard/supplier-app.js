@@ -85,12 +85,42 @@ function shopCard(entry) {
   return card;
 }
 
+/** The wallet in groups of four, and an optional field to check it against the supplier's own record. */
+function walletCheck(wallet) {
+  const shown = el("p", { className: "mono wallet-groups" });
+  const result = el("p", { className: "hint", textContent: "" });
+  const input = el("input", {
+    placeholder: "Optional: paste or type the address you keep as yours", autocomplete: "off", spellcheck: false,
+  });
+  input.setAttribute("aria-label", "Your own copy of the wallet address");
+
+  const paint = () => {
+    const check = suppliers.compareAddress(wallet, input.value);
+    let i = 0;
+    shown.replaceChildren(...suppliers.addressGroups(wallet).map((group) => el("span", { className: "group" },
+      ...[...group].map(() => {
+        const { c, state } = check.chars[i++];
+        return el("span", { className: check.state === "empty" ? "" : `ch-${state}`, textContent: c });
+      }))));
+    const texts = {
+      empty: "",
+      match: "✓ It matches the wallet the shop has on file, character by character.",
+      partial: "So far it matches. Keep typing.",
+      mismatch: "✗ It does not match: the characters in red are different. Do not sign; tell the shop.",
+    };
+    result.textContent = check.extra ? "✗ Your address is longer than the one on file. Do not sign; tell the shop." : texts[check.state];
+    result.className = check.state === "match" ? "hint check-ok" : check.state === "mismatch" || check.extra ? "hint check-bad" : "hint";
+  };
+  input.addEventListener("input", paint);
+  paint();
+  return el("div", { className: "wallet-check" }, shown, input, result);
+}
+
 function confirmBox(entry) {
   const box = el("div", { className: "confirm" });
   const expires = new Date(entry.challenge.expires_at).toLocaleDateString();
-  box.append(el("p", {},
-    `${entry.company} asks you to confirm the wallet you are paid to: `,
-    el("b", { className: "mono", textContent: entry.challenge.wallet }), `. Before ${expires}.`));
+  box.append(el("p", {}, `${entry.company} asks you to confirm the wallet you are paid to, before ${expires}:`));
+  box.append(walletCheck(entry.challenge.wallet));
   if (entry.signature_received) {
     box.append(el("p", { className: "hint", textContent:
       "Your signature was received. The shop's agent records it within about 15 minutes." }));
