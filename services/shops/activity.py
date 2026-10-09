@@ -14,6 +14,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from agent.cost import estimate, shown
 from agent.guardrails.controls.base import fmt
 from agent.guardrails.rules import Action, PolicyConfig
 from agent.memory import ChangeKind
@@ -110,7 +111,9 @@ def agent_events(report: CycleReport) -> list[dict[str, Any]]:
                   for a in session.alarms)
     events.extend(_event(at, AGENT, f"Answered you: {reply}") for reply in session.replies)
     if session.summary:
-        events.append(_event(at, AGENT, session.summary))
+        cost = shown(estimate(session.usage, session.model))
+        events.append(_event(at, AGENT, session.summary, cost=cost,
+                             tokens=session.usage.total, steps=session.steps))
     return events
 
 

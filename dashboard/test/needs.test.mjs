@@ -114,3 +114,20 @@ test("the limit button waits until nothing is left to fix in ERPNext", () => {
   assert.equal(limit.action, undefined);
   assert.match(limit.text, /^686 USDC .* once the steps above are fixed/);
 });
+
+test("the agent's choice decides the tab of an invoice the rules allow", () => {
+  const base = { invoice: "PINV-1", supplier: "S", amount: "46", action: "PAY", findings: [], fingerprint: "f", payment: null };
+  const tab = (agent) => needs.taskFor({ ...base, agent }, { wallet: "0x" + "a1".repeat(20), approved: true }).section;
+  assert.equal(tab({ choice: "SCHEDULE", pay_on: "2026-10-13", reason: "due then" }), "scheduled");
+  assert.equal(tab({ choice: "HOLD", reason: "odd" }), "held");
+  assert.equal(tab({ choice: "ASK", reason: "?", question: "Ok?" }), "needs");
+  assert.equal(tab({ choice: "PAY_NOW", reason: "due" }), "paying");
+  assert.equal(needs.paymentText({ ...base, agent: null }).text, "Waiting for the agent to decide.");
+  assert.match(needs.paymentText({ ...base, agent: { choice: "SCHEDULE", pay_on: "2026-10-13" } }).text, /2026-10-13/);
+});
+
+test("the agent's question and recommendation are shown as it wrote them", () => {
+  const view = needs.agentView({ agent: { choice: "ASK", reason: "r", question: "Accept 1.50?", recommendation: "Check first." } });
+  assert.deepEqual(view, { said: "Asking you", reason: "Accept 1.50?", recommendation: "Check first." });
+  assert.equal(needs.agentView({ agent: null }), null);
+});

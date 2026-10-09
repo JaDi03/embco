@@ -8,7 +8,7 @@ import { pendingApprovals } from "./approvals.js";
 import * as activity from "./activity.js";
 import * as chat from "./chat.js";
 import * as hub from "./hub.js";
-import { groupTasks, raisedLimits, taskFor } from "./needs.js";
+import { agentView, groupTasks, raisedLimits, taskFor } from "./needs.js";
 import * as suppliers from "./suppliers.js";
 import { factory, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
 import { formatUsdc, parseUsdc, shortAddress, ZERO_ADDRESS } from "./units.js";
@@ -118,6 +118,10 @@ async function renderShop() {
   status.textContent = !hasAgent ? "No agent yet" : view.status;
   status.className = hasAgent && view.on ? "status-on" : "status-off";
   $("agent-note").textContent = hasAgent ? view.note : "";
+  const today = service?.last_run?.brain?.today;
+  $("claude-today").textContent = today
+    ? `${today.sessions} session${today.sessions === 1 ? "" : "s"}${today.cost ? ` · ${today.cost} est.` : ""}`
+    : "-";
   $("agent-address").replaceChildren(hasAgent ? link(shortAddress(state.agent), addressUrl(state.agent)) : "none");
   const telegram = Boolean(service?.telegram_linked);
   $("telegram-state").textContent = !service ? "sign in to the embco service first" : telegram ? "linked: /stop and /pause work from your phone" : "not linked";
@@ -156,6 +160,9 @@ function renderChecks(probe) {
 }
 
 async function renderErp(isOwner, state) {
+  $("work-setup").append($("erp-card"));  // back in view until the ERP is connected
+  work.groups = [];
+  paintWork();
   $("suppliers-card").hidden = true;
   $("tasks-card").hidden = true;
   $("terminal-card").hidden = true;
@@ -180,6 +187,7 @@ async function renderErp(isOwner, state) {
   }
   renderChecks(null);
   showErp("erp-connected");
+  $("drawer-erp").append($("erp-card"));  // connected: its details live in Settings
   $("erp-url").textContent = shop.erp_url;
   $("erp-company").textContent = shop.company;
   $("erp-agent-wallet").replaceChildren(
@@ -203,13 +211,14 @@ async function renderErp(isOwner, state) {
 
 // The agent's activity, live: polled every few seconds while the page is visible.
 
-const terminal = { shop: null, events: [], interval: null, timer: null, ticker: null, loaded: false, chat: [], waiting: false };
+const terminal = { shop: null, events: [], interval: null, timer: null, ticker: null, loaded: false, chat: [], waiting: false, actor: null };
 
 function startTerminal() {
   $("terminal-card").hidden = false;
   if (terminal.shop === session.shop && terminal.timer) return;  // already running for this shop
   stopTerminal();
   Object.assign(terminal, { shop: session.shop, events: [], interval: null, loaded: false, chat: [], waiting: false });
+  paintFilters();
   pollTerminal();
   terminal.timer = setInterval(pollTerminal, 4000);
   terminal.ticker = setInterval(paintNextCheck, 1000);
@@ -249,12 +258,19 @@ function paintTerminal(scroll) {
     box.replaceChildren(el("div", { className: "empty", textContent: "Waiting for the agent's first check..." }));
     return;
   }
-  box.replaceChildren(...terminal.events.map((e) => {
+  const shown = activity.byActor(terminal.events, terminal.actor);
+  if (!shown.length) {
+    box.replaceChildren(el("div", { className: "empty", textContent: "Nothing from them yet." }));
+    return;
+  }
+  box.replaceChildren(...shown.map((e) => {
+    const who = activity.actorOf(e.kind);
     const text = el("span", { textContent: e.text });
+    if (e.cost) text.append(el("span", { className: "cost", textContent: ` · ${e.cost} est.` }));
     if (e.tx) text.append(" ", link("tx", txUrl(e.tx)));
     return el("div", { className: "line" },
       el("span", { className: "time", textContent: activity.timeOf(e.at) }),
-      el("span", { className: `tag tag-${e.kind}`, textContent: activity.labelOf(e.kind) }),
+      el("span", { className: `who who-${who}`, textContent: who }),
       text);
   }));
   if (scroll && (atBottom || !terminal.loaded)) box.scrollTop = box.scrollHeight;
@@ -288,6 +304,19 @@ function paintChat() {
     return bubble;
   }));
   box.scrollTop = box.scrollHeight;
+}
+
+function paintFilters() {
+  $("terminal-filters").replaceChildren(...[null, ...activity.ACTORS].map((actor) => {
+    const chip = el("button", { className: "chip", type: "button", textContent: actor ?? "ALL" });
+    chip.setAttribute("aria-pressed", String(actor === terminal.actor));
+    chip.addEventListener("click", () => {
+      terminal.actor = actor;
+      paintFilters();
+      paintTerminal(true);
+    });
+    return chip;
+  }));
 }
 
 function paintNextCheck() {
@@ -338,11 +367,38 @@ async function renderTasks(shop, state, list) {
     : needs
       ? `${needs} invoice${needs > 1 ? "s need" : " needs"} you. Follow the steps in order; each button is right next to its step.`
       : "Nothing needs you right now.";
-  const context = { company: shop.company, site: list?.site, state };
-  $("tasks").replaceChildren(...groupTasks(tasks).map((group) => el("section", { className: "task-section" },
-    el("h3", { textContent: `${group.title} (${group.tasks.length})` }),
-    el("p", { className: "hint", textContent: group.hint }),
-    ...group.tasks.map((task) => taskCard(task, context)))));
+  work.context = { company: shop.company, site: list?.site, state };
+  work.groups = groupTasks(tasks);
+  paintWork();
+}
+
+// The left pane: one tab per invoice state, then the suppliers and the payments.
+
+const work = { groups: [], current: null, context: null };
+
+function paintWork() {
+  const tabs = [
+    ...work.groups.map((g) => ({ key: g.key, label: g.title, n: g.tasks.length, urgent: g.key === "needs" })),
+    { key: "suppliers", label: "Suppliers" },
+    { key: "payments", label: "Payments" },
+  ];
+  if (!tabs.some((t) => t.key === work.current)) work.current = tabs[0].key;
+  $("work-tabs").replaceChildren(...tabs.map((t) => {
+    const button = el("button", { className: `tab${t.urgent && t.n ? " urgent" : ""}`, type: "button", textContent: t.label });
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-selected", String(t.key === work.current));
+    if (t.n !== undefined) button.append(el("span", { className: "n", textContent: String(t.n) }));
+    button.addEventListener("click", () => { work.current = t.key; paintWork(); });
+    return button;
+  }));
+  const group = work.groups.find((g) => g.key === work.current);
+  $("tab-invoices").hidden = !group;
+  $("tab-suppliers").hidden = work.current !== "suppliers";
+  $("tab-payments").hidden = work.current !== "payments";
+  if (group) {
+    $("tasks").replaceChildren(el("p", { className: "hint", textContent: group.hint }),
+      ...group.tasks.map((task) => taskCard(task, work.context)));
+  }
 }
 
 const MARKS = { done: "✓", todo: "✗", waiting: "…" };
@@ -355,6 +411,14 @@ function taskCard(task, context) {
   const card = el("div", { className: `task ${task.section}` },
     el("div", { className: "task-head" }, el("span", { textContent: title }),
       el("span", { className: "hint mono", textContent: `${d.invoice}${due}` })));
+  const says = agentView(d);
+  if (says) {
+    const box = el("div", { className: "agent-says" },
+      el("span", { className: "who", textContent: `AGENT · ${says.said.toUpperCase()}` }),
+      el("span", { textContent: says.reason }));
+    if (says.recommendation) box.append(el("span", { className: "rec", textContent: `Recommends: ${says.recommendation}` }));
+    card.append(box);
+  }
   if (task.payment) {
     const pay = el("p", { className: `pay-state ${task.payment.state}`, textContent: task.payment.text });
     if (task.payment.tx) pay.append(" ", link("See on the explorer", txUrl(task.payment.tx)));
@@ -770,6 +834,22 @@ function wireActions() {
     }
     act(button, "Change limits", (shop) => shop.setLimits(maxPerPayment, weeklyCap)).then((ok) => ok && form.reset());
   });
+
+  const drawer = (open) => {
+    $("settings-drawer").hidden = !open;
+    $("settings-scrim").hidden = !open;
+    if (open) $("close-settings").focus();
+  };
+  $("open-settings").addEventListener("click", () => drawer(true));
+  $("close-settings").addEventListener("click", () => drawer(false));
+  $("settings-scrim").addEventListener("click", () => drawer(false));
+  $("settings-drawer").addEventListener("keydown", (event) => { if (event.key === "Escape") drawer(false); });
+  for (const button of document.querySelectorAll(".mtab")) {
+    button.addEventListener("click", () => {
+      $("panes").dataset.mview = button.dataset.mview;
+      for (const other of document.querySelectorAll(".mtab")) other.setAttribute("aria-pressed", String(other === button));
+    });
+  }
 
   $("chat-form").addEventListener("submit", async (event) => {
     event.preventDefault();
