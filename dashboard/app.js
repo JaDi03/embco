@@ -119,6 +119,11 @@ async function renderShop() {
   status.className = hasAgent && view.on ? "status-on" : "status-off";
   $("agent-note").textContent = hasAgent ? view.note : "";
   $("agent-address").replaceChildren(hasAgent ? link(shortAddress(state.agent), addressUrl(state.agent)) : "none");
+  const telegram = Boolean(service?.telegram_linked);
+  $("telegram-state").textContent = !service ? "sign in to the embco service first" : telegram ? "linked: /stop and /pause work from your phone" : "not linked";
+  $("telegram-link").hidden = !isOwner || !service?.connected || telegram;
+  $("telegram-unlink").hidden = !isOwner || !telegram;
+  if (telegram) $("telegram-code").hidden = true;
   $("agent-off").hidden = !isOwner || !view.on;
   $("agent-on").hidden = !isOwner || view.on;
 
@@ -787,6 +792,25 @@ function wireActions() {
       $("chat-status").textContent = describeError(error);
     } finally {
       button.disabled = false;
+    }
+  });
+
+  $("telegram-link").addEventListener("click", async () => {
+    try {
+      const body = await hub.telegramCode(session.shop);
+      $("telegram-code").textContent = hub.linkInstruction(body);
+      $("telegram-code").hidden = false;
+    } catch (error) {
+      notify(describeError(error), "error");
+    }
+  });
+  $("telegram-unlink").addEventListener("click", async () => {
+    try {
+      await hub.telegramUnlink(session.shop);
+      notify("Telegram unlinked. The bot no longer listens to that chat.", "success");
+      await renderShop();
+    } catch (error) {
+      notify(describeError(error), "error");
     }
   });
 
