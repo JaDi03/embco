@@ -5,6 +5,7 @@ and records the invoice number next to the payment. The same bytes are simulated
 """
 
 from decimal import Decimal
+from urllib.parse import urlsplit
 
 from eth_abi import encode
 from eth_utils import keccak, to_checksum_address
@@ -30,9 +31,19 @@ def usdc_units(amount: Decimal) -> int:
     return int(units)
 
 
-def invoice_ref(invoice: str) -> bytes:
-    """The bytes32 the contract stores so each invoice is paid once: keccak256 of its name."""
-    return keccak(text=invoice)
+def invoice_ref(invoice: str, scope: str = "") -> bytes:
+    """The bytes32 the contract stores so each invoice is paid once.
+
+    An invoice name is only unique inside one ERP and company (two ERPs both have an
+    ACC-PINV-2026-00025), so the name is scoped by them: keccak256 of "scope/name". Without a
+    scope it is keccak256 of the name alone, as before.
+    """
+    return keccak(text=f"{scope}/{invoice}" if scope else invoice)
+
+
+def ref_scope(erp_url: str, company: str) -> str:
+    """The ERP site and company an invoice name belongs to, e.g. "shop.frappe.cloud/Acme"."""
+    return f"{(urlsplit(erp_url).hostname or '').lower()}/{company}"
 
 
 def pay_call(payee: str, units: int, ref: bytes) -> bytes:

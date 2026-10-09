@@ -17,6 +17,7 @@ from embco.ledger import LedgerError
 from embco.ledger.models import Supplier
 from embco.payments import (
     Payer,
+    PaymentEvent,
     PaymentSetupError,
     PaymentStatus,
     Reverted,
@@ -28,9 +29,16 @@ from embco.payments.encoding import (
     invoice_ref,
     memo_call,
     pay_call,
+    ref_scope,
     usdc_units,
 )
-from embco.payments.payer import CHAIN_APPROVER, MAX_ATTEMPTS, idempotency_key
+from embco.payments.payer import (
+    CHAIN_APPROVER,
+    FOREIGN_REF,
+    MAX_ATTEMPTS,
+    idempotency_key,
+    paid_or_sent,
+)
 from embco.runner import format_report, run_cycle
 from support import WALLET_A, WALLET_B, FakeLedger, make_invoice
 
@@ -224,11 +232,49 @@ def test_the_invoice_is_read_again_before_paying(journal, change, reason):
     assert circle.sent == [] and reason in result.events[0].reason
 
 
-def test_an_invoice_the_contract_already_paid_is_recorded_without_sending(journal):
+def test_a_reference_paid_by_someone_else_is_never_taken_as_the_agents_payment(journal):
     payer, chain, circle = make_payer()
     chain.paid.add(invoice_ref("PINV-1"))
     result = payer.settle(plan(decision()), journal)
+    [event] = result.events
+    assert circle.sent == [] and event.status is PaymentStatus.BLOCKED
+    assert event.reason == FOREIGN_REF
+    assert paid_or_sent(journal, [decision()]) == set()  # still unpaid for the agent
+
+
+def test_the_agents_own_attempt_found_paid_on_chain_is_complete(journal):
+    payer, chain, circle = make_payer()
+    for status in (PaymentStatus.SUBMITTED, PaymentStatus.FAILED):
+        journal.record_payment(PaymentEvent(
+            invoice="PINV-1", status=status, at=NOW, supplier="Acme", payee=WALLET_A,
+            amount=Decimal("125.5"), invoice_ref="0x" + invoice_ref("PINV-1").hex(), attempt=1))
+    chain.paid.add(invoice_ref("PINV-1"))
+    result = payer.settle(plan(decision()), journal)
     assert circle.sent == [] and result.events[0].status is PaymentStatus.COMPLETE
+
+
+def test_the_same_invoice_name_in_another_erp_is_another_reference(journal):
+    assert invoice_ref("ACC-PINV-2026-00025", "a.frappe.cloud/Shop") != invoice_ref(
+        "ACC-PINV-2026-00025", "b.example.com/Shop")
+    scope = ref_scope("https://Emmbco.l.frappe.cloud/app", "embcocompany")
+    assert scope == "emmbco.l.frappe.cloud/embcocompany"
+    payer, chain, circle = make_payer()
+    payer.ref_scope = "a.frappe.cloud/Shop"
+    chain.paid.add(invoice_ref("PINV-1"))  # paid long ago in another ERP, unscoped
+    payer.settle(plan(decision()), journal)
+    assert len(circle.sent) == 1
+
+
+def test_a_false_complete_left_by_an_older_agent_is_paid_for_real(journal):
+    journal.record_payment(PaymentEvent(
+        invoice="PINV-1", status=PaymentStatus.COMPLETE, at=NOW, supplier="Acme", payee=WALLET_A,
+        amount=Decimal("125.5"), invoice_ref="0x" + invoice_ref("PINV-1").hex(),
+        reason="the contract already marks this invoice paid"))
+    assert paid_or_sent(journal, [decision()]) == set()
+    payer, chain, circle = make_payer()
+    payer.ref_scope = "a.frappe.cloud/Shop"
+    payer.settle(plan(decision()), journal)
+    assert len(circle.sent) == 1
 
 
 def test_a_failed_transaction_is_retried_with_a_new_key_up_to_the_limit(journal):
