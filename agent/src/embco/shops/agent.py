@@ -19,6 +19,7 @@ from embco.ledger import ErpnextAdapter, LedgerError
 from embco.payments import ArcRpc, ChainError, Payer, PaymentEvent
 from embco.runner import CycleReport, format_report, run_cycle, watch
 from embco.settings import Settings
+from embco.shops import activity
 from embco.shops.inbox import take_answers, take_signatures
 from embco.shops.owner_view import decision_view
 from embco.shops.store import ShopStore
@@ -129,17 +130,32 @@ def run_shop(
 
     with SqliteJournal(settings.journal_path) as journal:
 
+        folder = store.folder(shop)
+        minutes = int(settings.interval.total_seconds() // 60)
+        seen: dict[str, PolicyConfig | None] = {"limits": None}
+
         def cycle() -> None:
+            started = datetime.now(UTC)
+            activity.append_activity(folder, [activity.check_started(started)])
             try:
-                signatures.update(take_signatures(store.folder(shop), journal, ledger))
-                answers.update(take_answers(store.folder(shop), journal))
+                signed = take_signatures(folder, journal, ledger)
+                answered = take_answers(folder, journal)
+                signatures.update(signed)
+                answers.update(answered)
                 policy["now"] = current_policy(policy["now"], read_limits, shop)
+                activity.append_activity(folder, [
+                    *activity.inbox_events(started, signed, answered),
+                    *(activity.limits_read(started, seen["limits"], policy["now"])
+                      if read_limits else [])])
+                seen["limits"] = policy["now"]
                 report = run_cycle(ledger, journal, policy["now"], settings.company,
                                    payments=payments)
             except (LedgerError, JournalError) as error:
                 store.write_last_run(shop, {"ok": False, "at": datetime.now(UTC).isoformat(),
                                             "error": str(error)})
+                activity.append_activity(folder, [activity.check_failed(datetime.now(UTC), error)])
                 raise
+            activity.append_activity(folder, activity.cycle_events(report, minutes))
             latest = {p.invoice: p for p in journal.latest_payments()}
             store.write_last_run(shop, summarize(report, latest, answers, policy["now"]))
             store.write_supplier_view(shop, supplier_view(report, journal, settings.company,

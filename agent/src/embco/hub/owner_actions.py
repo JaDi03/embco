@@ -1,5 +1,5 @@
-"""What the owner does about the agent's questions, from the dashboard: answer one, or ask the
-agent to look again now instead of at its next scheduled check.
+"""What the owner does about the agent's questions, from the dashboard: answer one, ask the
+agent to look again now instead of at its next scheduled check, and watch what it does.
 
 An answer is tied to the exact question the owner saw (its fingerprint) and left in the shop's
 inbox; the shop's agent records it on its next cycle and refuses it if the question changed.
@@ -9,14 +9,15 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Cookie
+from fastapi import APIRouter, Cookie, Query
 from pydantic import BaseModel, Field
 
 from embco.decision import Verdict
 from embco.hub.errors import HubError
 from embco.hub.units import UnitError, Units
+from embco.shops.activity import read_activity
 from embco.shops.inbox import answer_waiting, drop_answer
-from embco.shops.store import ShopStore
+from embco.shops.store import ShopError, ShopStore
 
 CHECK_EVERY = timedelta(seconds=30)  # "check now" restarts the agent: not more often than this
 
@@ -59,6 +60,19 @@ def owner_action_routes(
         drop_answer(store.folder(shop), body.invoice, body.verdict, body.fingerprint,
                     f"owner {session.owner}", body.note.strip(), clock())
         return {"invoice": body.invoice, "received": True}
+
+    @router.get("/api/shops/{shop}/activity")
+    def activity(shop: str, after: int = Query(default=0, ge=0),
+                 embco_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+        """What the agent did since event number `after` (all recent events when 0)."""
+        shop = shop_of(shop)
+        owner_session(shop, embco_session)
+        try:
+            interval = store.config(shop).interval_minutes
+        except ShopError:
+            interval = None
+        return {"events": read_activity(store.folder(shop), after=after),
+                "interval_minutes": interval}
 
     @router.post("/api/shops/{shop}/check")
     def check_now(shop: str,
