@@ -211,7 +211,7 @@ async function renderErp(isOwner, state) {
 
 // The agent's activity, live: polled every few seconds while the page is visible.
 
-const terminal = { shop: null, events: [], interval: null, timer: null, ticker: null, loaded: false, chat: [], waiting: false, actor: null };
+const terminal = { shop: null, events: [], interval: null, timer: null, ticker: null, loaded: false, chat: [], waiting: false, filter: activity.FILTERS[0] };
 
 function startTerminal() {
   $("terminal-card").hidden = false;
@@ -258,22 +258,58 @@ function paintTerminal(scroll) {
     box.replaceChildren(el("div", { className: "empty", textContent: "Waiting for the agent's first check..." }));
     return;
   }
-  const shown = activity.byActor(terminal.events, terminal.actor);
-  if (!shown.length) {
-    box.replaceChildren(el("div", { className: "empty", textContent: "Nothing from them yet." }));
+  const items = activity.filterTimeline(activity.timeline(terminal.events), terminal.filter);
+  if (!items.length) {
+    box.replaceChildren(el("div", { className: "empty", textContent: "Nothing here yet." }));
     return;
   }
-  box.replaceChildren(...shown.map((e) => {
-    const who = activity.actorOf(e.kind);
-    const text = el("span", { textContent: e.text });
-    if (e.cost) text.append(el("span", { className: "cost", textContent: ` · ${e.cost} est.` }));
-    if (e.tx) text.append(" ", link("tx", txUrl(e.tx)));
-    return el("div", { className: "line" },
-      el("span", { className: "time", textContent: activity.timeOf(e.at) }),
-      el("span", { className: `who who-${who}`, textContent: who }),
-      text);
-  }));
+  const nodes = [];
+  let day = null;
+  for (const item of items) {
+    const at = item.type === "session" ? item.at : item.event.at;
+    const label = activity.dayOf(at);
+    if (label !== day) {
+      day = label;
+      nodes.push(el("div", { className: "day", textContent: label }));
+    }
+    nodes.push(item.type === "session" ? sessionCard(item) : timelineLine(item.event));
+  }
+  box.replaceChildren(...nodes);
   if (scroll && (atBottom || !terminal.loaded)) box.scrollTop = box.scrollHeight;
+}
+
+const CHOICE_CLASS = { HOLD: "held", PAY_NOW: "paid", SCHEDULE: "paid", ASK: "ask" };
+const CHOICE_ICON = { held: "■", paid: "✓", ask: "?", note: "•" };
+
+/** One time Claude was woken: why, what it decided, what it said, what it cost. */
+function sessionCard(s) {
+  const meta = [activity.timeOf(s.at).slice(0, 5), s.steps ? `${s.steps} steps` : "", s.cost ? `${s.cost} est.` : ""]
+    .filter(Boolean).join(" · ");
+  const card = el("div", { className: "session" },
+    el("div", { className: "session-head" },
+      el("span", { className: "mark-c", textContent: "C", ariaHidden: "true" }),
+      el("b", { textContent: "Agent session" }),
+      el("span", { className: "meta", textContent: meta })),
+    el("span", { className: "hint", textContent: s.woke.replace(/^Woke the agent\.\s*/, "Woke because: ") }));
+  for (const e of s.items) {
+    const kind = CHOICE_CLASS[e.choice] ?? "note";
+    card.append(el("div", { className: `item ${kind}` },
+      el("span", { className: "ic", textContent: CHOICE_ICON[kind], ariaHidden: "true" }),
+      el("span", { textContent: e.text })));
+  }
+  if (s.failed) card.append(el("div", { className: "item held" }, el("span", { className: "ic", textContent: "!" }), el("span", { textContent: s.failed })));
+  if (s.said) card.append(el("span", { className: "said", textContent: `"${s.said}"` }));
+  return card;
+}
+
+function timelineLine(e) {
+  const who = activity.actorOf(e.kind);
+  const text = el("span", { textContent: e.text });
+  if (e.tx) text.append(" ", link("tx", txUrl(e.tx)));
+  return el("div", { className: "line" },
+    el("span", { className: "time", textContent: activity.timeOf(e.at).slice(0, 5) }),
+    el("span", { className: `who who-${who}`, textContent: who }),
+    text);
 }
 
 async function pollChat() {
@@ -307,11 +343,11 @@ function paintChat() {
 }
 
 function paintFilters() {
-  $("terminal-filters").replaceChildren(...[null, ...activity.ACTORS].map((actor) => {
-    const chip = el("button", { className: "chip", type: "button", textContent: actor ?? "ALL" });
-    chip.setAttribute("aria-pressed", String(actor === terminal.actor));
+  $("terminal-filters").replaceChildren(...activity.FILTERS.map((filter) => {
+    const chip = el("button", { className: "chip", type: "button", textContent: filter.label });
+    chip.setAttribute("aria-pressed", String(filter === terminal.filter));
     chip.addEventListener("click", () => {
-      terminal.actor = actor;
+      terminal.filter = filter;
       paintFilters();
       paintTerminal(true);
     });
@@ -993,7 +1029,34 @@ function wireActions() {
   });
 }
 
+const THEME_KEY = "embco-theme";
+
+function applyTheme(theme) {
+  if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+  else delete document.documentElement.dataset.theme;
+}
+
+function wireTheme() {
+  try {
+    applyTheme(localStorage.getItem(THEME_KEY));
+  } catch {
+    // no storage (private window): follow the system
+  }
+  $("theme-toggle").addEventListener("click", () => {
+    const current = document.documentElement.dataset.theme
+      ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    const next = current === "dark" ? "light" : "dark";
+    applyTheme(next);
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch {
+      // the choice lasts for this visit only
+    }
+  });
+}
+
 function start() {
+  wireTheme();
   $("faucet-link").href = FAUCET_URL;
   $("explorer-link").href = ARC_TESTNET.explorer;
   wireActions();

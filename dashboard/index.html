@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Embco · Shop owner</title>
     <meta name="description" content="Pay your suppliers in USDC on Arc, within limits only you can change." />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0f17" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="brand/logo.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icons/icon-192.png" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -20,11 +21,10 @@
       </a>
       <div class="topbar-right">
         <span class="pill" id="network-pill" hidden>Arc Testnet</span>
+        <button class="icon-btn" id="theme-toggle" type="button" aria-label="Switch light or dark mode">◐</button>
         <button class="btn btn-ghost" id="account-button" hidden></button>
       </div>
     </header>
-
-    <div class="testnet-banner">Test network: these are test dollars with no real value.</div>
 
     <main class="container">
       <p class="notice" id="notice" role="status" aria-live="polite" hidden></p>
@@ -82,9 +82,10 @@
             <button class="btn btn-primary btn-small owner-only" id="agent-on" type="button">Turn the agent on</button>
           </div>
           <dl class="figures">
+            <div><dt>In your wallet <span class="tag-testnet" title="Test network: test dollars with no real value">Testnet</span></dt><dd id="balance"></dd></div>
+            <div><dt>Agent may use</dt><dd id="allowance"></dd></div>
+            <div><dt>Left this week</dt><dd><span id="remaining"></span> <span class="of">/ <span id="weekly-cap"></span></span></dd></div>
             <div><dt>Per payment</dt><dd id="max-per-payment"></dd></div>
-            <div><dt>Per week</dt><dd id="weekly-cap"></dd></div>
-            <div><dt>Left this week</dt><dd id="remaining"></dd></div>
             <div class="owner-only"><dt>Claude today</dt><dd id="claude-today">-</dd></div>
           </dl>
           <button class="btn btn-ghost btn-small" id="open-settings" type="button" aria-controls="settings-drawer">Settings</button>
@@ -94,7 +95,8 @@
 
         <nav class="mtabs" aria-label="View">
           <button class="mtab" type="button" data-mview="work" aria-pressed="true">Invoices</button>
-          <button class="mtab" type="button" data-mview="activity" aria-pressed="false">Agent activity</button>
+          <button class="mtab" type="button" data-mview="activity" aria-pressed="false">Activity</button>
+          <button class="mtab" type="button" data-mview="chat" aria-pressed="false">Chat</button>
         </nav>
 
         <div class="panes" id="panes" data-mview="work">
@@ -170,7 +172,9 @@
               <ul class="list" id="approvals"></ul>
             </article>
 
-            <div class="tabs" id="work-tabs" role="tablist" aria-label="Invoices by state"></div>
+            <div class="pane-tabs">
+              <div class="tabs" id="work-tabs" role="tablist" aria-label="Invoices by state"></div>
+            </div>
 
             <div id="tab-invoices">
               <article class="owner-only" id="tasks-card" hidden>
@@ -214,25 +218,30 @@
             </div>
           </section>
 
-          <aside class="pane activity owner-only" id="terminal-card" aria-label="Agent activity" hidden>
-            <div class="term-head">
-              <h2>Agent activity</h2>
-              <span class="live"><span class="dot" id="live-dot"></span><span id="next-check"></span></span>
-            </div>
-            <div class="chips" id="terminal-filters" role="group" aria-label="Show lines from"></div>
-            <div class="terminal" id="terminal" role="log" aria-live="polite" aria-label="What the agent does"></div>
-            <section class="chat" aria-label="Ask your agent">
-              <h3>Ask your agent</h3>
+          <div class="agent-cols owner-only" id="terminal-card" hidden>
+            <section class="pane activity" aria-label="Agent activity">
+              <div class="pane-head">
+                <h2>Agent activity</h2>
+                <span class="live"><span class="dot" id="live-dot"></span><span id="next-check"></span></span>
+              </div>
+              <div class="chips" id="terminal-filters" role="group" aria-label="Show"></div>
+              <div class="terminal" id="terminal" role="log" aria-live="polite" aria-label="What the agent does"></div>
+            </section>
+            <section class="pane chat" aria-label="Ask your agent">
+              <div class="pane-head">
+                <h2>Ask your agent</h2>
+                <span class="hint">Claude Haiku 5.5</span>
+              </div>
               <div class="chat-log" id="chat-log" role="log" aria-live="polite"></div>
+              <p class="hint chat-status" id="chat-status"></p>
               <form class="chat-form" id="chat-form" novalidate>
                 <label class="sr-only" for="chat-input">Message to the agent</label>
                 <input id="chat-input" name="text" maxlength="1000" autocomplete="off"
                        placeholder="Ask about your invoices, or tell the agent what to do" />
                 <button class="btn btn-primary" type="submit">Send</button>
               </form>
-              <p class="hint" id="chat-status"></p>
             </section>
-          </aside>
+          </div>
         </div>
 
         <div class="scrim" id="settings-scrim" hidden></div>
@@ -243,11 +252,7 @@
           </div>
 
           <section>
-            <h3>Money</h3>
-            <dl class="facts">
-              <div><dt>In your wallet</dt><dd id="balance"></dd></div>
-              <div><dt>The agent may use</dt><dd id="allowance"></dd></div>
-            </dl>
+            <h3>What the agent may use</h3>
             <p class="hint">
               The money never leaves your wallet until a payment is made. Revoking stops every payment at once.
             </p>
