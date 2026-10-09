@@ -111,6 +111,37 @@ def test_the_shop_loop_gets_a_payer_when_payments_are_on(store):
     assert seen == [True]
 
 
+def test_each_cycle_decides_with_the_limits_in_the_contract(store):
+    from decimal import Decimal
+
+    from embco.hub.chain import ShopLimits
+    from embco.payments import ChainError
+
+    store.save(config(), creds())  # saved limits: 5000 per payment
+    answers = [ShopLimits(Decimal("300"), Decimal("2500"), "0x" + "00" * 20),
+               ChainError("node down")]
+
+    def read(shop):
+        answer = answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    run_shop(store, SHOP_A, cycles=2, sleep=lambda s: None, erp=lambda settings: FakeLedger(),
+             limits=lambda settings: read)
+    [decision] = store.last_run(SHOP_A)["decisions"]
+    assert decision["action"] == "ASK"  # 1000 is above the contract's 300, not the saved 5000
+    assert any("per-payment limit of 300" in r for r in decision["reasons"])
+    assert answers == []  # read before each cycle; the second failure kept the last limits
+
+
+def test_without_the_arc_node_the_saved_limits_are_used(store):
+    store.save(config(), creds())
+    run_shop(store, SHOP_A, cycles=1, erp=lambda settings: FakeLedger())
+    [decision] = store.last_run(SHOP_A)["decisions"]
+    assert not any("per-payment limit" in r for r in decision["reasons"])
+
+
 def test_disconnecting_forgets_the_keys_and_keeps_the_memory(store):
     store.save(config(), creds())
     run_shop(store, SHOP_A, cycles=1, erp=lambda settings: FakeLedger())

@@ -10,13 +10,12 @@ from fastapi import FastAPI
 from embco.circle import CircleClient
 from embco.hub.api import PUBLIC_URL, create_app
 from embco.hub.auth import Auth
-from embco.hub.chain import ShopChain
+from embco.hub.chain import DEFAULT_FACTORY, ShopChain
 from embco.hub.units import SystemdUnits
 from embco.payments.chain import ArcRpc
 from embco.settings import SettingsError, read_env_file
 from embco.shops.store import ShopError, ShopStore, read_key
 
-DEFAULT_FACTORY = "0x4d8efEc867e9F46c05E8359e81dEC6C7D13c95A8"  # ShopPayablesFactory, Arc testnet
 DEFAULT_ROOT = "/var/lib/embco/shops"
 DEFAULT_KEY = "/etc/embco/shops.key"
 DEFAULT_PORT = 8090
