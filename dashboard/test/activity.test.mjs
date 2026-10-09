@@ -52,3 +52,41 @@ test("each line says who did it, and a chip shows one actor's lines", () => {
   assert.equal(activity.byActor(events, "AGENT").length, 2);
   assert.equal(activity.byActor(events, null).length, 3);
 });
+
+test("each time Claude was woken is one session with its decisions, words and cost", () => {
+  const at = "2026-10-09T20:00:55+00:00";
+  const items = activity.timeline([
+    { seq: 1, kind: "check", at, text: "Checking..." },
+    { seq: 2, kind: "reflex", at, text: "Woke the agent. 8 invoices." },
+    { seq: 3, kind: "agent", at, text: "PINV-13: asking you.", choice: "ASK" },
+    { seq: 4, kind: "agent", at, text: "PINV-19: holding it.", choice: "HOLD" },
+    { seq: 5, kind: "agent", at, text: "Nothing was paid.", cost: "$0.0057", steps: 27 },
+    { seq: 6, kind: "done", at, text: "Check done." },
+  ]);
+  assert.deepEqual(items.map((i) => i.type), ["line", "session", "line"]);
+  const session = items[1];
+  assert.equal(session.items.length, 2);
+  assert.equal(session.said, "Nothing was paid.");
+  assert.equal(session.cost, "$0.0057");
+  assert.equal(session.steps, 27);
+  const agentOnly = activity.filterTimeline(items, activity.FILTERS.find((f) => f.label === "Agent"));
+  assert.deepEqual(agentOnly.map((i) => i.type), ["session"]);
+  const checks = activity.filterTimeline(items, activity.FILTERS.find((f) => f.label === "Checks"));
+  assert.equal(checks.length, 2);
+});
+
+test("a session that failed says so instead of decisions", () => {
+  const at = "2026-10-09T20:00:55+00:00";
+  const [s] = activity.timeline([
+    { kind: "reflex", at, text: "Woke the agent." },
+    { kind: "error", at, text: "The agent's session did not finish: no model." },
+  ]);
+  assert.match(s.failed, /did not finish/);
+});
+
+test("days read as today, yesterday or the date", () => {
+  const now = new Date("2026-10-09T12:00:00");
+  assert.equal(activity.dayOf("2026-10-09T08:00:00", now), "Today");
+  assert.equal(activity.dayOf("2026-10-08T08:00:00", now), "Yesterday");
+  assert.notEqual(activity.dayOf("2026-10-01T08:00:00", now), "Today");
+});

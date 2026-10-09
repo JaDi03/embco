@@ -33,6 +33,58 @@ export const actorOf = (kind) => ACTOR_OF[kind] ?? "REFLEX";
 /** The events one filter chip shows: all, or one actor's. */
 export const byActor = (events, actor) => (actor ? events.filter((e) => actorOf(e.kind) === actor) : events);
 
+/** The chips above the activity, in the owner's words. */
+export const FILTERS = [
+  { label: "All", actors: null },
+  { label: "Agent", actors: ["AGENT"] },
+  { label: "Payments", actors: ["CONTRACT", "ERP"] },
+  { label: "You", actors: ["YOU"] },
+  { label: "Suppliers", actors: ["SUPPLIER"] },
+  { label: "Checks", actors: ["REFLEX", "GUARD", "ERROR"] },
+];
+
+/**
+ * The feed as the page shows it: each time Claude was woken becomes one session (what woke it,
+ * what it decided, what it said and cost); everything else stays a line. A session starts with
+ * the "reflex" event that woke the agent and takes the agent's events written at the same time.
+ */
+export function timeline(events) {
+  const out = [];
+  for (const e of events) {
+    const last = out.at(-1);
+    if (e.kind === "reflex") {
+      out.push({ type: "session", at: e.at, woke: e.text, items: [], said: null, cost: null, failed: null });
+    } else if (last?.type === "session" && last.at === e.at && (e.kind === "agent" || e.kind === "error")) {
+      if (e.kind === "error") last.failed = e.text;
+      else if (e.cost !== undefined) Object.assign(last, { said: e.text, cost: e.cost || null, steps: e.steps ?? null });
+      else last.items.push(e);
+    } else {
+      out.push({ type: "line", event: e });
+    }
+  }
+  return out;
+}
+
+/** Keep what a filter shows: a session counts as the agent's. */
+export function filterTimeline(items, filter) {
+  if (!filter?.actors) return items;
+  return items.filter((it) => (it.type === "session"
+    ? filter.actors.includes("AGENT")
+    : filter.actors.includes(actorOf(it.event.kind))));
+}
+
+/** "Today", "Yesterday" or the date, in the viewer's time. */
+export function dayOf(at, now = new Date()) {
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return "";
+  const key = (x) => x.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (key(d) === key(now)) return "Today";
+  if (key(d) === key(yesterday)) return "Yesterday";
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
 /** "2026-10-09T20:19:45+00:00" -> "20:19:45" in the viewer's own time. */
 export function timeOf(at, locale) {
   const d = new Date(at);
