@@ -17,6 +17,7 @@ from embco.hub.chain import DEFAULT_FACTORY, ShopChain, ShopLimits
 from embco.journal import JournalError, SqliteJournal
 from embco.ledger import ErpnextAdapter, LedgerError
 from embco.payments import ArcRpc, ChainError, Payer, PaymentEvent
+from embco.payments.encoding import ref_scope
 from embco.runner import CycleReport, format_report, run_cycle, watch
 from embco.settings import Settings
 from embco.shops import activity
@@ -51,6 +52,7 @@ def payer_for(settings: Settings, ledger: ErpnextAdapter) -> Payer | None:
         shop=settings.shop_address,
         wallet_id=settings.agent_wallet_id,
         writer=ledger,
+        ref_scope=ref_scope(settings.erpnext_url, settings.company),
     )
 
 

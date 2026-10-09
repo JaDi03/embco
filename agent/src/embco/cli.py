@@ -25,6 +25,7 @@ from embco.journal import JournalError, SqliteJournal, answer_ask, submit_wallet
 from embco.ledger import ErpnextAdapter, LedgerError
 from embco.llm import ClaudeExplainer, Explainer
 from embco.payments import ArcRpc, Payer
+from embco.payments.encoding import ref_scope
 from embco.runner import format_report, run_cycle, watch
 from embco.settings import Settings, SettingsError
 from embco.shops import PLATFORM, ShopError, ShopStore, erp_for, read_key, run_shop
@@ -108,6 +109,7 @@ def _payer(settings: Settings, ledger: ErpnextAdapter) -> Payer | None:
         wallet_id=settings.agent_wallet_id,
         writer=ledger,
         approvals_file=settings.approvals_file,
+        ref_scope=ref_scope(settings.erpnext_url, settings.company),
     )
 
 

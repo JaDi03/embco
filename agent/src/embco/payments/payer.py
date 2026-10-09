@@ -55,6 +55,19 @@ log = logging.getLogger("embco.payments")
 
 PAYABLE_CURRENCY = "USD"  # the shop contract pays USDC
 IN_FLIGHT = (PaymentStatus.SUBMITTED, PaymentStatus.COMPLETE, PaymentStatus.RECORDED)
+FOREIGN_REF = ("the contract already has a payment with this invoice's reference that the agent "
+               "did not send; check it on the explorer before paying")
+
+
+def settled_or_sent(event: PaymentEvent | None, book: "PaymentBook") -> bool:
+    """The agent paid or sent this invoice. A "complete" with no transaction and no attempt was
+    only the contract saying the reference was paid (by someone else, or by an invoice with the
+    same name in another ERP): that is not a payment the agent made."""
+    if event is None or event.status not in IN_FLIGHT:
+        return False
+    if event.status is PaymentStatus.COMPLETE and not event.tx_hash:
+        return book.payment_attempts(event.invoice) > 0
+    return True
 MAX_ATTEMPTS = 3  # transactions sent for one invoice before it waits for a person
 CHAIN_APPROVER = "owner (approved the wallet in the contract)"
 
@@ -119,6 +132,7 @@ class Payer:
     clock: Callable[[], datetime] = field(default=lambda: datetime.now(UTC))
     writer: PaymentWriter | None = None
     approvals_file: Path | None = None
+    ref_scope: str = ""  # the ERP and company the invoice names belong to
     _agent: str | None = None
 
     def agent_address(self) -> str:
@@ -144,7 +158,7 @@ class Payer:
         pending: list[PendingApproval] = []
         for decision in plan.pay_now:
             last = book.latest_payment(decision.invoice)
-            if last and last.status in IN_FLIGHT:
+            if settled_or_sent(last, book):
                 continue
             try:
                 outcome = self._pay(decision, book, agent, remaining, last, pending)
@@ -220,7 +234,7 @@ class Payer:
         event = PaymentEvent(
             invoice=decision.invoice, status=PaymentStatus.BLOCKED, at=self.clock(),
             supplier=decision.supplier, payee=payee, amount=decision.amount,
-            invoice_ref="0x" + invoice_ref(decision.invoice).hex(), reason=reason,
+            invoice_ref="0x" + invoice_ref(decision.invoice, self.ref_scope).hex(), reason=reason,
         )
         book.record_payment(event)
         return [event]
@@ -255,7 +269,7 @@ class Payer:
         pending: list[PendingApproval],
     ) -> list[PaymentEvent] | None:
         name = decision.invoice
-        ref = invoice_ref(name)
+        ref = invoice_ref(name, self.ref_scope)
         base = PaymentEvent(
             invoice=name, status=PaymentStatus.BLOCKED, at=self.clock(),
             supplier=decision.supplier, payee="", amount=decision.amount,
@@ -285,6 +299,8 @@ class Payer:
         except EncodingError as error:
             return blocked(str(error))
         if self.chain.is_paid(self.shop, ref):
+            if book.payment_attempts(name) == 0:
+                return blocked(FOREIGN_REF)  # never mark paid what the agent did not pay
             event = replace(base, status=PaymentStatus.COMPLETE,
                             reason="the contract already marks this invoice paid")
             book.record_payment(event)
@@ -347,8 +363,7 @@ def paid_or_sent(book: PaymentBook, decisions: list[Decision]) -> set[str]:
     """Invoices the agent has already paid or sent, so they are not planned again."""
     result = set()
     for d in decisions:
-        last = book.latest_payment(d.invoice)
-        if last and last.status in IN_FLIGHT:
+        if settled_or_sent(book.latest_payment(d.invoice), book):
             result.add(d.invoice)
     return result
 
