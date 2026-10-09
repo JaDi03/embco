@@ -127,3 +127,22 @@ def test_a_payment_made_by_hand_has_no_known_wallet(remarks):
                              "paid_amount": 10, "remarks": remarks}])
     [paid] = adapter(erp).list_payments("Acme")
     assert paid.payee_wallet is None
+
+
+def test_on_testnet_the_agents_own_draft_counts_as_the_last_payment():
+    erp = FakeErp(accounts=[account("Acme USDC - USDC on Arc", WALLET_A)])
+    testnet = ErpnextAdapter("https://erp.test", "k", "s", wallet_bank=BANK, draft_payments=True,
+                             client=httpx.Client(transport=httpx.MockTransport(erp)))
+    testnet.record_payment(SettledPayment(
+        invoice="PINV-1", supplier="Acme", amount=Decimal("125.5"), paid_on=date(2026, 10, 7),
+        tx_hash=TX, payee_wallet=WALLET_A, note="PAY decided by the embco agent"))
+    [doc] = erp.inserted
+    erp.payments = [
+        {"name": "ACC-PAY-0001", "party": "Acme", "posting_date": "2026-10-07",
+         "paid_amount": 125.5, "docstatus": 0, "remarks": doc["remarks"]},
+        {"name": "ACC-PAY-0002", "party": "Acme", "posting_date": "2026-10-08",
+         "paid_amount": 9, "docstatus": 0, "remarks": f"to wallet {WALLET_B}, typed by hand"},
+    ]
+    [paid] = testnet.list_payments("Acme")  # a draft someone else left does not count
+    assert (paid.name, paid.payee_wallet) == ("ACC-PAY-0001", WALLET_A)
+    assert adapter(erp).list_payments("Acme") == []  # off testnet only submitted entries count
