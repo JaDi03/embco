@@ -107,18 +107,25 @@ class ErpnextAdapter:
         return [self.get_purchase_invoice(name) for name in names]
 
     def list_payments(self, supplier: str) -> list[PaymentRecord]:
+        """Submitted payments; on testnet also the agent's own drafts, which stand for a payment
+        that is final on chain but must not settle the invoice in the ERP."""
         wallet_field = "remarks" if self._wallet_bank else self._payee_wallet_field
+        fields = ["name", "party", "posting_date", "paid_amount", "docstatus", "remarks",
+                  wallet_field]
         rows = self._frappe.list_rows(
             "Payment Entry",
-            fields=["name", "party", "posting_date", "paid_amount", wallet_field],
+            fields=list(dict.fromkeys(fields)),
             filters=[
-                ["docstatus", "=", 1],
+                ["docstatus", "in", [0, 1] if self._draft_payments else [1]],
                 ["party_type", "=", "Supplier"],
                 ["party", "=", supplier],
                 *self._company_filter,
             ],
             order_by="posting_date asc, name asc",
         )
+        rows = [row for row in rows if int(row.get("docstatus", 1)) == 1
+                or (self._draft_payments
+                    and str(row.get("remarks") or "").startswith(TESTNET_REMARK))]
         if self._wallet_bank:
             rows = [{**row, "remarks": bank_wallets.wallet_from_remarks(row.get("remarks"))}
                     for row in rows]
