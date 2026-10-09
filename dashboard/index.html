@@ -70,31 +70,156 @@
         </form>
       </section>
 
-      <section id="view-shop" class="view" hidden>
-        <div class="shop-head">
-          <h1>Your shop</h1>
-          <a class="mono" id="shop-link" target="_blank" rel="noopener"></a>
-          <p class="hint" id="not-owner" hidden>You are viewing this shop with a wallet that is not its owner.</p>
+      <section id="view-shop" class="view console" hidden>
+        <div class="console-head">
+          <div class="shop-id">
+            <span class="eyebrow">Shop</span>
+            <a class="mono" id="shop-link" target="_blank" rel="noopener"></a>
+          </div>
+          <div class="agent-switch">
+            <span class="state" id="agent-status"></span>
+            <button class="btn btn-danger btn-small owner-only" id="agent-off" type="button">Turn the agent off</button>
+            <button class="btn btn-primary btn-small owner-only" id="agent-on" type="button">Turn the agent on</button>
+          </div>
+          <dl class="figures">
+            <div><dt>Per payment</dt><dd id="max-per-payment"></dd></div>
+            <div><dt>Per week</dt><dd id="weekly-cap"></dd></div>
+            <div><dt>Left this week</dt><dd id="remaining"></dd></div>
+            <div class="owner-only"><dt>Claude today</dt><dd id="claude-today">-</dd></div>
+          </dl>
+          <button class="btn btn-ghost btn-small" id="open-settings" type="button" aria-controls="settings-drawer">Settings</button>
         </div>
+        <p class="hint agent-note" id="agent-note"></p>
+        <p class="hint" id="not-owner" hidden>You are viewing this shop with a wallet that is not its owner.</p>
 
-        <div class="grid">
-          <article class="card wide owner-only" id="tasks-card" hidden>
-            <div class="tasks-head">
-              <h2>What the agent needs from you</h2>
-              <div class="row">
-                <span class="hint" id="tasks-checked"></span>
-                <button class="btn btn-ghost" id="check-now" type="button">Check now</button>
-              </div>
+        <nav class="mtabs" aria-label="View">
+          <button class="mtab" type="button" data-mview="work" aria-pressed="true">Invoices</button>
+          <button class="mtab" type="button" data-mview="activity" aria-pressed="false">Agent activity</button>
+        </nav>
+
+        <div class="panes" id="panes" data-mview="work">
+          <section class="pane work" aria-label="Invoices">
+            <div id="work-setup">
+              <article class="card wide owner-only" id="erp-card">
+                <h2>Your ERPNext</h2>
+                <p class="hint" id="erp-error" hidden></p>
+                <div id="erp-signin" hidden>
+                  <p class="hint">
+                    Sign in with your wallet to connect your ERPNext and see what the agent decides. It is a signature, not a
+                    transaction: it costs nothing.
+                  </p>
+                  <button class="btn btn-primary" id="erp-signin-button" type="button">Sign in</button>
+                </div>
+                <form id="erp-form" class="form" novalidate hidden>
+                  <p class="hint">
+                    In ERPNext, create a user for the agent with the roles Accounts User, Purchase User and Stock User, generate
+                    its API keys and paste them here. They are stored encrypted and never shown again.
+                  </p>
+                  <label>
+                    ERPNext address
+                    <input name="erpUrl" placeholder="https://your-shop.frappe.cloud" autocomplete="off" spellcheck="false" required />
+                  </label>
+                  <label>
+                    Company <span class="optional">(as written in ERPNext)</span>
+                    <input name="company" autocomplete="off" required />
+                  </label>
+                  <label>
+                    API key
+                    <input name="apiKey" autocomplete="off" spellcheck="false" required />
+                  </label>
+                  <label>
+                    API secret
+                    <input name="apiSecret" type="password" autocomplete="new-password" required />
+                  </label>
+                  <label>
+                    Bank that holds supplier wallets <span class="optional">(Bank Account rows with the wallet as account number)</span>
+                    <input name="walletBank" value="USDC on Arc" autocomplete="off" />
+                  </label>
+                  <label>
+                    Extra payment fields <span class="optional">(optional, only if your ERPNext requires them)</span>
+                    <input name="paymentExtra" placeholder='{"payment_form": "03"}' autocomplete="off" spellcheck="false" />
+                  </label>
+                  <button class="btn btn-primary" type="submit">Test and connect</button>
+                </form>
+                <ul class="list checks" id="erp-checks" hidden></ul>
+                <div id="erp-connected" hidden>
+                  <dl class="facts">
+                    <div><dt>ERPNext</dt><dd class="mono" id="erp-url"></dd></div>
+                    <div><dt>Company</dt><dd id="erp-company"></dd></div>
+                    <div><dt>Agent wallet</dt><dd class="mono" id="erp-agent-wallet"></dd></div>
+                    <div><dt>Last check</dt><dd id="erp-last-at"></dd></div>
+                  </dl>
+                  <div id="erp-set-agent" hidden>
+                    <p class="hint">
+                      This is your shop's own agent wallet. Make it the agent of your contract so it can pay approved suppliers
+                      within your limits.
+                    </p>
+                    <button class="btn btn-primary" id="erp-set-agent-button" type="button">Make it the agent</button>
+                  </div>
+                  <p id="erp-summary"></p>
+                  <div class="row">
+                    <button class="btn btn-ghost" id="erp-refresh" type="button">Refresh</button>
+                    <button class="btn btn-danger" id="erp-disconnect" type="button">Disconnect</button>
+                  </div>
+                </div>
+              </article>
             </div>
-            <p class="hint" id="tasks-summary"></p>
-            <div id="tasks"></div>
-          </article>
+            <article class="card wide owner-only" id="approvals-card" hidden>
+              <h2>Waiting for your approval</h2>
+              <p class="hint">The agent checked these invoices and would pay them now. Before approving, find the wallet in ERPNext (Supplier, wallet address) and make sure it is the supplier you expect.</p>
+              <ul class="list" id="approvals"></ul>
+            </article>
 
-          <article class="card wide owner-only" id="terminal-card" hidden>
-            <div class="tasks-head">
+            <div class="tabs" id="work-tabs" role="tablist" aria-label="Invoices by state"></div>
+
+            <div id="tab-invoices">
+              <article class="owner-only" id="tasks-card" hidden>
+                <div class="tasks-head">
+                  <p class="hint" id="tasks-summary"></p>
+                  <div class="row">
+                    <span class="hint" id="tasks-checked"></span>
+                    <button class="btn btn-ghost btn-small" id="check-now" type="button">Check now</button>
+                  </div>
+                </div>
+                <div id="tasks"></div>
+              </article>
+            </div>
+
+            <div id="tab-suppliers" hidden>
+              <article class="card wide owner-only" id="suppliers-card" hidden>
+                <h2>Your suppliers</h2>
+                <p class="hint">
+                  Each supplier signs in at <b id="supplier-site">app.embco.xyz/supplier</b> with the wallet you pay it to. There
+                  it sees its invoices and payments, and confirms a new wallet when the agent asks. The notice you send never
+                  carries a link, so your suppliers learn to type the address themselves.
+                </p>
+                <ul class="list" id="supplier-list"></ul>
+              </article>
+              <article class="card wide">
+                <h2>Approved suppliers</h2>
+                <p class="hint">The agent can only pay these wallets. Confirm a new wallet with the supplier on a number you already have before adding it.</p>
+                <ul class="list" id="suppliers"></ul>
+                <form id="supplier-form" class="inline-form owner-only" novalidate>
+                  <input name="supplier" placeholder="Supplier wallet 0x..." autocomplete="off" spellcheck="false" aria-label="Supplier wallet" />
+                  <button class="btn btn-primary" type="submit">Approve</button>
+                </form>
+              </article>
+            </div>
+
+            <div id="tab-payments" hidden>
+              <article class="card wide">
+                <h2>Payments</h2>
+                <ul class="list" id="payments"></ul>
+              </article>
+            </div>
+          </section>
+
+          <aside class="pane activity owner-only" id="terminal-card" aria-label="Agent activity" hidden>
+            <div class="term-head">
               <h2>Agent activity</h2>
               <span class="live"><span class="dot" id="live-dot"></span><span id="next-check"></span></span>
             </div>
+            <div class="chips" id="terminal-filters" role="group" aria-label="Show lines from"></div>
             <div class="terminal" id="terminal" role="log" aria-live="polite" aria-label="What the agent does"></div>
             <section class="chat" aria-label="Ask your agent">
               <h3>Ask your agent</h3>
@@ -107,10 +232,18 @@
               </form>
               <p class="hint" id="chat-status"></p>
             </section>
-          </article>
+          </aside>
+        </div>
 
-          <article class="card">
-            <h2>Money</h2>
+        <div class="scrim" id="settings-scrim" hidden></div>
+        <aside class="drawer" id="settings-drawer" aria-label="Settings" hidden>
+          <div class="drawer-head">
+            <h2>Settings</h2>
+            <button class="btn btn-ghost btn-small" id="close-settings" type="button">Close</button>
+          </div>
+
+          <section>
+            <h3>Money</h3>
             <dl class="facts">
               <div><dt>In your wallet</dt><dd id="balance"></dd></div>
               <div><dt>The agent may use</dt><dd id="allowance"></dd></div>
@@ -123,33 +256,24 @@
               <button class="btn btn-primary" type="submit">Set</button>
               <button class="btn btn-danger" type="button" id="revoke-button">Revoke</button>
             </form>
-          </article>
+          </section>
 
-          <article class="card">
-            <h2>Limits</h2>
-            <dl class="facts">
-              <div><dt>Per payment</dt><dd id="max-per-payment"></dd></div>
-              <div><dt>Per week</dt><dd id="weekly-cap"></dd></div>
-              <div><dt>Left this week</dt><dd id="remaining"></dd></div>
-            </dl>
-            <form id="limits-form" class="stack-form owner-only" novalidate>
+          <section class="owner-only">
+            <h3>Limits in your contract</h3>
+            <form id="limits-form" class="stack-form" novalidate>
               <input name="maxPerPayment" inputmode="decimal" placeholder="Per payment (USDC)" aria-label="New per-payment limit" />
               <input name="weeklyCap" inputmode="decimal" placeholder="Per week (USDC)" aria-label="New weekly limit" />
               <button class="btn btn-primary" type="submit">Change limits</button>
             </form>
-          </article>
+          </section>
 
-          <article class="card">
-            <h2>Agent</h2>
+          <section>
+            <h3>Agent</h3>
             <dl class="facts">
-              <div><dt>Status</dt><dd id="agent-status"></dd></div>
-              <div><dt></dt><dd id="agent-note"></dd></div>
-              <div class="owner-only"><dt>Telegram</dt><dd id="telegram-state">not linked</dd></div>
               <div><dt>Wallet</dt><dd class="mono" id="agent-address"></dd></div>
+              <div class="owner-only"><dt>Telegram</dt><dd id="telegram-state">not linked</dd></div>
             </dl>
             <div class="row owner-only">
-              <button class="btn btn-danger" id="agent-off" type="button">Turn the agent off</button>
-              <button class="btn btn-primary" id="agent-on" type="button">Turn the agent on</button>
               <button class="btn btn-ghost" id="telegram-link" type="button">Connect Telegram</button>
               <button class="btn btn-ghost" id="telegram-unlink" type="button" hidden>Unlink Telegram</button>
             </div>
@@ -158,103 +282,13 @@
               <input name="agent" placeholder="New agent wallet 0x..." autocomplete="off" spellcheck="false" aria-label="New agent wallet" />
               <button class="btn btn-ghost" type="submit">Change</button>
             </form>
-          </article>
+          </section>
 
-          <article class="card wide owner-only" id="erp-card">
-            <h2>Your ERPNext</h2>
-            <p class="hint" id="erp-error" hidden></p>
-            <div id="erp-signin" hidden>
-              <p class="hint">
-                Sign in with your wallet to connect your ERPNext and see what the agent decides. It is a signature, not a
-                transaction: it costs nothing.
-              </p>
-              <button class="btn btn-primary" id="erp-signin-button" type="button">Sign in</button>
-            </div>
-            <form id="erp-form" class="form" novalidate hidden>
-              <p class="hint">
-                In ERPNext, create a user for the agent with the roles Accounts User, Purchase User and Stock User, generate
-                its API keys and paste them here. They are stored encrypted and never shown again.
-              </p>
-              <label>
-                ERPNext address
-                <input name="erpUrl" placeholder="https://your-shop.frappe.cloud" autocomplete="off" spellcheck="false" required />
-              </label>
-              <label>
-                Company <span class="optional">(as written in ERPNext)</span>
-                <input name="company" autocomplete="off" required />
-              </label>
-              <label>
-                API key
-                <input name="apiKey" autocomplete="off" spellcheck="false" required />
-              </label>
-              <label>
-                API secret
-                <input name="apiSecret" type="password" autocomplete="new-password" required />
-              </label>
-              <label>
-                Bank that holds supplier wallets <span class="optional">(Bank Account rows with the wallet as account number)</span>
-                <input name="walletBank" value="USDC on Arc" autocomplete="off" />
-              </label>
-              <label>
-                Extra payment fields <span class="optional">(optional, only if your ERPNext requires them)</span>
-                <input name="paymentExtra" placeholder='{"payment_form": "03"}' autocomplete="off" spellcheck="false" />
-              </label>
-              <button class="btn btn-primary" type="submit">Test and connect</button>
-            </form>
-            <ul class="list checks" id="erp-checks" hidden></ul>
-            <div id="erp-connected" hidden>
-              <dl class="facts">
-                <div><dt>ERPNext</dt><dd class="mono" id="erp-url"></dd></div>
-                <div><dt>Company</dt><dd id="erp-company"></dd></div>
-                <div><dt>Agent wallet</dt><dd class="mono" id="erp-agent-wallet"></dd></div>
-                <div><dt>Last check</dt><dd id="erp-last-at"></dd></div>
-              </dl>
-              <div id="erp-set-agent" hidden>
-                <p class="hint">
-                  This is your shop's own agent wallet. Make it the agent of your contract so it can pay approved suppliers
-                  within your limits.
-                </p>
-                <button class="btn btn-primary" id="erp-set-agent-button" type="button">Make it the agent</button>
-              </div>
-              <p id="erp-summary"></p>
-              <div class="row">
-                <button class="btn btn-ghost" id="erp-refresh" type="button">Refresh</button>
-                <button class="btn btn-danger" id="erp-disconnect" type="button">Disconnect</button>
-              </div>
-            </div>
-          </article>
-
-          <article class="card wide owner-only" id="suppliers-card" hidden>
-            <h2>Your suppliers</h2>
-            <p class="hint">
-              Each supplier signs in at <b id="supplier-site">app.embco.xyz/supplier</b> with the wallet you pay it to. There
-              it sees its invoices and payments, and confirms a new wallet when the agent asks. The notice you send never
-              carries a link, so your suppliers learn to type the address themselves.
-            </p>
-            <ul class="list" id="supplier-list"></ul>
-          </article>
-
-          <article class="card wide owner-only" id="approvals-card" hidden>
-            <h2>Waiting for your approval</h2>
-            <p class="hint">The agent checked these invoices and would pay them now. Before approving, find the wallet in ERPNext (Supplier, wallet address) and make sure it is the supplier you expect.</p>
-            <ul class="list" id="approvals"></ul>
-          </article>
-
-          <article class="card wide">
-            <h2>Approved suppliers</h2>
-            <p class="hint">The agent can only pay these wallets. Confirm a new wallet with the supplier on a number you already have before adding it.</p>
-            <ul class="list" id="suppliers"></ul>
-            <form id="supplier-form" class="inline-form owner-only" novalidate>
-              <input name="supplier" placeholder="Supplier wallet 0x..." autocomplete="off" spellcheck="false" aria-label="Supplier wallet" />
-              <button class="btn btn-primary" type="submit">Approve</button>
-            </form>
-          </article>
-
-          <article class="card wide">
-            <h2>Payments</h2>
-            <ul class="list" id="payments"></ul>
-          </article>
-        </div>
+          <section class="owner-only">
+            <h3>ERPNext</h3>
+            <div id="drawer-erp"></div>
+          </section>
+        </aside>
       </section>
     </main>
 

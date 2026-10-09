@@ -125,3 +125,20 @@ def test_the_cost_comes_from_the_tokens_and_the_public_prices():
     assert Decimal("0.0056") < cost < Decimal("0.0058")
     assert shown(cost) == "$0.0057"
     assert estimate(live, "some-other-model") is None and shown(None) == ""
+
+
+def test_claude_today_counts_only_the_shop_s_day_and_adds_their_cost():
+    from datetime import timedelta, timezone
+
+    from agent.models import Session
+    from services.shops.agent import claude_today
+
+    lagos = timezone(timedelta(hours=1))
+    used = Usage(input_tokens=12, output_tokens=4505, cache_read_tokens=63396,
+                 cache_write_tokens=22215)
+    yesterday = Session(at=datetime(2026, 10, 8, 22, 30, tzinfo=UTC), wakes=(), finished=True,
+                        model="claude-haiku-5-5", usage=used)  # 23:30 in Lagos: not today
+    today = Session(at=datetime(2026, 10, 9, 20, 0, tzinfo=UTC), wakes=(), finished=True,
+                    model="claude-haiku-5-5", usage=used)
+    assert claude_today([yesterday, today, today], lagos, NOW) == {"sessions": 2,
+                                                                   "cost": "$0.0113"}

@@ -11,7 +11,8 @@ const SHORT = (w) => (w ? `${w.slice(0, 6)}...${w.slice(-4)}` : "");
 
 export const SECTIONS = [
   { key: "needs", title: "Needs you", hint: "The agent will not pay these until you act." },
-  { key: "paying", title: "Being paid", hint: "Approved: the agent pays them within your limits." },
+  { key: "scheduled", title: "Scheduled", hint: "The agent chose to pay these on a later date; it pays them on that day without asking." },
+  { key: "paying", title: "Being paid", hint: "The agent decided to pay them now, within your limits." },
   { key: "supplier", title: "Waiting for the supplier", hint: "The supplier has to confirm its wallet on its page." },
   { key: "held", title: "On hold: fix in ERPNext", hint: "Something in ERPNext does not add up. Fix it there; the agent looks again on its own." },
 ];
@@ -106,6 +107,10 @@ export function taskFor(decision, facts = {}, { waiting = false, answer = null }
 }
 
 function sectionOf(decision, steps) {
+  const agent = decision.agent?.choice;
+  if (decision.action === "PAY" && agent === "HOLD") return "held";
+  if (decision.action === "PAY" && agent === "ASK") return "needs";
+  if (decision.action === "PAY" && agent === "SCHEDULE" && !decision.payment) return "scheduled";
   if (decision.action === "PAY") return "paying";
   if (decision.action === "ASK") return "needs";
   if (steps.some((s) => s.key === "wallet" && s.state === "waiting") && !steps.some((s) => s.state === "todo")) return "supplier";
@@ -116,6 +121,10 @@ function sectionOf(decision, steps) {
 export function paymentText(decision) {
   if (decision.action !== "PAY") return null;
   const p = decision.payment;
+  const agent = decision.agent;
+  if (!p && agent?.choice === "SCHEDULE") return { state: "next", text: `The agent will pay it on ${agent.pay_on}.` };
+  if (!p && agent?.choice === "HOLD") return { state: "blocked", text: "The agent is holding it." };
+  if (!p && !agent) return { state: "next", text: "Waiting for the agent to decide." };
   if (!p) return { state: "next", text: "The agent pays it in its next check." };
   switch (p.status) {
     case "SUBMITTED": return { state: "sent", text: "Payment sent, waiting for Arc to confirm.", tx: p.tx_hash };
@@ -134,6 +143,19 @@ export function raisedLimits(amountUnits, weeklyCap) {
 }
 
 /** Tasks grouped by section, in the order the page shows them. */
+/** What the agent (Claude) decided on this invoice, in words for the owner, or null. */
+export function agentView(decision) {
+  const a = decision.agent;
+  if (!a) return null;
+  const said = {
+    PAY_NOW: "Pay it now",
+    SCHEDULE: `Pay it on ${a.pay_on}`,
+    HOLD: "Hold it",
+    ASK: "Asking you",
+  }[a.choice] ?? a.choice;
+  return { said, reason: a.question || a.reason, recommendation: a.recommendation || null };
+}
+
 export function groupTasks(tasks) {
   return SECTIONS.map((s) => ({ ...s, tasks: tasks.filter((t) => t.section === s.key) }))
     .filter((s) => s.tasks.length);

@@ -39,3 +39,16 @@ test("every kind reads as a short label", () => {
   assert.equal(activity.labelOf("recorded"), "ERP");
   assert.equal(activity.labelOf("something_new"), "SOMETHING_NEW");
 });
+
+test("each line says who did it, and a chip shows one actor's lines", () => {
+  assert.equal(activity.actorOf("agent"), "AGENT");
+  assert.equal(activity.actorOf("check"), "REFLEX");
+  assert.equal(activity.actorOf("you"), "YOU");
+  assert.equal(activity.actorOf("signature"), "SUPPLIER");
+  assert.equal(activity.actorOf("paid"), "CONTRACT");
+  assert.equal(activity.actorOf("recorded"), "ERP");
+  assert.equal(activity.actorOf("not_paid"), "GUARD");
+  const events = [{ kind: "agent" }, { kind: "paid" }, { kind: "agent" }];
+  assert.equal(activity.byActor(events, "AGENT").length, 2);
+  assert.equal(activity.byActor(events, null).length, 3);
+});

@@ -15,6 +15,24 @@ const LABELS = {
 
 export const labelOf = (kind) => LABELS[kind] ?? String(kind ?? "").toUpperCase();
 
+/** Who did it: the agent (Claude), its reflexes, the owner, a supplier, the contract, the ERP,
+ * or a guardrail that stopped something. */
+const ACTOR_OF = {
+  agent: "AGENT",
+  reflex: "REFLEX", check: "REFLEX", done: "REFLEX", new: "REFLEX", changed: "REFLEX", waiting: "REFLEX",
+  you: "YOU", answer: "YOU",
+  signature: "SUPPLIER",
+  sending: "CONTRACT", paid: "CONTRACT", limits: "CONTRACT",
+  recorded: "ERP", closed: "ERP",
+  not_paid: "GUARD", guard: "GUARD",
+  error: "ERROR",
+};
+export const ACTORS = ["AGENT", "REFLEX", "YOU", "SUPPLIER", "CONTRACT", "ERP", "GUARD"];
+export const actorOf = (kind) => ACTOR_OF[kind] ?? "REFLEX";
+
+/** The events one filter chip shows: all, or one actor's. */
+export const byActor = (events, actor) => (actor ? events.filter((e) => actorOf(e.kind) === actor) : events);
+
 /** "2026-10-09T20:19:45+00:00" -> "20:19:45" in the viewer's own time. */
 export function timeOf(at, locale) {
   const d = new Date(at);

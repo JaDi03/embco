@@ -9,6 +9,7 @@ import time
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 from agent.cost import estimate, shown
@@ -118,11 +119,22 @@ def chat_replies(report: CycleReport, owner_waiting: bool) -> list[dict[str, Any
     return []
 
 
+def claude_today(sessions, zone, now: datetime) -> dict[str, Any]:
+    """How many times Claude was woken today (shop time) and what it cost, estimated."""
+    today = now.astimezone(zone).date()
+    mine = [s for s in sessions if s.at.astimezone(zone).date() == today]
+    costs = [estimate(s.usage, s.model) for s in mine]
+    known = [c for c in costs if c is not None]
+    total = sum(known, start=Decimal(0)) if known else None
+    return {"sessions": len(mine), "cost": shown(total)}
+
+
 def summarize(
     report: CycleReport,
     payments: Mapping[str, PaymentEvent] | None = None,
     answers: Mapping[str, dict[str, str]] | None = None,
     policy: PolicyConfig | None = None,
+    today: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     plan = report.plan
     payments = payments or {}
@@ -145,7 +157,8 @@ def summarize(
             "session": None if session is None else {
                 "at": session.at.isoformat(), "finished": session.finished,
                 "summary": session.summary, "error": session.error},
-            "skipped": thought.skipped or None},
+            "skipped": thought.skipped or None,
+            "today": today},
         "answers": dict(answers or {}),
     }
 
@@ -230,7 +243,8 @@ def run_shop(
                                               *activity.cycle_events(report, minutes)])
             chat.append_chat(folder, chat_replies(report, bool(waiting)))
             latest = {p.invoice: p for p in journal.latest_payments()}
-            store.write_last_run(shop, summarize(report, latest, answers, policy["now"]))
+            today = claude_today(journal.sessions(), brain.zone, report.at) if brain else None
+            store.write_last_run(shop, summarize(report, latest, answers, policy["now"], today))
             store.write_supplier_view(shop, supplier_view(report, journal, settings.company,
                                                           signatures, wallet_of=wallet_of))
             log.info("shop %s: %s", shop, format_report(report))
