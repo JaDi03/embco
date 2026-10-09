@@ -28,6 +28,7 @@ from services.hub.units import UnitError, Units
 from services.hub.wallets import create_agent_wallet
 from services.payments.chain import ChainError
 from services.shops.store import ErpCredentials, ShopConfig, ShopError, ShopStore, check_shop
+from services.telegram import links
 
 COOKIE = "embco_session"
 PUBLIC_URL = "https://app.embco.xyz"
@@ -66,6 +67,7 @@ def create_app(
     check_url: Callable[[str], str] = check_erp_url,
     public_url: str = PUBLIC_URL,
     supplier_auth: SupplierAuth | None = None,
+    telegram_bot: str | None = None,
 ) -> FastAPI:
     app = FastAPI(title="embco hub", docs_url=None, redoc_url=None, openapi_url=None)
     frappe_for = frappe_for or (lambda url, key, secret: FrappeClient(url, key, secret,
@@ -136,6 +138,8 @@ def create_app(
                        "weekly_cap": config.weekly_budget},
             "agent_wallet": config.agent_wallet_address,
             "agent_on": store.agent_on(shop),
+            "payments_paused": store.payments_paused(shop),
+            "telegram_linked": links.link_of(store.folder(shop)) is not None,
             "last_run": (last_run := store.last_run(shop)),
             "answers_waiting": waiting_answers(store, shop, last_run),
         }
@@ -211,7 +215,8 @@ def create_app(
         return {"connected": False}
 
     app.include_router(owner_action_routes(store=store, units=units, shop_of=shop_of,
-                                           owner_session=owner_session))
+                                           owner_session=owner_session,
+                                           telegram_bot=telegram_bot))
     app.include_router(supplier_routes(store=store, auth=supplier_auth or SupplierAuth(),
                                        shop_of=shop_of, owner_session=owner_session,
                                        frappe_for=frappe_for, public_url=public_url))

@@ -19,6 +19,7 @@ from services.shops import chat
 from services.shops.activity import append_activity, read_activity, switched
 from services.shops.inbox import answer_waiting, drop_answer
 from services.shops.store import ShopError, ShopStore
+from services.telegram import links
 
 CHECK_EVERY = timedelta(seconds=30)  # "check now" restarts the agent: not more often than this
 MESSAGE_EVERY = timedelta(seconds=3)  # one message at a time from the owner
@@ -52,6 +53,7 @@ def owner_action_routes(
     shop_of: Callable[[str], str],
     owner_session: Callable[[str, str | None], Any],
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    telegram_bot: str | None = None,
 ) -> APIRouter:
     router = APIRouter()
     last_check: dict[str, datetime] = {}
@@ -76,6 +78,23 @@ def owner_action_routes(
         chat.drop_message(store.folder(shop), text, f"owner {session.owner}", now)
         last_message[shop] = now
         return {"received": True}
+
+    @router.post("/api/shops/{shop}/telegram")
+    def telegram_code(shop: str,
+                      embco_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+        """A one-time code the owner sends to the bot (/link <code>) to link a Telegram chat."""
+        shop = shop_of(shop)
+        owner_session(shop, embco_session)
+        code, expires = links.new_code(store.folder(shop), clock())
+        return {"code": code, "expires_at": expires.isoformat(), "bot": telegram_bot}
+
+    @router.delete("/api/shops/{shop}/telegram")
+    def telegram_unlink(shop: str,
+                        embco_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+        shop = shop_of(shop)
+        owner_session(shop, embco_session)
+        links.unlink(store.folder(shop))
+        return {"telegram_linked": False}
 
     @router.get("/api/shops/{shop}/chat")
     def conversation(shop: str, after: int = Query(default=0, ge=0),
@@ -146,6 +165,7 @@ def owner_action_routes(
             if shop not in store.connected():
                 raise HubError(409, "connect the ERP first")
             store.set_agent_on(shop, True, now.isoformat())
+            store.set_payments_paused(shop, False, now.isoformat())  # on means paying again
             append_activity(store.folder(shop), [switched(now, True)])
             try:
                 units.start(shop)

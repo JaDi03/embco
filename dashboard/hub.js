@@ -95,6 +95,19 @@ export function agentSwitchView(serviceOn, paused) {
   return { on: true, status: "On", note: serviceOn === null ? "Sign in to the embco service to turn it off fully." : "" };
 }
 
+/** A one-time code to send to the Telegram bot as /link <code>. */
+export const telegramCode = (shop, fetchImpl = fetch) =>
+  call(`${shopPath(shop)}/telegram`, { method: "POST", fetchImpl });
+
+export const telegramUnlink = (shop, fetchImpl = fetch) =>
+  call(`${shopPath(shop)}/telegram`, { method: "DELETE", fetchImpl });
+
+/** What to tell the owner to send, and to whom. */
+export function linkInstruction({ code, bot }) {
+  const to = bot ? `@${bot}` : "your embco bot";
+  return `In Telegram, send this to ${to} within 10 minutes: /link ${code}`;
+}
+
 export const signOut = (shop, fetchImpl = fetch) =>
   call(`${shopPath(shop)}/sign-out`, { method: "POST", fetchImpl });
 

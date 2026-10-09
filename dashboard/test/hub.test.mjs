@@ -113,3 +113,9 @@ test("turning the agent off or on is one call with the owner's choice", async ()
   assert.deepEqual(calls[0].body, { on: false });
   assert.equal(calls[0].credentials, "same-origin");
 });
+
+test("linking Telegram tells the owner exactly what to send, and to which bot", () => {
+  assert.equal(hub.linkInstruction({ code: "ABCD-EFGH", bot: "embco_agent_bot" }),
+    "In Telegram, send this to @embco_agent_bot within 10 minutes: /link ABCD-EFGH");
+  assert.match(hub.linkInstruction({ code: "ABCD-EFGH", bot: null }), /your embco bot/);
+});

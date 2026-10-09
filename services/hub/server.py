@@ -40,6 +40,7 @@ def build_app(env: Mapping[str, str]) -> FastAPI:
         units=SystemdUnits(),
         circle=circle,
         public_url=(env.get("EMBCO_PUBLIC_URL") or PUBLIC_URL).rstrip("/"),
+        telegram_bot=env.get("TELEGRAM_BOT_USERNAME", "").strip().lstrip("@") or None,
     )
 
 

@@ -53,6 +53,8 @@ def main(argv: list[str] | None = None) -> int:
         return _shop(args)
     if args.command == "hub":
         return _hub(args)
+    if args.command == "telegram":
+        return _telegram(args)
     try:
         settings = Settings.load(Path(args.env_file))
         settings.journal_path.parent.mkdir(parents=True, exist_ok=True)
@@ -81,6 +83,19 @@ def _hub(args) -> int:
     except SettingsError as error:
         print(f"configuration error: {error}", file=sys.stderr)
         return 2
+    return 0
+
+
+def _telegram(args) -> int:
+    from services.telegram.serve import serve_bot  # only the bot process loads it
+
+    try:
+        serve_bot(Path(args.env_file))
+    except SettingsError as error:
+        print(f"configuration error: {error}", file=sys.stderr)
+        return 2
+    except KeyboardInterrupt:
+        pass
     return 0
 
 
@@ -246,6 +261,7 @@ def _parser() -> argparse.ArgumentParser:
                       help="the service key that encrypts ERP keys")
     shop.add_argument("--cycles", type=int, help="stop after this many cycles")
     sub.add_parser("hub", help="serve the API the dashboard uses to connect shops")
+    sub.add_parser("telegram", help="run the Telegram bot: /stop, /pause and talking to the agent")
     return parser
 
 

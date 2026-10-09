@@ -14,7 +14,7 @@ from typing import Any
 from agent.cost import estimate, shown
 from agent.guardrails.rules import PolicyConfig
 from agent.memory import JournalError, SqliteJournal
-from agent.models import Wake
+from agent.models import Autonomy, Wake
 from agent.reflexes.cycle import CycleReport, run_cycle
 from agent.reflexes.report import format_report
 from agent.reflexes.watch import watch
@@ -214,8 +214,11 @@ def run_shop(
                 if waiting:
                     wakes.append(Wake("message", f"The owner wrote to you ({len(waiting)} "
                                                  "message(s)); answer with reply_owner."))
+                thinking = brain
+                if brain and store.payments_paused(shop):  # the owner paused payments
+                    thinking = replace(brain, autonomy=Autonomy.OBSERVE)
                 report = run_cycle(ledger, journal, policy["now"], settings.company,
-                                   payments=payments, brain=brain, wakes=wakes,
+                                   payments=payments, brain=thinking, wakes=wakes,
                                    messages=[m["text"] for m in waiting],
                                    conversation=chat.read_chat(folder, limit=12))
             except (LedgerError, JournalError) as error:

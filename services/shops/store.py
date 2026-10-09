@@ -7,6 +7,7 @@
     <root>/<shop>/suppliers.json   what each supplier may see on its own page
     <root>/<shop>/inbox/           wallet signatures from suppliers, for the agent to check
     <root>/<shop>/agent_off        present while the owner has the agent turned off
+    <root>/<shop>/payments_paused  present while payments are paused: the agent only observes
 
 A shop is the address of its ShopPayables contract, in lower case. A shop's settings are built
 from its folder only, so no shop inherits another's. The only values from outside are the
@@ -31,6 +32,7 @@ JOURNAL = "journal.sqlite3"
 LAST_RUN = "last_run.json"
 SUPPLIER_VIEW = "suppliers.json"
 AGENT_OFF = "agent_off"
+PAYMENTS_PAUSED = "payments_paused"
 _SHOP = re.compile(r"^0x[0-9a-f]{40}$")
 PLATFORM = ("CIRCLE_API_KEY", "CIRCLE_ENTITY_SECRET", "ARC_TESTNET_RPC_URL")
 BRAIN_PLATFORM = ("ANTHROPIC_API_KEY",)  # the platform's model account, for shops with a brain
@@ -183,6 +185,18 @@ class ShopStore:
         else:
             self.folder(shop).mkdir(parents=True, exist_ok=True)
             _write(flag, at.encode())
+
+    def payments_paused(self, shop: str) -> bool:
+        return (self.folder(shop) / PAYMENTS_PAUSED).exists()
+
+    def set_payments_paused(self, shop: str, paused: bool, at: str) -> None:
+        """While paused the agent still checks, decides and answers, but pays nothing."""
+        flag = self.folder(shop) / PAYMENTS_PAUSED
+        if paused:
+            self.folder(shop).mkdir(parents=True, exist_ok=True)
+            _write(flag, at.encode())
+        else:
+            flag.unlink(missing_ok=True)
 
     def shops(self) -> list[str]:
         """Every shop with a folder, connected or not."""

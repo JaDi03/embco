@@ -144,12 +144,16 @@
             <dl class="facts">
               <div><dt>Status</dt><dd id="agent-status"></dd></div>
               <div><dt></dt><dd id="agent-note"></dd></div>
+              <div class="owner-only"><dt>Telegram</dt><dd id="telegram-state">not linked</dd></div>
               <div><dt>Wallet</dt><dd class="mono" id="agent-address"></dd></div>
             </dl>
             <div class="row owner-only">
               <button class="btn btn-danger" id="agent-off" type="button">Turn the agent off</button>
               <button class="btn btn-primary" id="agent-on" type="button">Turn the agent on</button>
+              <button class="btn btn-ghost" id="telegram-link" type="button">Connect Telegram</button>
+              <button class="btn btn-ghost" id="telegram-unlink" type="button" hidden>Unlink Telegram</button>
             </div>
+            <p class="hint owner-only" id="telegram-code" hidden></p>
             <form id="agent-form" class="inline-form owner-only" novalidate>
               <input name="agent" placeholder="New agent wallet 0x..." autocomplete="off" spellcheck="false" aria-label="New agent wallet" />
               <button class="btn btn-ghost" type="submit">Change</button>
