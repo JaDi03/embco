@@ -76,7 +76,9 @@ the three-way match. See [docs/connect.md](docs/connect.md).
 
 | Path | What is there |
 |---|---|
-| `agent/` | The agent: reads ERPNext, runs the controls and decides. Code in `agent/src/embco/`, tests in `agent/tests/` |
+| `agent/` | The agent. `agent.py` is its brain: Claude decides what to pay and when. Next to it: `tools/` (what it can do), `reflexes/` (what wakes it and the automatic work), `guardrails/` (the checks it cannot skip) and `memory/` |
+| `services/` | What the agent stands on: ERPNext (`erp/`), Circle, the Arc chain (`payments/`), the hosted service (`hub/`, `shops/`) and the `embco` command |
+| `tests/` | Tests of the agent and the services |
 | `contracts/` | The shop contract and its factory (Solidity, Arc Foundry): the limits the agent cannot move |
 | `dashboard/` | The owner's page: a static site with MetaMask, no build step and no server code |
 | `connector/` | Prepares an ERPNext instance for the agent |
@@ -85,7 +87,6 @@ the three-way match. See [docs/connect.md](docs/connect.md).
 ## Run it
 
 ```bash
-cd agent
 uv sync
 uv run ruff check . && uv run pytest -q
 ```
@@ -93,11 +94,11 @@ uv run ruff check . && uv run pytest -q
 Copy `.env.example` to `.env`, fill it in, then:
 
 ```bash
-uv run embco --env-file ../.env run      # one cycle, full report
-uv run embco --env-file ../.env watch    # a cycle every 15 minutes, on its own
-uv run embco --env-file ../.env answer ACC-PINV-0001 approve --by owner   # or answer on the invoice in ERPNext
-uv run embco --env-file ../.env verify   # check the memory was not altered
-uv run embco --env-file ../.env create-wallet   # once: the agent's wallet, with Circle
+uv run embco --env-file .env run      # one cycle, full report
+uv run embco --env-file .env watch    # a cycle every 15 minutes, on its own
+uv run embco --env-file .env answer ACC-PINV-0001 approve --by owner   # or answer on the invoice in ERPNext
+uv run embco --env-file .env verify   # check the memory was not altered
+uv run embco --env-file .env create-wallet   # once: the agent's wallet, with Circle
 ```
 
 Payments are off by default: the agent decides, remembers and plans. With `EMBCO_PAY=on`, the
