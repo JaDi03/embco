@@ -27,13 +27,19 @@ NOW = datetime.now(UTC)  # the hub checks expiry against the real clock
 
 
 class FakeErp:
-    def __init__(self, email="orders@supplier.test"):
-        self.email, self.sent = email, []
+    def __init__(self, email="orders@supplier.test", contact_email=""):
+        self.email, self.contact_email, self.sent = email, contact_email, []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
         if path == f"/api/resource/Supplier/{SUPPLIER}":
             return httpx.Response(200, json={"data": {"name": SUPPLIER, "email_id": self.email}})
+        if path == "/api/resource/Contact":
+            filters = request.url.params["filters"]
+            assert "Dynamic Link" in filters and SUPPLIER in filters
+            assert '["email_id", "is", "set"]' in filters
+            rows = [{"email_id": self.contact_email}] if self.contact_email else []
+            return httpx.Response(200, json={"data": rows})
         if path.endswith("communication.email.make"):
             self.sent.append({k: v[0] for k, v in parse_qs(request.content.decode()).items()})
             return httpx.Response(200, json={"message": {"name": "COMM-1"}})
@@ -135,6 +141,13 @@ def test_the_notice_is_emailed_through_the_shops_erp_without_a_link(hub, owner):
     assert SUPPLIER_KEY.address in mail["content"]
     assert "href" not in mail["content"] and "https://" not in mail["content"]
     assert "private key" in mail["content"]
+
+
+def test_the_email_of_a_linked_contact_is_used_when_none_is_primary(hub, owner):  # noqa: F811
+    hub["erp"].email, hub["erp"].contact_email = "", "sales@supplier.test"
+    response = owner_client(hub, owner).post(f"/api/shops/{SHOP}/suppliers/{SUPPLIER}/email")
+    assert response.status_code == 200, response.text
+    assert hub["erp"].sent[0]["recipients"] == "sales@supplier.test"
 
 
 def test_a_supplier_without_email_is_reported(hub, owner):  # noqa: F811
