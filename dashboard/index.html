@@ -78,6 +78,18 @@
         </div>
 
         <div class="grid">
+          <article class="card wide owner-only" id="tasks-card" hidden>
+            <div class="tasks-head">
+              <h2>What the agent needs from you</h2>
+              <div class="row">
+                <span class="hint" id="tasks-checked"></span>
+                <button class="btn btn-ghost" id="check-now" type="button">Check now</button>
+              </div>
+            </div>
+            <p class="hint" id="tasks-summary"></p>
+            <div id="tasks"></div>
+          </article>
+
           <article class="card">
             <h2>Money</h2>
             <dl class="facts">
@@ -181,7 +193,6 @@
                 <button class="btn btn-primary" id="erp-set-agent-button" type="button">Make it the agent</button>
               </div>
               <p id="erp-summary"></p>
-              <ul class="list" id="erp-decisions"></ul>
               <div class="row">
                 <button class="btn btn-ghost" id="erp-refresh" type="button">Refresh</button>
                 <button class="btn btn-danger" id="erp-disconnect" type="button">Disconnect</button>

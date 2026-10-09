@@ -18,6 +18,7 @@ from embco.hub.auth import SESSION_LIFETIME, Auth, AuthError
 from embco.hub.chain import ShopLimits
 from embco.hub.errors import HubError
 from embco.hub.guard import UnsafeUrl, check_erp_url
+from embco.hub.owner_actions import owner_action_routes, waiting_answers
 from embco.hub.probe import probe
 from embco.hub.supplier_auth import SupplierAuth
 from embco.hub.suppliers import supplier_routes
@@ -134,7 +135,8 @@ def create_app(
             "limits": {"max_per_payment": config.max_per_payment,
                        "weekly_cap": config.weekly_budget},
             "agent_wallet": config.agent_wallet_address,
-            "last_run": store.last_run(shop),
+            "last_run": (last_run := store.last_run(shop)),
+            "answers_waiting": waiting_answers(store, shop, last_run),
         }
 
     @app.get("/api/shops/{shop}/decisions")
@@ -205,6 +207,8 @@ def create_app(
         store.disconnect(shop)
         return {"connected": False}
 
+    app.include_router(owner_action_routes(store=store, units=units, shop_of=shop_of,
+                                           owner_session=owner_session))
     app.include_router(supplier_routes(store=store, auth=supplier_auth or SupplierAuth(),
                                        shop_of=shop_of, owner_session=owner_session,
                                        frappe_for=frappe_for, public_url=public_url))
