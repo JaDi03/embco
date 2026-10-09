@@ -103,3 +103,30 @@ export function formatAmount(text) {
     return String(text ?? "");
   }
 }
+
+/** "0x213793c4..." -> ["0x", "2137", "93c4", ...]: easier to read and compare than 42 characters. */
+export function addressGroups(address) {
+  const text = String(address ?? "");
+  const body = text.startsWith("0x") ? text.slice(2) : text;
+  return [text.startsWith("0x") ? "0x" : "", ...(body.match(/.{1,4}/g) ?? [])].filter(Boolean);
+}
+
+/**
+ * Compare the wallet on file with an address the supplier types, character by character.
+ * Upper and lower case mean the same in an address. `chars` marks each character of the wallet
+ * on file: ok, wrong, or not typed yet.
+ */
+export function compareAddress(expected, typed) {
+  const want = String(expected ?? "").toLowerCase();
+  let got = String(typed ?? "").trim().toLowerCase();
+  if (got && !got.startsWith("0x")) got = `0x${got}`;  // many apps copy the address without 0x
+  const chars = [...want].map((c, i) => ({
+    c: String(expected)[i],
+    state: i >= got.length ? "missing" : got[i] === c ? "ok" : "wrong",
+  }));
+  let state = "mismatch";
+  if (!got) state = "empty";
+  else if (got === want) state = "match";
+  else if (want.startsWith(got)) state = "partial";
+  return { state, chars, extra: Math.max(0, got.length - want.length) };
+}
