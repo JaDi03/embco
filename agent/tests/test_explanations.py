@@ -164,15 +164,25 @@ def answered(text):
     return SimpleNamespace(stop_reason="end_turn", parsed_output=text)
 
 
-def test_the_default_is_haiku_with_a_plain_structured_request():
+def test_the_default_is_haiku_5_5_at_low_effort_without_a_fallback():
     text = ExplanationText(summary="ok", next_step="none")
     client = FakeClient(answered(text))
     assert ClaudeExplainer(client=client).explain(some_decision(), "new") == text
     sent = client.kwargs
     assert client.path == "plain"
-    assert sent["model"] == "claude-haiku-4-5"
+    assert sent["model"] == "claude-haiku-5-5"
     assert sent["output_format"] is ExplanationText
-    assert sent["max_tokens"] == 1024
+    assert sent["output_config"] == {"effort": "low"}
+    assert sent["max_tokens"] == 4000  # thinking counts toward it
+    assert not {"fallbacks", "betas", "temperature", "thinking"} & sent.keys()
+
+
+def test_haiku_4_5_still_gets_a_plain_structured_request():
+    text = ExplanationText(summary="ok", next_step="none")
+    client = FakeClient(answered(text))
+    ClaudeExplainer("claude-haiku-4-5", client=client).explain(some_decision(), "new")
+    sent = client.kwargs
+    assert client.path == "plain" and sent["max_tokens"] == 1024
     assert not {"output_config", "fallbacks", "betas"} & sent.keys()
 
 

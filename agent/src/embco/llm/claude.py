@@ -3,9 +3,10 @@
 Credentials: the key passed in (read from the settings), else the SDK's own resolution
 (ANTHROPIC_API_KEY in the environment or an `ant auth login` profile).
 
-The default is Claude Haiku 4.5, the lowest-cost model: explaining a decision is a short, simple
-task. Haiku takes no effort setting and has no server-side fallback, so it gets a plain request.
-Newer models (Opus, Sonnet 5.x) get low effort and the server-side refusal fallback.
+The default is Claude Haiku 5.5, the lowest-cost model: explaining a decision is a short, simple
+task, so it runs at low effort. Haiku has no server-side refusal fallback, so it gets a plain
+request; Haiku 4.5 also takes no effort setting. Opus and Sonnet 5.x get low effort and the
+server-side refusal fallback.
 """
 
 from typing import Any
@@ -16,9 +17,10 @@ from embco.decision import Decision
 from embco.llm.base import ExplainerError, ExplanationText
 from embco.llm.prompt import SYSTEM, decision_message
 
-DEFAULT_MODEL = "claude-haiku-4-5"
+DEFAULT_MODEL = "claude-haiku-5-5"
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
-_PLAIN_MODELS = ("claude-haiku-4",)
+_PLAIN_MODELS = ("claude-haiku-4",)  # no effort setting, no fallback
+_NO_FALLBACK_MODELS = ("claude-haiku-5",)  # effort, but no server-side refusal fallback
 
 
 class ClaudeExplainer:
@@ -45,6 +47,12 @@ class ClaudeExplainer:
         try:
             if self.model.startswith(_PLAIN_MODELS):
                 response = self._client.messages.parse(max_tokens=1024, **request)
+            elif self.model.startswith(_NO_FALLBACK_MODELS):
+                response = self._client.messages.parse(
+                    max_tokens=4000,  # room for adaptive thinking before the short answer
+                    output_config={"effort": "low"},
+                    **request,
+                )
             else:
                 response = self._client.beta.messages.parse(
                     max_tokens=8000,  # room for adaptive thinking before the short answer
