@@ -142,3 +142,28 @@ h3 { font-size: 0.95rem; margin: 16px 0 8px; }
 .wallet-groups .ch-missing { color: var(--muted); }
 .check-ok { color: #065f46; font-weight: 600; }
 .check-bad { color: #991b1b; font-weight: 600; }
+
+/* What the agent needs from the owner: one checklist per invoice */
+.tasks-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tasks-head h2 { margin: 0; }
+.task-section { margin-top: 18px; }
+.task-section > h3 { margin: 0 0 4px; }
+.task-section > .hint { margin: 0 0 10px; }
+.task { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; display: grid; gap: 10px; }
+.task.needs { border-color: #bfdbfe; background: #f8fbff; }
+.task-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-weight: 700; }
+.task-head .hint { font-weight: 400; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.step { display: grid; grid-template-columns: 1.4em 1fr; gap: 6px; align-items: start; line-height: 1.45; }
+.step .mark { font-weight: 700; text-align: center; }
+.step-done .mark { color: var(--green); }
+.step-todo .mark { color: var(--red); }
+.step-waiting .mark { color: #b45309; }
+.step-done .text { color: var(--muted); }
+.step .row { grid-column: 2; margin-top: 4px; }
+.decide { border-top: 1px dashed var(--line); padding-top: 10px; display: grid; gap: 8px; }
+.decide .row { margin: 0; }
+.decide input { max-width: 420px; }
+.pay-state { font-weight: 600; }
+.pay-state.paid { color: #065f46; }
+.pay-state.blocked { color: #991b1b; }

@@ -68,6 +68,14 @@ export const connectErp = (shop, form, fetchImpl = fetch) =>
 export const disconnectErp = (shop, fetchImpl = fetch) =>
   call(`${shopPath(shop)}/erp`, { method: "DELETE", fetchImpl });
 
+/** The owner's answer to the agent's question, tied to the exact question shown. */
+export const answer = (shop, { invoice, verdict, fingerprint, note = "" }, fetchImpl = fetch) =>
+  call(`${shopPath(shop)}/answers`, { method: "POST", body: { invoice, verdict, fingerprint, note }, fetchImpl });
+
+/** Ask the shop's agent to check now instead of at its next scheduled check. */
+export const checkNow = (shop, fetchImpl = fetch) =>
+  call(`${shopPath(shop)}/check`, { method: "POST", fetchImpl });
+
 export const signOut = (shop, fetchImpl = fetch) =>
   call(`${shopPath(shop)}/sign-out`, { method: "POST", fetchImpl });
 

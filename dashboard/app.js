@@ -6,6 +6,7 @@ import { ARC_TESTNET, FAUCET_URL } from "./config.js";
 import { describeError } from "./errors.js";
 import { pendingApprovals } from "./approvals.js";
 import * as hub from "./hub.js";
+import { groupTasks, raisedLimits, taskFor } from "./needs.js";
 import * as suppliers from "./suppliers.js";
 import { factory, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
 import { formatUsdc, parseUsdc, shortAddress, ZERO_ADDRESS } from "./units.js";
@@ -145,6 +146,7 @@ function renderChecks(probe) {
 
 async function renderErp(isOwner, state) {
   $("suppliers-card").hidden = true;
+  $("tasks-card").hidden = true;
   if (!isOwner) return;
   erpError("");
   let shop;
@@ -176,35 +178,201 @@ async function renderErp(isOwner, state) {
   $("erp-last-at").textContent = view.at ? new Date(view.at).toLocaleString() : "not yet";
   $("erp-summary").textContent = view.text;
   $("erp-summary").className = view.state === "error" ? "status-off" : "";
-  $("erp-decisions").replaceChildren(
-    ...(view.decisions ?? []).map((d) => {
-      const li = document.createElement("li");
-      const badge = Object.assign(document.createElement("span"), {
-        className: `badge badge-${d.action.toLowerCase()}`,
-        textContent: d.action,
-      });
-      const what = Object.assign(document.createElement("div"), { className: "decision" });
-      const title = document.createElement("span");
-      title.append(badge, `${d.invoice} · ${d.supplier} · ${d.amount}`);
-      const reasons = Object.assign(document.createElement("span"), {
-        className: "reasons",
-        textContent: d.reasons.join("; "),
-      });
-      what.append(title, reasons);
-      li.append(what);
-      return li;
-    }),
-  );
-  await renderSuppliers(shop);
-}
-
-async function renderSuppliers(shop) {
-  let list;
+  let list = null;
   try {
     list = await suppliers.listSuppliers(session.shop);
   } catch {
-    return;  // the card stays hidden; the ERP card already reports a service problem
+    list = null;  // the supplier card stays hidden; the tasks still show what the agent decided
   }
+  await renderTasks(shop, state, list);
+  renderSuppliers(shop, list);
+}
+
+// What the agent needs from the owner: one checklist per invoice, each step with its button.
+
+function el(tag, props = {}, ...children) {
+  const node = Object.assign(document.createElement(tag), props);
+  node.append(...children);
+  return node;
+}
+
+async function renderTasks(shop, state, list) {
+  const lastRun = shop.last_run;
+  if (!lastRun?.ok) return;
+  const wallets = new Map((list?.suppliers ?? []).map((s) => [s.supplier, s.wallet]));
+  const distinct = [...new Set([...wallets.values()].filter(Boolean))];
+  const approved = new Map();
+  try {
+    await read(async (provider) => {
+      const contract = shopContract(session.shop, provider);
+      await Promise.all(distinct.map(async (w) => approved.set(w, await contract.approvedPayee(w))));
+    });
+  } catch {
+    // unknown approvals show as "to do"; approving twice does no harm
+  }
+  const waiting = new Set(shop.answers_waiting ?? []);
+  const tasks = (lastRun.decisions ?? []).map((d) => {
+    const wallet = wallets.get(d.supplier) ?? null;
+    return taskFor(d, {
+      wallet, approved: wallet ? approved.get(wallet) === true : false,
+      maxPerPayment: state.maxPerPayment, weeklyCap: state.weeklyCap,
+    }, { waiting: waiting.has(d.invoice), answer: lastRun.answers?.[d.invoice] ?? null });
+  });
+  $("tasks-card").hidden = false;
+  $("tasks-checked").textContent = `Last check ${new Date(lastRun.at).toLocaleTimeString()}`;
+  const needs = tasks.filter((t) => t.section === "needs").length;
+  $("tasks-summary").textContent = !tasks.length
+    ? "No unpaid invoices. The agent checks your ERPNext every 15 minutes."
+    : needs
+      ? `${needs} invoice${needs > 1 ? "s need" : " needs"} you. Follow the steps in order; each button is right next to its step.`
+      : "Nothing needs you right now.";
+  const context = { company: shop.company, site: list?.site, state };
+  $("tasks").replaceChildren(...groupTasks(tasks).map((group) => el("section", { className: "task-section" },
+    el("h3", { textContent: `${group.title} (${group.tasks.length})` }),
+    el("p", { className: "hint", textContent: group.hint }),
+    ...group.tasks.map((task) => taskCard(task, context)))));
+}
+
+const MARKS = { done: "✓", todo: "✗", waiting: "…" };
+
+function taskCard(task, context) {
+  const d = task.decision;
+  const amount = `${suppliers.formatAmount(d.amount)} USDC`;
+  const title = task.section === "needs" ? `Pay ${amount} to ${d.supplier}?` : `${amount} to ${d.supplier}`;
+  const due = d.due_date ? ` · due ${d.due_date}` : "";
+  const card = el("div", { className: `task ${task.section}` },
+    el("div", { className: "task-head" }, el("span", { textContent: title }),
+      el("span", { className: "hint mono", textContent: `${d.invoice}${due}` })));
+  if (task.payment) {
+    const pay = el("p", { className: `pay-state ${task.payment.state}`, textContent: task.payment.text });
+    if (task.payment.tx) pay.append(" ", link("See on the explorer", txUrl(task.payment.tx)));
+    card.append(pay);
+  }
+  if (task.section !== "paying") {
+    card.append(el("ol", { className: "steps" }, ...task.steps.map((step) => {
+      const li = el("li", { className: `step step-${step.state}` },
+        el("span", { className: "mark", textContent: MARKS[step.state] ?? "-" }),
+        el("span", { className: "text", textContent: step.text }));
+      const actions = stepActions(step, d, context);
+      if (actions) li.append(actions);
+      return li;
+    })));
+  }
+  if (task.decide) card.append(decideBox(task));
+  return card;
+}
+
+function stepActions(step, decision, context) {
+  const action = step.action;
+  if (!action || step.state === "done") return null;
+  const row = el("div", { className: "row" });
+  if (action.type === "approve_wallet") {
+    const button = el("button", { className: "btn btn-primary", type: "button", textContent: "Approve this wallet" });
+    button.addEventListener("click", () => act(button, "Approve wallet", (c) => c.setPayee(action.wallet, true))
+      .then((ok) => ok && checkAndWait()));
+    row.append(button);
+  } else if (action.type === "raise_limit") {
+    const limits = raisedLimits(action.amount, context.state.weeklyCap);
+    const button = el("button", { className: "btn btn-primary", type: "button",
+      textContent: `Raise the limit to ${formatUsdc(limits.maxPerPayment)} USDC` });
+    button.addEventListener("click", () => act(button, "Raise the per-payment limit",
+      (c) => c.setLimits(limits.maxPerPayment, limits.weeklyCap)).then((ok) => ok && checkAndWait()));
+    row.append(button, el("span", { className: "hint", textContent: ` Now ${formatUsdc(context.state.maxPerPayment)} USDC.` }));
+  } else if (action.type === "check") {
+    row.append(checkButton("Check now"));
+  } else if (action.type === "notice") {
+    const email = el("button", { className: "btn btn-ghost", type: "button", textContent: "Email the supplier" });
+    email.addEventListener("click", async () => {
+      email.disabled = true;
+      try {
+        await suppliers.emailNotice(session.shop, decision.supplier);
+        notify(`Notice sent to ${decision.supplier} from your ERPNext.`, "success");
+      } catch (error) {
+        notify(describeError(error), "error");
+      } finally {
+        email.disabled = false;
+      }
+    });
+    const text = suppliers.noticeText({ company: context.company, supplier: decision.supplier,
+      wallet: null, signatureNeeded: true, site: context.site });
+    row.append(email, link("WhatsApp", suppliers.whatsappUrl(text), "btn btn-ghost"));
+  } else {
+    return null;
+  }
+  return row;
+}
+
+function decideBox(task) {
+  const { decide, decision } = task;
+  const box = el("div", { className: "decide" }, el("p", { textContent: decide.text }));
+  if (decide.refused) {
+    box.append(el("p", { className: "status-off", textContent: `Your last answer was not used: ${decide.refused}.` }));
+  }
+  if (decide.state === "sent") {
+    box.append(el("p", { className: "hint", textContent: "Answer sent. The agent records it in its check." }),
+      el("div", { className: "row" }, checkButton("Check now")));
+    return box;
+  }
+  const note = el("input", { placeholder: "Note (optional), for example who you called", maxLength: 500 });
+  const approve = el("button", { className: "btn btn-primary", type: "button", textContent: "Approve payment" });
+  const reject = el("button", { className: "btn btn-danger", type: "button", textContent: "Reject" });
+  const locked = decide.state === "locked";
+  for (const b of [approve, reject]) b.disabled = locked;
+  note.disabled = locked;
+  const send = (verdict, button) => async () => {
+    button.disabled = true;
+    try {
+      await hub.answer(session.shop, { invoice: decision.invoice, verdict, fingerprint: decide.fingerprint, note: note.value });
+      notify(verdict === "APPROVE" ? "Approved. Asking the agent to check now..." : "Rejected. Asking the agent to check now...", "success");
+      await checkAndWait();
+    } catch (error) {
+      notify(describeError(error), "error");
+      button.disabled = false;
+    }
+  };
+  approve.addEventListener("click", send("APPROVE", approve));
+  reject.addEventListener("click", send("REJECT", reject));
+  box.append(note, el("div", { className: "row" }, approve, reject));
+  if (locked) box.append(el("p", { className: "hint", textContent: "Finish the steps above first." }));
+  return box;
+}
+
+function checkButton(label) {
+  const button = el("button", { className: "btn btn-ghost", type: "button", textContent: label });
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      await checkAndWait();
+    } finally {
+      button.disabled = false;
+    }
+  });
+  return button;
+}
+
+/** Ask the agent to check now, then refresh the page once its check is done (about a minute at most). */
+async function checkAndWait() {
+  const before = (await hub.status(session.shop).catch(() => null))?.last_run?.at;
+  try {
+    await hub.checkNow(session.shop);
+  } catch (error) {
+    if (error.status !== 429) {
+      notify(describeError(error), "error");
+      return;
+    }
+  }
+  notify("The agent is checking your ERPNext...");
+  for (let i = 0; i < 12; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    const now = await hub.status(session.shop).catch(() => null);
+    if (now?.last_run?.at && now.last_run.at !== before) break;
+  }
+  notify("");
+  await renderShop();
+}
+
+function renderSuppliers(shop, list) {
+  if (!list) return;  // the card stays hidden; the ERP card already reports a service problem
   $("suppliers-card").hidden = false;
   $("supplier-site").textContent = list.site;
   if (!list.suppliers.length) {
@@ -504,6 +672,16 @@ function wireActions() {
     } catch (error) {
       renderChecks(error.details?.probe ?? null);
       notify(describeError(error), "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  $("check-now").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      await checkAndWait();
     } finally {
       button.disabled = false;
     }

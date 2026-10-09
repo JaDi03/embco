@@ -16,10 +16,11 @@ from embco.decision import PolicyConfig
 from embco.hub.chain import DEFAULT_FACTORY, ShopChain, ShopLimits
 from embco.journal import JournalError, SqliteJournal
 from embco.ledger import ErpnextAdapter, LedgerError
-from embco.payments import ArcRpc, ChainError, Payer
+from embco.payments import ArcRpc, ChainError, Payer, PaymentEvent
 from embco.runner import CycleReport, format_report, run_cycle, watch
 from embco.settings import Settings
-from embco.shops.inbox import take_signatures
+from embco.shops.inbox import take_answers, take_signatures
+from embco.shops.owner_view import decision_view
 from embco.shops.store import ShopStore
 from embco.shops.supplier_view import supplier_view
 
@@ -75,8 +76,14 @@ def current_policy(policy: PolicyConfig, limits: Callable[[str], ShopLimits] | N
                    weekly_budget=current.weekly_cap)
 
 
-def summarize(report: CycleReport) -> dict[str, Any]:
+def summarize(
+    report: CycleReport,
+    payments: Mapping[str, PaymentEvent] | None = None,
+    answers: Mapping[str, dict[str, str]] | None = None,
+    policy: PolicyConfig | None = None,
+) -> dict[str, Any]:
     plan = report.plan
+    payments = payments or {}
     return {
         "ok": True,
         "run_id": report.run_id,
@@ -84,12 +91,11 @@ def summarize(report: CycleReport) -> dict[str, Any]:
         "counts": {"pay": len(plan.pay_now), "deferred": len(plan.deferred),
                    "held": len(plan.held), "ask": len(plan.asked)},
         "budget_left": str(plan.budget_left),
-        "decisions": [
-            {"invoice": d.invoice, "supplier": d.supplier, "amount": str(d.amount),
-             "due_date": d.due_date.isoformat() if d.due_date else None,
-             "action": d.action.value, "reasons": list(d.reasons)}
-            for d in report.decisions
-        ],
+        "limits": None if policy is None else {
+            "max_per_payment": str(policy.max_per_payment),
+            "weekly_cap": str(policy.weekly_budget)},
+        "decisions": [decision_view(d, payments.get(d.invoice)) for d in report.decisions],
+        "answers": dict(answers or {}),
     }
 
 
@@ -111,6 +117,7 @@ def run_shop(
     log.info("shop %s: watching %s every %s (payments %s)", shop, settings.company,
              settings.interval, "on, testnet drafts in the ERP" if payments else "off")
     signatures: dict[str, dict[str, str]] = {}  # the last outcome per supplier, for its page
+    answers: dict[str, dict[str, str]] = {}  # the last outcome per invoice, for the owner
     read_limits = limits(settings)
     policy = {"now": settings.policy}
 
@@ -125,6 +132,7 @@ def run_shop(
         def cycle() -> None:
             try:
                 signatures.update(take_signatures(store.folder(shop), journal, ledger))
+                answers.update(take_answers(store.folder(shop), journal))
                 policy["now"] = current_policy(policy["now"], read_limits, shop)
                 report = run_cycle(ledger, journal, policy["now"], settings.company,
                                    payments=payments)
@@ -132,7 +140,8 @@ def run_shop(
                 store.write_last_run(shop, {"ok": False, "at": datetime.now(UTC).isoformat(),
                                             "error": str(error)})
                 raise
-            store.write_last_run(shop, summarize(report))
+            latest = {p.invoice: p for p in journal.latest_payments()}
+            store.write_last_run(shop, summarize(report, latest, answers, policy["now"]))
             store.write_supplier_view(shop, supplier_view(report, journal, settings.company,
                                                           signatures, wallet_of=wallet_of))
             log.info("shop %s: %s", shop, format_report(report))
