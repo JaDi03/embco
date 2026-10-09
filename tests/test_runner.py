@@ -10,7 +10,7 @@ from agent.reflexes.cycle import run_cycle
 from agent.reflexes.report import format_report
 from agent.reflexes.watch import watch
 from services.erp import LedgerError
-from support import FakeLedger
+from support import FakeLedger, agreeing_brain
 
 POLICY = PolicyConfig(max_per_payment=Decimal(5000), weekly_budget=Decimal(2500))
 MONDAY = datetime(2026, 10, 12, 9, 0, tzinfo=UTC)
@@ -24,7 +24,7 @@ def journal(tmp_path):
 
 
 def cycle(ledger, journal, at=MONDAY):
-    return run_cycle(ledger, journal, POLICY, "TEST Shop", at=at)
+    return run_cycle(ledger, journal, POLICY, "TEST Shop", at=at, brain=agreeing_brain())
 
 
 def test_a_cycle_decides_remembers_and_plans(journal):

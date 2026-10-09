@@ -1,15 +1,16 @@
 """One full pass of the agent: check its memory, decide, remember, ask for proofs, plan, and
 optionally have the AI helper explain what needs the owner.
 
-With `payments`, the invoices planned for now are paid through the shop contract; without one,
-the plan is only reported. The owner's approval of a new wallet in the contract also answers
-the agent's question about it, and so does an owner's mark on the invoice in the ERP. Invoices
-the agent already paid or sent are not planned again.
+With a `brain`, Claude decides which of the invoices the rules allow are paid and when; without
+one nothing is planned for payment. With `payments`, what is planned for now is paid through the
+shop contract; without one, the plan is only reported. The owner's approval of a new wallet in
+the contract also answers the agent's question about it, and so does an owner's mark on the
+invoice in the ERP. Invoices the agent already paid or sent are not planned again.
 """
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 
 from agent.explain import Explainer, Explanation
@@ -17,6 +18,7 @@ from agent.guardrails.controls import WalletChallenge
 from agent.guardrails.rules import (
     Decision,
     DecisionEngine,
+    Deferral,
     OwnerAnswer,
     PaymentPlan,
     PolicyConfig,
@@ -95,7 +97,7 @@ def run_cycle(
     unpaid = [d for d in decisions if d.invoice not in done]
     thought = None
     if brain is None:
-        plan = plan_payments(unpaid, policy.weekly_budget)
+        plan = _without_brain(plan_payments(unpaid, policy.weekly_budget))
     else:
         thought = think(brain, journal=journal, ledger=ledger, decisions=decisions,
                         changes=memory.changes, policy=policy, done=done, now=now, extra=wakes)
@@ -115,6 +117,13 @@ def run_cycle(
         already_paid=tuple(sorted(done)),
         thought=thought,
     )
+
+
+def _without_brain(plan: PaymentPlan) -> PaymentPlan:
+    """No payment without the agent's decision: with the brain off, the rules only report."""
+    waiting = tuple(Deferral(d, "the agent's brain is off; nothing is paid without its decision")
+                    for d in plan.pay_now)
+    return replace(plan, pay_now=(), deferred=(*waiting, *plan.deferred))
 
 
 def _answers_from_chain(

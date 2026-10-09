@@ -83,3 +83,35 @@ class FakeLedger:
 
 def context_for(ledger: FakeLedger, invoice: PurchaseInvoice | None = None) -> Context:
     return ContextBuilder(ledger).build(invoice or ledger.pending[0])
+
+
+class AgreeingBrain:
+    """Stands in for Claude in tests about payments, as Claude did in its first real session:
+    pays what the rules allow, asks the owner what they put on ASK, holds what they hold."""
+
+    model = "scripted"
+
+    def run(self, toolbox, briefing):
+        from agent.agent import SessionRun
+        from agent.models import Usage
+
+        for row in toolbox.open_invoices():
+            if row["your_decision"] or row["paid_or_sent"]:
+                continue
+            invoice, says = row["invoice"], row["checks_say"]
+            if says == "PAY":
+                toolbox.call("pay_now", {"invoice": invoice, "reason": "the checks pass"})
+            elif says == "ASK":
+                toolbox.call("ask_owner", {"invoice": invoice, "question": "Approve?",
+                                           "recommendation": "Check it with the supplier."})
+            else:
+                toolbox.call("hold", {"invoice": invoice, "reason": "the checks hold it"})
+        toolbox.call("finish", {"summary": "Done."})
+        return SessionRun(finished=True, steps=1, usage=Usage())
+
+
+def agreeing_brain():
+    from datetime import UTC
+
+    from agent.think import BrainSetup
+    return BrainSetup(brain=AgreeingBrain(), zone=UTC)

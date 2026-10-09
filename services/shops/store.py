@@ -50,7 +50,7 @@ class ShopConfig:
     interval_minutes: int = 15
     agent_wallet_id: str | None = None  # the shop's own Circle wallet, when created
     agent_wallet_address: str | None = None
-    brain: bool = False  # the agent decides what is paid and when (Claude)
+    brain: bool = True  # Claude decides what is paid and when; off means nothing is paid
     autonomy: str = "act"  # or "observe": the agent decides and explains, pays nothing
     utc_offset: str = ""  # the shop's local time, like +01:00
     round_hour: int = 8  # the daily round, in the shop's local time

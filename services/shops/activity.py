@@ -30,7 +30,7 @@ SIGNATURE, ANSWER, LIMITS, ERROR, WAITING = "signature", "answer", "limits", "er
 AGENT, REFLEX = "agent", "reflex"  # what the agent decided; what woke it
 SHOWN_WAKES = 3
 
-_ACTION = {Action.PAY: "will be paid", Action.HOLD: "on hold", Action.ASK: "needs you"}
+_ACTION = {Action.PAY: "the checks pass", Action.HOLD: "on hold", Action.ASK: "needs you"}
 
 
 def _short(wallet: str) -> str:

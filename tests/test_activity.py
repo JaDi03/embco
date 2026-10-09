@@ -38,11 +38,14 @@ def test_each_check_is_written_as_numbered_events(store):
     run_shop(store, SHOP, cycles=2, sleep=lambda s: None, erp=lambda settings: FakeLedger())
     events = activity.read_activity(store.folder(SHOP))
     assert [e["seq"] for e in events] == list(range(1, len(events) + 1))
-    assert kinds(events) == ["check", "new", "done", "check", "done"]  # nothing new the 2nd time
-    assert "New invoice PINV-1 from S, 1000 USDC: will be paid" in events[1]["text"]
-    assert events[2]["text"].startswith("Check done: 1 unpaid")
-    assert "Next check in 15 minutes" in events[2]["text"]
-    assert [e["seq"] for e in activity.read_activity(store.folder(SHOP), after=3)] == [4, 5]
+    # the agent is woken but no model answers in tests: nothing is paid, and the next check
+    # waits before waking it again
+    assert kinds(events) == ["check", "reflex", "error", "new", "done", "check", "done"]
+    assert "Nothing new is paid" in events[2]["text"]
+    assert "New invoice PINV-1 from S, 1000 USDC: the checks pass" in events[3]["text"]
+    assert events[4]["text"].startswith("Check done: 1 unpaid")
+    assert "Next check in 15 minutes" in events[4]["text"]
+    assert [e["seq"] for e in activity.read_activity(store.folder(SHOP), after=5)] == [6, 7]
 
 
 def test_a_failed_check_is_told_to_the_owner(store):

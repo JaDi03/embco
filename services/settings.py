@@ -65,7 +65,7 @@ class Settings:
     owner_users: tuple[str, ...] = ()  # ERP accounts whose mark on an invoice answers an ASK
     shop_address: str | None = None
     arc_rpc_url: str | None = field(default=None, repr=False)
-    brain: bool = False  # Claude decides what is paid and when; the rules stay the guardrails
+    brain: bool = True  # Claude decides what is paid and when; the rules stay the guardrails
     brain_model: str = BRAIN_MODEL
     brain_effort: str = BRAIN_EFFORT
     autonomy: Autonomy = Autonomy.ACT
@@ -113,7 +113,7 @@ class Settings:
             shop_address=get("SHOP_ADDRESS") or None,
             owner_users=tuple(u.strip() for u in get("OWNER_USERS").split(",") if u.strip()),
             arc_rpc_url=env.get("ARC_TESTNET_RPC_URL", "").strip() or None,
-            brain=_flag("BRAIN", get("BRAIN")),
+            brain=_flag("BRAIN", get("BRAIN") or "on"),
             brain_model=get("BRAIN_MODEL") or BRAIN_MODEL,
             brain_effort=_choice("BRAIN_EFFORT", get("BRAIN_EFFORT") or BRAIN_EFFORT, EFFORTS),
             autonomy=Autonomy(_choice("AUTONOMY", get("AUTONOMY") or Autonomy.ACT.value,

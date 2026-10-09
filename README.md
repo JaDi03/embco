@@ -101,9 +101,10 @@ uv run embco --env-file .env verify   # check the memory was not altered
 uv run embco --env-file .env create-wallet   # once: the agent's wallet, with Circle
 ```
 
-Payments are off by default: the agent decides, remembers and plans. With `EMBCO_PAY=on`, the
-shop contract's address in `EMBCO_SHOP_ADDRESS`, the Circle settings and an Arc Testnet node,
-it pays the invoices planned for now, in USD only (the contract pays USDC). With `EMBCO_EXPLAIN=on` and an
+Claude decides every payment: the rules say what may be paid, Claude decides what is paid and
+when (`ANTHROPIC_API_KEY`). Without its decision nothing is paid. Payments are off by default:
+with `EMBCO_PAY=on`, the shop contract's address in `EMBCO_SHOP_ADDRESS`, the Circle settings and
+an Arc Testnet node, it pays what Claude chose, in USD only (the contract pays USDC). With `EMBCO_EXPLAIN=on` and an
 `ANTHROPIC_API_KEY`, Claude adds a plain-language explanation and a next step to every invoice
 that is held or needs the owner. It is called only for decisions it has not explained yet, and
 its words never change a decision.
