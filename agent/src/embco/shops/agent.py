@@ -134,6 +134,8 @@ def run_shop(
 
         folder = store.folder(shop)
         minutes = int(settings.interval.total_seconds() // 60)
+        if added := activity.backfill(folder, journal.entries()):
+            log.info("shop %s: %d past events added to the activity feed", shop, added)
         seen: dict[str, PolicyConfig | None] = {"limits": None}
 
         def cycle() -> None:

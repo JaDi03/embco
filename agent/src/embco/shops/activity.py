@@ -158,3 +158,82 @@ def read_activity(folder: Path, after: int = 0, limit: int = 200) -> list[dict[s
         if isinstance(event, dict) and int(event.get("seq", 0)) > after:
             events.append(event)
     return events[-limit:]
+
+
+def history_events(entries) -> list[dict[str, Any]]:
+    """The agent's memory told as activity, at the time each thing happened: what it decided
+    on each invoice, each payment with its transaction, signatures, answers and limits."""
+    events, seen = [], set()
+    for kind, _run, invoice, at, body in entries:
+        if kind == "DECISION":
+            action = Action(body["action"])
+            reasons = body.get("reasons") or []
+            why = f": {reasons[0]}" if reasons and action is not Action.PAY else ""
+            if invoice in seen:
+                events.append(_event(at, CHANGED, f"{invoice} from {body['supplier']} is now "
+                                                  f"{_ACTION[action]}{why}.",
+                                     invoice=invoice, action=action.value))
+            else:
+                seen.add(invoice)
+                events.append(_event(at, NEW, f"New invoice {invoice} from {body['supplier']}, "
+                                              f"{fmt(Decimal(body['amount']))} USDC: "
+                                              f"{_ACTION[action]}{why}.",
+                                     invoice=invoice, action=action.value))
+        elif kind == "PAYMENT":
+            amount, status = f"{fmt(Decimal(body['amount']))} USDC", body["status"]
+            supplier, tx = body.get("supplier", ""), body.get("tx_hash")
+            if status == PaymentStatus.SUBMITTED.value:
+                to = _short(body.get("payee", ""))
+                events.append(_event(at, SENDING, f"Sending {amount} to {supplier} ({to}) for "
+                                                  f"{invoice}.", invoice=invoice))
+            elif status == PaymentStatus.COMPLETE.value and tx:
+                events.append(_event(at, PAID, f"Paid {amount} to {supplier} for {invoice}.",
+                                     invoice=invoice, tx=tx))
+            elif status == PaymentStatus.RECORDED.value:
+                events.append(_event(at, RECORDED, f"{invoice} recorded in ERPNext as "
+                                                   f"{body.get('erp_entry')}.",
+                                     invoice=invoice, tx=tx))
+            elif status in (PaymentStatus.BLOCKED.value, PaymentStatus.FAILED.value):
+                events.append(_event(at, NOT_PAID, f"Did not pay {invoice}: "
+                                                   f"{body.get('reason', '')}.", invoice=invoice))
+        elif kind == "ANSWER":
+            verdict = "approval" if body.get("verdict") == "APPROVE" else "rejection"
+            events.append(_event(at, ANSWER, f"Your {verdict} of {invoice} is recorded.",
+                                 invoice=invoice))
+        elif kind == "PROOF":
+            events.append(_event(at, SIGNATURE, f"{body['supplier']} confirmed its wallet "
+                                                f"{_short(body['wallet'])} by signing."))
+        elif kind == "CHALLENGE":
+            events.append(_event(at, WAITING, f"Waiting for {body['supplier']} to confirm its "
+                                              f"wallet {_short(body['wallet'])} on its page."))
+        elif kind == "POLICY":
+            values = body.get("values") or {}
+            per_payment = fmt(Decimal(values["max_per_payment"]))
+            weekly = fmt(Decimal(values["weekly_budget"]))
+            events.append(_event(at, LIMITS, f"Limits: {per_payment} USDC per payment, "
+                                             f"{weekly} USDC per week."))
+        elif kind == "CLOSED":
+            events.append(_event(at, CLOSED, f"{invoice} is no longer unpaid in ERPNext.",
+                                 invoice=invoice))
+    return [{**e, "history": True} for e in events]
+
+
+def backfill(folder: Path, entries) -> int:
+    """Once per shop: put what the agent did before the feed existed in front of it, so the owner
+    sees the whole story. Returns how many events were added."""
+    current = read_activity(folder, limit=MAX_EVENTS)
+    if any(e.get("history") for e in current):
+        return 0
+    first = current[0]["at"] if current else None
+    past = [e for e in history_events(entries) if first is None or e["at"] < first]
+    if not past:
+        return 0
+    merged = [{**e, "seq": i} for i, e in enumerate(
+        [*past, *({k: v for k, v in e.items() if k != "seq"} for e in current)], start=1)]
+    kept = merged[-MAX_EVENTS:]
+    path = folder / ACTIVITY
+    tmp = path.with_name(ACTIVITY + ".tmp")
+    tmp.write_text("".join(json.dumps(e) + "\n" for e in kept), encoding="utf-8")
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+    return len(past)
