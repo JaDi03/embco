@@ -9,6 +9,8 @@ from eth_utils import keccak, to_checksum_address
 from embco.payments.chain import ArcRpc
 from embco.payments.encoding import USDC_DECIMALS
 
+DEFAULT_FACTORY = "0x4d8efEc867e9F46c05E8359e81dEC6C7D13c95A8"  # ShopPayablesFactory, Arc testnet
+
 
 @dataclass(frozen=True)
 class ShopLimits:

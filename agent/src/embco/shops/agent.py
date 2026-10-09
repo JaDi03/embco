@@ -7,13 +7,16 @@ stops does not touch another. After every cycle it leaves a summary for the dash
 import logging
 import time
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
 from embco.circle import CircleClient
+from embco.decision import PolicyConfig
+from embco.hub.chain import DEFAULT_FACTORY, ShopChain, ShopLimits
 from embco.journal import JournalError, SqliteJournal
 from embco.ledger import ErpnextAdapter, LedgerError
-from embco.payments import ArcRpc, Payer
+from embco.payments import ArcRpc, ChainError, Payer
 from embco.runner import CycleReport, format_report, run_cycle, watch
 from embco.settings import Settings
 from embco.shops.inbox import take_signatures
@@ -49,6 +52,29 @@ def payer_for(settings: Settings, ledger: ErpnextAdapter) -> Payer | None:
     )
 
 
+def limits_for(settings: Settings) -> Callable[[str], ShopLimits] | None:
+    """The contract's limits, read on chain when the shop has the Arc node."""
+    if not settings.arc_rpc_url:
+        return None
+    return ShopChain(ArcRpc(settings.arc_rpc_url), DEFAULT_FACTORY).limits
+
+
+def current_policy(policy: PolicyConfig, limits: Callable[[str], ShopLimits] | None,
+                   shop: str) -> PolicyConfig:
+    """The owner changes limits in the contract, so the agent reads them before deciding and
+    decides with the same limits the contract will enforce. If the node does not answer, the
+    last known limits stay."""
+    if limits is None:
+        return policy
+    try:
+        current = limits(shop)
+    except ChainError as error:
+        log.warning("shop %s: contract limits not read, keeping the last ones: %s", shop, error)
+        return policy
+    return replace(policy, max_per_payment=current.max_per_payment,
+                   weekly_budget=current.weekly_cap)
+
+
 def summarize(report: CycleReport) -> dict[str, Any]:
     plan = report.plan
     return {
@@ -76,6 +102,7 @@ def run_shop(
     erp: Callable[[Settings], ErpnextAdapter] = erp_for,
     platform: Mapping[str, str] | None = None,
     payer: Callable[[Settings, ErpnextAdapter], Payer | None] = payer_for,
+    limits: Callable[[Settings], Callable[[str], ShopLimits] | None] = limits_for,
 ) -> int:
     """Returns how many cycles ran without an ERP error."""
     settings = store.settings(shop, platform)
@@ -84,6 +111,8 @@ def run_shop(
     log.info("shop %s: watching %s every %s (payments %s)", shop, settings.company,
              settings.interval, "on, testnet drafts in the ERP" if payments else "off")
     signatures: dict[str, dict[str, str]] = {}  # the last outcome per supplier, for its page
+    read_limits = limits(settings)
+    policy = {"now": settings.policy}
 
     def wallet_of(supplier: str) -> str | None:
         try:
@@ -96,7 +125,8 @@ def run_shop(
         def cycle() -> None:
             try:
                 signatures.update(take_signatures(store.folder(shop), journal, ledger))
-                report = run_cycle(ledger, journal, settings.policy, settings.company,
+                policy["now"] = current_policy(policy["now"], read_limits, shop)
+                report = run_cycle(ledger, journal, policy["now"], settings.company,
                                    payments=payments)
             except (LedgerError, JournalError) as error:
                 store.write_last_run(shop, {"ok": False, "at": datetime.now(UTC).isoformat(),
