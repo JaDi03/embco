@@ -76,6 +76,25 @@ export const answer = (shop, { invoice, verdict, fingerprint, note = "" }, fetch
 export const checkNow = (shop, fetchImpl = fetch) =>
   call(`${shopPath(shop)}/check`, { method: "POST", fetchImpl });
 
+/** Turn the whole agent on or off: its process, and with it Claude and every payment. */
+export const setAgent = (shop, on, fetchImpl = fetch) =>
+  call(`${shopPath(shop)}/agent`, { method: "POST", body: { on }, fetchImpl });
+
+/**
+ * What the Agent card says, from the agent's process (null when the service cannot tell, e.g.
+ * not signed in) and the contract's pause. The agent is on only when both let it work.
+ */
+export function agentSwitchView(serviceOn, paused) {
+  if (serviceOn === false && paused) return { on: false, status: "Off", note: "" };
+  if (serviceOn === false) {
+    return { on: false, status: "Off", note: "Payments are still allowed in the contract." };
+  }
+  if (paused) {
+    return { on: false, status: "Off", note: "Payments are paused in the contract." };
+  }
+  return { on: true, status: "On", note: serviceOn === null ? "Sign in to the embco service to turn it off fully." : "" };
+}
+
 export const signOut = (shop, fetchImpl = fetch) =>
   call(`${shopPath(shop)}/sign-out`, { method: "POST", fetchImpl });
 

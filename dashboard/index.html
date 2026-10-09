@@ -132,11 +132,12 @@
             <h2>Agent</h2>
             <dl class="facts">
               <div><dt>Status</dt><dd id="agent-status"></dd></div>
+              <div><dt></dt><dd id="agent-note"></dd></div>
               <div><dt>Wallet</dt><dd class="mono" id="agent-address"></dd></div>
             </dl>
             <div class="row owner-only">
-              <button class="btn btn-danger" id="pause-button" type="button">Pause the agent</button>
-              <button class="btn btn-primary" id="resume-button" type="button">Resume the agent</button>
+              <button class="btn btn-danger" id="agent-off" type="button">Turn the agent off</button>
+              <button class="btn btn-primary" id="agent-on" type="button">Turn the agent on</button>
             </div>
             <form id="agent-form" class="inline-form owner-only" novalidate>
               <input name="agent" placeholder="New agent wallet 0x..." autocomplete="off" spellcheck="false" aria-label="New agent wallet" />

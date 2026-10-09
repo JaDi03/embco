@@ -170,6 +170,9 @@ def run_shop(
         seen: dict[str, PolicyConfig | None] = {"limits": None}
 
         def cycle() -> None:
+            if not store.agent_on(shop):
+                log.info("shop %s: the owner turned the agent off; nothing runs", shop)
+                return
             started = datetime.now(UTC)
             activity.append_activity(folder, [activity.check_started(started)])
             try:

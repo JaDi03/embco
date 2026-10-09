@@ -15,11 +15,15 @@ from pydantic import BaseModel, Field
 from agent.guardrails.rules import Verdict
 from services.hub.errors import HubError
 from services.hub.units import UnitError, Units
-from services.shops.activity import read_activity
+from services.shops.activity import append_activity, read_activity, switched
 from services.shops.inbox import answer_waiting, drop_answer
 from services.shops.store import ShopError, ShopStore
 
 CHECK_EVERY = timedelta(seconds=30)  # "check now" restarts the agent: not more often than this
+
+
+class Switch(BaseModel):
+    on: bool
 
 
 class Answer(BaseModel):
@@ -84,11 +88,41 @@ def owner_action_routes(
             raise HubError(429, "the agent is already checking; wait a few seconds")
         if shop not in store.connected():
             raise HubError(409, "connect the ERP first")
+        if not store.agent_on(shop):
+            raise HubError(409, "the agent is off; turn it on first")
         try:
             units.start(shop)  # a restart: the agent checks right away
         except UnitError as error:
             raise HubError(500, "the agent did not restart; try again") from error
         last_check[shop] = now
         return {"checking": True}
+
+    @router.post("/api/shops/{shop}/agent")
+    def switch(shop: str, body: Switch,
+               embco_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+        """Turn the whole agent on or off: the shop's process, and with it Claude and every
+        payment. Off stays off (a restart, "check now" or a new ERP connection do not start it)
+        until the owner turns it on."""
+        shop = shop_of(shop)
+        owner_session(shop, embco_session)
+        now = clock()
+        if body.on:
+            if shop not in store.connected():
+                raise HubError(409, "connect the ERP first")
+            store.set_agent_on(shop, True, now.isoformat())
+            append_activity(store.folder(shop), [switched(now, True)])
+            try:
+                units.start(shop)
+            except UnitError as error:
+                raise HubError(500, "turned on, but the agent did not start; try again") from error
+            return {"agent_on": True}
+        store.set_agent_on(shop, False, now.isoformat())  # first: a running cycle stops here
+        try:
+            units.stop(shop)
+        except UnitError as error:
+            raise HubError(500, "turned off; the process did not stop but does nothing") from error
+        finally:
+            append_activity(store.folder(shop), [switched(now, False)])
+        return {"agent_on": False}
 
     return router

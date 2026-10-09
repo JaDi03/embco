@@ -11,6 +11,7 @@ from agent.reflexes.cycle import run_cycle
 from services.hub.api import create_app
 from services.hub.chain import ShopLimits
 from services.shops import ErpCredentials, ShopConfig, ShopStore, new_key
+from services.shops.activity import read_activity
 from services.shops.agent import summarize
 from services.shops.inbox import ANSWERS, INBOX, drop_answer, take_answers
 from services.shops.owner_view import (
@@ -128,13 +129,13 @@ def test_a_rejection_holds_the_invoice_with_the_owners_note(journal, tmp_path):
 
 class Units:
     def __init__(self):
-        self.started = []
+        self.started, self.stopped = [], []
 
     def start(self, shop):
         self.started.append(shop)
 
     def stop(self, shop):
-        pass
+        self.stopped.append(shop)
 
 
 @pytest.fixture
@@ -197,3 +198,44 @@ def test_check_now_restarts_the_agent_but_not_twice_in_a_row(hub, owner):  # noq
     assert client.post(f"/api/shops/{SHOP}/check").status_code == 200
     assert client.post(f"/api/shops/{SHOP}/check").status_code == 429
     assert hub["units"].started == [SHOP]
+
+
+# ---- turning the whole agent on and off
+
+
+def test_turning_the_agent_off_stops_everything_until_the_owner_turns_it_on(hub, owner):  # noqa: F811
+    client = owner_client(hub, owner)
+    assert client.post(f"/api/shops/{SHOP}/agent", json={"on": False}).json() == {
+        "agent_on": False}
+    assert hub["units"].stopped == [SHOP]
+    assert client.get(f"/api/shops/{SHOP}").json()["agent_on"] is False
+    assert client.post(f"/api/shops/{SHOP}/check").status_code == 409  # "check now" refused
+    events = read_activity(hub["store"].folder(SHOP))
+    assert events[-1]["kind"] == "you" and "no Claude" in events[-1]["text"]
+
+    assert client.post(f"/api/shops/{SHOP}/agent", json={"on": True}).json() == {
+        "agent_on": True}
+    assert hub["units"].started == [SHOP]
+    assert client.get(f"/api/shops/{SHOP}").json()["agent_on"] is True
+
+
+def test_only_the_owner_turns_the_agent_on_or_off(hub):
+    client = TestClient(hub["app"], base_url="https://testserver")
+    assert client.post(f"/api/shops/{SHOP}/agent", json={"on": False}).status_code == 401
+    assert hub["units"].stopped == [] and hub["store"].agent_on(SHOP)
+
+
+def test_an_agent_turned_off_runs_no_cycle_even_if_its_process_starts(hub):
+    from services.shops import run_shop
+
+    store = hub["store"]
+    store.set_agent_on(SHOP, False, MONDAY.isoformat())
+    calls = []
+
+    def erp(settings):
+        calls.append(settings)
+        return FakeLedger()
+
+    run_shop(store, SHOP, cycles=1, sleep=lambda s: None, erp=erp)
+    assert store.last_run(SHOP)["run_id"] == 1  # still the summary written before, untouched
+    assert not any(e["kind"] == "check" for e in read_activity(store.folder(SHOP)))

@@ -110,12 +110,16 @@ async function renderShop() {
   $("remaining").textContent = `${formatUsdc(state.remaining)} USDC`;
 
   const hasAgent = state.agent !== ZERO_ADDRESS;
+  const service = isOwner ? await hub.status(session.shop).catch(() => null) : null;
+  const view = hub.agentSwitchView(service?.connected ? service.agent_on : null, state.paused);
+  session.agentPaused = state.paused;
   const status = $("agent-status");
-  status.textContent = !hasAgent ? "No agent yet" : state.paused ? "Paused" : "Active";
-  status.className = hasAgent && !state.paused ? "status-on" : "status-off";
+  status.textContent = !hasAgent ? "No agent yet" : view.status;
+  status.className = hasAgent && view.on ? "status-on" : "status-off";
+  $("agent-note").textContent = hasAgent ? view.note : "";
   $("agent-address").replaceChildren(hasAgent ? link(shortAddress(state.agent), addressUrl(state.agent)) : "none");
-  $("pause-button").hidden = !isOwner || state.paused;
-  $("resume-button").hidden = !isOwner || !state.paused;
+  $("agent-off").hidden = !isOwner || !view.on;
+  $("agent-on").hidden = !isOwner || view.on;
 
   await Promise.all([renderHistory(isOwner), renderApprovals(isOwner), renderErp(isOwner, state)]);
 }
@@ -607,6 +611,46 @@ async function act(button, label, send) {
   }
 }
 
+/**
+ * Off: the service stops the agent's process first (no checks, no Claude), then the owner pauses
+ * the contract so no payment can leave either. On: the contract first, then the process.
+ */
+async function switchAgent(button, on) {
+  button.disabled = true;
+  try {
+    if (!on) {
+      let stopped = true;
+      try {
+        await hub.setAgent(session.shop, false);
+      } catch (error) {
+        stopped = false;
+        notify(`The agent's process was not stopped: ${describeError(error)}`, "error");
+      }
+      if (!session.agentPaused) {
+        const paused = await act(button, "Pause payments in the contract", (shop) => shop.pause());
+        if (!paused && stopped) notify("The agent is off. Payments are still allowed in the contract.", "error");
+        if (paused && stopped) notify("The agent is off: no checks, no Claude, no payments.", "success");
+      } else if (stopped) {
+        notify("The agent is off: no checks, no Claude, no payments.", "success");
+      }
+      return;
+    }
+    if (session.agentPaused) {
+      const resumed = await act(button, "Allow payments in the contract", (shop) => shop.unpause());
+      if (!resumed) return;
+    }
+    try {
+      await hub.setAgent(session.shop, true);
+      notify("The agent is on. It checks your ERPNext now.", "success");
+    } catch (error) {
+      notify(`Payments are allowed, but the agent did not start: ${describeError(error)}`, "error");
+    }
+  } finally {
+    button.disabled = false;
+    await renderShop();
+  }
+}
+
 function onSubmit(formId, handler) {
   const form = $(formId);
   form.addEventListener("submit", (event) => {
@@ -690,12 +734,8 @@ function wireActions() {
     act(button, "Change limits", (shop) => shop.setLimits(maxPerPayment, weeklyCap)).then((ok) => ok && form.reset());
   });
 
-  $("pause-button").addEventListener("click", (event) =>
-    act(event.currentTarget, "Pause the agent", (shop) => shop.pause()),
-  );
-  $("resume-button").addEventListener("click", (event) =>
-    act(event.currentTarget, "Resume the agent", (shop) => shop.unpause()),
-  );
+  $("agent-off").addEventListener("click", (event) => switchAgent(event.currentTarget, false));
+  $("agent-on").addEventListener("click", (event) => switchAgent(event.currentTarget, true));
 
   onSubmit("agent-form", (data, button, form) => {
     let agent;

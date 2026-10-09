@@ -135,6 +135,7 @@ def create_app(
             "limits": {"max_per_payment": config.max_per_payment,
                        "weekly_cap": config.weekly_budget},
             "agent_wallet": config.agent_wallet_address,
+            "agent_on": store.agent_on(shop),
             "last_run": (last_run := store.last_run(shop)),
             "answers_waiting": waiting_answers(store, shop, last_run),
         }
@@ -183,12 +184,14 @@ def create_app(
                        agent_wallet_address=wallet_address),
             ErpCredentials(api_key=body.api_key, api_secret=body.api_secret),
         )
-        try:
-            units.start(shop)
-        except UnitError as error:
-            raise HubError(500, "saved, but the agent did not start; try again") from error
+        if store.agent_on(shop):  # turned off by the owner: a new connection does not start it
+            try:
+                units.start(shop)
+            except UnitError as error:
+                raise HubError(500, "saved, but the agent did not start; try again") from error
         return {
             "connected": True,
+            "agent_on": store.agent_on(shop),
             "probe": result.as_dict(),
             "agent_wallet": wallet_address,
             "contract_agent": limits.agent,
