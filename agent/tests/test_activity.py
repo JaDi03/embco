@@ -118,3 +118,36 @@ def test_the_owner_reads_new_events_only(client, owner):  # noqa: F811
 
 def test_the_activity_needs_the_owner(client):
     assert client.get(f"/api/shops/{SHOP}/activity").status_code == 401
+
+
+# ---- the story before the feed existed
+
+
+def test_the_feed_gets_the_agents_past_once_before_what_is_new(store, tmp_path):
+    run_shop(store, SHOP, cycles=1, erp=lambda settings: FakeLedger())
+    folder = store.folder(SHOP)
+    with SqliteJournal(folder / "journal.sqlite3") as journal:
+        journal.record_payment(PaymentEvent(
+            invoice="PINV-1", status=PaymentStatus.COMPLETE, at=datetime.now(UTC), supplier="S",
+            payee=WALLET_A, amount=Decimal(1000), invoice_ref="0x" + "00" * 32, tx_hash=TX))
+        entries = journal.entries()
+    (folder / activity.ACTIVITY).unlink()  # as on a shop that ran before the feed existed
+    later = datetime(2030, 1, 1, tzinfo=UTC)
+    activity.append_activity(folder, [activity.check_started(later)])
+    assert activity.backfill(folder, entries) > 0
+    events = activity.read_activity(folder)
+    assert [e["seq"] for e in events] == list(range(1, len(events) + 1))
+    assert events[-1]["kind"] == "check" and not events[-1].get("history")
+    past = [e for e in events if e.get("history")]
+    assert {"limits", "new", "paid"} <= set(kinds(past))
+    paid = next(e for e in past if e["kind"] == "paid")
+    assert paid["text"] == "Paid 1000 USDC to S for PINV-1." and paid["tx"] == TX
+    assert activity.backfill(folder, entries) == 0  # only once
+
+
+def test_the_past_keeps_its_own_times_and_order(store):
+    run_shop(store, SHOP, cycles=1, erp=lambda settings: FakeLedger())
+    with SqliteJournal(store.folder(SHOP) / "journal.sqlite3") as journal:
+        events = activity.history_events(journal.entries())
+    assert [e["at"] for e in events] == sorted(e["at"] for e in events)
+    assert events[0]["kind"] == "limits"

@@ -73,6 +73,10 @@ class DecisionJournal(Protocol):
         """Payments final on chain, with a transaction, not yet written into the ERP."""
         ...
 
+    def entries(self) -> list[tuple[str, int | None, str | None, datetime, dict]]:
+        """Every entry, oldest first: (kind, run, invoice, at, body)."""
+        ...
+
     def latest_payments(self) -> list[PaymentEvent]:
         """The last event of every invoice the agent tried to pay, oldest first."""
         ...

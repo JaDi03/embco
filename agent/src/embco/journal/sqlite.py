@@ -203,6 +203,11 @@ class SqliteJournal:
     def unrecorded_payments(self) -> list[PaymentEvent]:
         return [_payment(row) for row in self._db.execute(schema.UNRECORDED_PAYMENTS)]
 
+    def entries(self) -> list[tuple[str, int | None, str | None, datetime, dict]]:
+        """Every entry, oldest first: (kind, run, invoice, at, body)."""
+        return [(kind, run, invoice, datetime.fromisoformat(at), json.loads(body))
+                for kind, run, invoice, at, body, _ in self._db.execute(schema.ALL)]
+
     def latest_payments(self) -> list[PaymentEvent]:
         return [_payment(row) for row in self._db.execute(schema.LATEST_PAYMENTS)]
 
