@@ -45,7 +45,8 @@ def funds_of(payer: Payer | None) -> Callable[[], dict[str, str] | None] | None:
         authorized = ("no" if allowed == 0 else "yes" if allowed >= weekly
                       else f"only {usdc(allowed)} USDC left; the owner must authorize again")
         return {"weekly_room_resets_at_utc": resets.strftime("%Y-%m-%d %H:%M"),
-                "owner_balance": usdc(balance), "payments_authorized": authorized}
+                "owner_balance": usdc(balance), "payments_authorized": authorized,
+                "available_to_pay": usdc(min(balance, allowed))}
 
     return funds
 
