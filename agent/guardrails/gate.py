@@ -41,9 +41,14 @@ def pay_refusal(
 
 
 def schedule_refusal(
-    decision: Decision | None, pay_on: date, today: date, *, done: Collection[str]
+    decision: Decision | None, pay_on: date, today: date, *, done: Collection[str],
+    room: Decimal | None = None, renews_on: date | None = None,
 ) -> str | None:
-    """Why the agent may not schedule this payment for `pay_on`, or None when it may."""
+    """Why the agent may not schedule this payment for `pay_on`, or None when it may.
+
+    `room` is what the contract still lets the shop pay this week and `renews_on` the shop's
+    local day its week renews (None when unknown). A payment that does not fit this week's room
+    is never scheduled before the room renews: the date comes from the contract, not a guess."""
     if decision is None:
         return "this invoice is not among the unpaid invoices"
     if decision.invoice in done:
@@ -54,4 +59,11 @@ def schedule_refusal(
         return f"{pay_on} is in the past; today is {today}"
     if pay_on > today + timedelta(days=MAX_SCHEDULE_DAYS):
         return f"schedule at most {MAX_SCHEDULE_DAYS} days ahead; set an alarm to look again"
+    if room is not None and decision.amount > room:
+        if renews_on is None:
+            return (f"only {fmt(room)} USDC is left this week and when the contract's week renews "
+                    "cannot be read right now; hold it and look again later")
+        if pay_on < renews_on:
+            return (f"only {fmt(room)} USDC is left this week; the contract's week renews on "
+                    f"{renews_on} (shop time): schedule it on or after that day")
     return None

@@ -36,6 +36,7 @@ class BrainSetup:
     daily_tokens: int = DAILY_TOKENS
     room: Callable[[], Decimal | None] = field(default=lambda: None)
     chat_brain: Brain | None = None  # answers the owner; faster, lower effort
+    funds: Callable[[], dict[str, str] | None] = field(default=lambda: None)
 
 
 @dataclass(frozen=True)
@@ -82,7 +83,8 @@ def think(
                        skipped="the agent's daily budget is used up")
     toolbox = Toolbox(decisions=list(decisions), ledger=ledger, journal=journal, policy=policy,
                       now=now, zone=setup.zone, done=set(done), standing=standing,
-                      room=setup.room, past_notes=tuple(recent_notes(sessions)),
+                      room=setup.room, funds=setup.funds,
+                      past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages))
     text = briefing(toolbox, wakes, pending_alarms(sessions, now), recent_notes(sessions),
                     conversation)
@@ -137,7 +139,8 @@ def converse(
     brain = setup.chat_brain or setup.brain
     toolbox = Toolbox(decisions=list(decisions), ledger=ledger, journal=journal, policy=policy,
                       now=now, zone=setup.zone, done=set(done), standing=standing,
-                      room=setup.room, past_notes=tuple(recent_notes(sessions)),
+                      room=setup.room, funds=setup.funds,
+                      past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), require_all=False)
     text = chat_briefing(toolbox, pending_alarms(sessions, now), recent_notes(sessions),
                          conversation)
