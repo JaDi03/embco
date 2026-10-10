@@ -16,7 +16,7 @@ from agent.guardrails.rules import Decision, PolicyConfig
 from agent.memory import Change, DecisionJournal
 from agent.models import AgentDecision, Autonomy, Session, Wake
 from agent.prompt import briefing, chat_briefing
-from agent.reflexes.funds import funds_wake
+from agent.reflexes.funds import funds_wake, money_wake
 from agent.reflexes.wake import backing_off, pending_alarms, recent_notes, wakes_for
 from agent.tools import Toolbox
 from services.erp import LedgerAdapter
@@ -38,6 +38,7 @@ class BrainSetup:
     room: Callable[[], Decimal | None] = field(default=lambda: None)
     chat_brain: Brain | None = None  # answers the owner; faster, lower effort
     funds: Callable[[], dict[str, str] | None] = field(default=lambda: None)
+    mailer: Callable[[str, str, str], str] | None = None  # writes to a supplier from the ERP
 
 
 @dataclass(frozen=True)
@@ -67,12 +68,14 @@ def think(
     sessions = journal.sessions()
     standing = journal.latest_agent_decisions()
     fired = {w.key for s in sessions if s.finished for w in s.wakes if w.key}
-    short = funds_wake(decisions, standing, done, setup.funds(),
-                       now.astimezone(setup.zone).date(), fired)
+    money = setup.funds()
+    short = funds_wake(decisions, standing, done, money, now.astimezone(setup.zone).date(),
+                       fired)
+    moved = money_wake(sessions, money, decisions, done)
     wakes = wakes_for(now=now, zone=setup.zone, decisions=decisions, changes=changes,
                       sessions=sessions, standing=standing, done=done,
                       payments=journal.latest_payments(), round_hour=setup.round_hour,
-                      extra=[*extra, *([short] if short else [])])
+                      extra=[*extra, *([short] if short else []), *([moved] if moved else [])])
     last = sessions[-1] if sessions else None
     if not wakes:
         return Thought(agent=standing, last=last)
@@ -87,7 +90,8 @@ def think(
                        skipped="the agent's daily budget is used up")
     toolbox = Toolbox(decisions=list(decisions), ledger=ledger, journal=journal, policy=policy,
                       now=now, zone=setup.zone, done=set(done), standing=standing,
-                      room=setup.room, funds=setup.funds,
+                      room=setup.room, funds=setup.funds, mailer=setup.mailer,
+                      emails_today=emails_today(sessions, setup.zone, now),
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages))
     text = briefing(toolbox, wakes, pending_alarms(sessions, now), recent_notes(sessions),
@@ -100,11 +104,13 @@ def think(
         finished, error, steps, usage = False, "the session crashed", 0, None
     session = Session(
         at=now, wakes=tuple(wakes), finished=finished, summary=toolbox.summary or "",
+        money=money,
         decisions=tuple(toolbox.chosen.values()) if finished else (),
         alarms=tuple(toolbox.alarms) if finished else (),
         notes=tuple(toolbox.notes) if finished else (),
         steps=steps, model=setup.brain.model, error=error,
         replies=tuple(toolbox.replies) if finished else (),
+        emails=tuple(toolbox.emailed),
         **({"usage": usage} if usage else {}),
     )
     journal.record_session(session)
@@ -143,7 +149,8 @@ def converse(
     brain = setup.chat_brain or setup.brain
     toolbox = Toolbox(decisions=list(decisions), ledger=ledger, journal=journal, policy=policy,
                       now=now, zone=setup.zone, done=set(done), standing=standing,
-                      room=setup.room, funds=setup.funds,
+                      room=setup.room, funds=setup.funds, mailer=setup.mailer,
+                      emails_today=emails_today(sessions, setup.zone, now),
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), require_all=False)
     text = chat_briefing(toolbox, pending_alarms(sessions, now), recent_notes(sessions),
@@ -162,8 +169,15 @@ def converse(
         notes=tuple(toolbox.notes) if finished else (),
         steps=steps, model=brain.model, error=error,
         replies=tuple(toolbox.replies) if finished else (),
+        emails=tuple(toolbox.emailed),
         **({"usage": usage} if usage else {}),
     )
     journal.record_session(session)
     return Thought(agent={**standing, **{d.invoice: d for d in session.decisions}},
                    session=session, last=session)
+
+
+def emails_today(sessions: Sequence[Session], zone: tzinfo, now: datetime) -> int:
+    """Emails to suppliers already sent today (shop time), for the daily cap."""
+    today = now.astimezone(zone).date()
+    return sum(len(s.emails) for s in sessions if s.at.astimezone(zone).date() == today)

@@ -187,7 +187,8 @@ def run_shop(
     answers: dict[str, dict[str, str]] = {}  # the last outcome per invoice, for the owner
     read_limits = limits(settings)
     policy = {"now": settings.policy}
-    brain = brain_setup(settings, room_of(payments), funds_of(payments))
+    brain = brain_setup(settings, room_of(payments), funds_of(payments),
+                        getattr(live, "email_supplier", None))
     if brain:
         log.info("shop %s: agent brain on (%s, %s)", shop, brain.brain.model,
                  brain.autonomy.value)
