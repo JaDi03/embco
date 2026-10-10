@@ -336,6 +336,12 @@ async function pollChat() {
   terminal.waiting = Boolean(body.waiting);
   if (fresh.length || !$("chat-log").childElementCount) paintChat();
   $("chat-status").textContent = terminal.waiting ? "The agent is reading your message..." : "";
+  if (terminal.waiting && !terminal.fastChat) {  // waiting for an answer: look every second
+    terminal.fastChat = setTimeout(() => {
+      terminal.fastChat = null;
+      pollChat();
+    }, 1000);
+  }
 }
 
 function paintChat() {
@@ -918,6 +924,7 @@ function wireActions() {
       paintChat();
       terminal.chat = terminal.chat.filter((e) => !e.local);  // the hub's copy replaces it on the next poll
       $("chat-status").textContent = "The agent is reading your message...";
+      pollChat();
     } catch (error) {
       $("chat-status").textContent = describeError(error);
     } finally {

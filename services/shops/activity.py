@@ -91,7 +91,11 @@ def inbox_events(at: datetime, signatures: Mapping[str, Mapping[str, str]],
 
 def agent_events(report: CycleReport) -> list[dict[str, Any]]:
     """The agent's session in this cycle: why it woke, what it decided, its word to the owner."""
-    session = report.thought.session if report.thought else None
+    return session_events(report.thought.session if report.thought else None)
+
+
+def session_events(session) -> list[dict[str, Any]]:
+    """One session of the agent as activity, from a check or from a chat."""
     if session is None:
         return []
     at = session.at

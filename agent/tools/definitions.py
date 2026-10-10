@@ -31,6 +31,14 @@ TOOLS: list[dict[str, Any]] = [
     _tool("list_open_invoices",
           "Every unpaid invoice with what the checks say, its problems and your current "
           "decision on it."),
+    _tool("search_invoices",
+          "Find open invoices by supplier, due date or what the checks say, without reading them "
+          "all. Leave a filter empty to not filter by it. Returns at most 50, with their count and "
+          "total.",
+          supplier=_text("Part of the supplier name, any case, or empty."),
+          due_from=_text("Earliest due date, YYYY-MM-DD, or empty."),
+          due_to=_text("Latest due date, YYYY-MM-DD, or empty."),
+          checks_say=_text("PAY, HOLD or ASK, or empty for all.")),
     _tool("get_invoice",
           "One invoice in full: lines, linked order and receipt, every check, the owner's "
           "answer, the payment state and the history of decisions on it.",
