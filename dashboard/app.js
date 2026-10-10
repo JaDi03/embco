@@ -159,29 +159,40 @@ function renderChecks(probe) {
   );
 }
 
-async function renderErp(isOwner, state) {
-  $("work-setup").append($("erp-card"));  // back in view until the ERP is connected
+/** Without a connected ERP the console shows the ERP card instead of the agent. Called only when
+ * that is the state, so a refresh of a connected shop never hides and redraws the console. */
+function hideAgent() {
+  $("work-setup").append($("erp-card"));
   work.groups = [];
   paintWork();
   $("suppliers-card").hidden = true;
   $("tasks-card").hidden = true;
   $("terminal-card").hidden = true;
-  if (!isOwner) return;
+}
+
+async function renderErp(isOwner, state) {
+  if (!isOwner) {
+    hideAgent();
+    return;
+  }
   erpError("");
   let shop;
   try {
     shop = await hub.status(session.shop);
   } catch (error) {
+    hideAgent();
     showErp(null);
     erpError(`The embco service is not reachable right now (${error.message}).`);
     return;
   }
   if (!shop) {
+    hideAgent();
     renderChecks(null);
     showErp("erp-signin");
     return;
   }
   if (!shop.connected) {
+    hideAgent();
     showErp("erp-form");
     return;
   }
@@ -636,8 +647,10 @@ function supplierRow(shop, site, row) {
 
 async function renderApprovals(isOwner) {
   const card = $("approvals-card");
-  card.hidden = true;
-  if (!isOwner) return;
+  if (!isOwner) {
+    card.hidden = true;
+    return;
+  }
   let pending;
   try {
     const isApproved = (address) => read((provider) => shopContract(session.shop, provider).approvedPayee(address));
@@ -646,6 +659,7 @@ async function renderApprovals(isOwner) {
     notify(describeError(error), "error");
     return;
   }
+  card.hidden = !pending.length;
   if (!pending.length) return;
   card.hidden = false;
   $("approvals").replaceChildren(
@@ -673,8 +687,8 @@ async function renderHistory(isOwner) {
   const suppliers = $("suppliers");
   const payments = $("payments");
   const loading = () => Object.assign(document.createElement("li"), { className: "empty", textContent: "Loading..." });
-  suppliers.replaceChildren(loading());
-  payments.replaceChildren(loading());
+  if (!suppliers.childElementCount) suppliers.replaceChildren(loading());  // a refresh keeps what is shown
+  if (!payments.childElementCount) payments.replaceChildren(loading());
 
   let history;
   try {
