@@ -9,7 +9,7 @@ import json
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, tzinfo
+from datetime import UTC, date, datetime, timedelta, tzinfo
 from decimal import Decimal
 from typing import Any
 
@@ -27,6 +27,8 @@ MAX_NOTE_CHARS = 600
 MAX_ALARM_DAYS = 60
 MAX_REPLY_CHARS = 1500
 SEARCH_LIMIT = 50
+UNKNOWN_FUNDS = {"weekly_room_resets_at_utc": "unknown", "owner_balance": "unknown",
+                 "payments_authorized": "unknown"}  # the chain did not answer: never a guess
 RECENT = 10
 INPUTS = {t["name"]: set(t["input_schema"]["properties"]) for t in TOOLS}
 
@@ -190,8 +192,7 @@ class Toolbox:
                            "amount": fmt(self._by_invoice[i].amount)} for i, c in scheduled],
             "payable_due_within_7_days": fmt(sum((d.amount for d in due_soon), Decimal(0))),
             "today": self.today.isoformat(),
-            **(self.funds() or {"weekly_room_resets_at_utc": "unknown", "owner_balance": "unknown",
-                                "payments_authorized": "unknown"}),
+            **(self._funds_once() or UNKNOWN_FUNDS),
         }
 
     # acting
@@ -210,7 +211,8 @@ class Toolbox:
     def _schedule_payment(self, invoice: str, pay_on: str, reason: str) -> str:
         decision = self._by_invoice.get(invoice)
         day = _parse_day(pay_on)
-        refusal = schedule_refusal(decision, day, self.today, done=self.done)
+        refusal = schedule_refusal(decision, day, self.today, done=self.done,
+                                   room=self._room_this_week(), renews_on=self._renews_on())
         if refusal:
             raise ToolError(f"not allowed: {refusal}")
         self._choose(decision, Choice.SCHEDULE, reason, pay_on=day)
@@ -292,6 +294,20 @@ class Toolbox:
     def _committed(self, excluding: str = "") -> Decimal:
         return sum((self._by_invoice[i].amount for i, c in self.chosen.items()
                     if c.choice is Choice.PAY_NOW and i != excluding), Decimal(0))
+
+    def _renews_on(self) -> date | None:
+        """The shop's local day the contract's week renews, from the chain; None if unknown."""
+        text = (self._funds_once() or {}).get("weekly_room_resets_at_utc", "")
+        try:
+            at = datetime.strptime(text, "%Y-%m-%d %H:%M").replace(tzinfo=UTC)
+        except ValueError:
+            return None
+        return at.astimezone(self.zone).date()
+
+    def _funds_once(self) -> dict[str, str] | None:
+        if not hasattr(self, "_funds"):
+            self._funds = self.funds()
+        return self._funds
 
     def _room_this_week(self) -> Decimal | None:
         if not self._room_read:

@@ -2,17 +2,18 @@
 read from the chain, instead of guessing them."""
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace
 
 import httpx
+import pytest
 from eth_abi import encode
 from eth_utils import keccak, to_checksum_address
 
 from agent.guardrails.rules import Action, Decision, PolicyConfig
 from agent.memory import SqliteJournal
-from agent.tools import Toolbox
+from agent.tools import Toolbox, ToolError
 from agent.wiring import funds_of
 from services.payments import ArcRpc, ChainError
 
@@ -89,3 +90,35 @@ def test_an_unreachable_node_gives_unknown_instead_of_a_guess(tmp_path):
         seen = json.loads(box.call("cash_position", {}))
     assert seen["weekly_room_resets_at_utc"] == "unknown"
     assert seen["payments_authorized"] == "unknown"
+
+
+def schedule(box, pay_on):
+    return box.call("schedule_payment", {"invoice": "PINV-1", "pay_on": pay_on,
+                                         "reason": "no room this week"})
+
+
+def big_invoice_box(journal, funds):  # noqa: F811
+    d = Decision(invoice="PINV-1", supplier="S", amount=Decimal(420), due_date=None,
+                 action=Action.PAY, reasons=("r",), findings=())
+    policy = PolicyConfig(max_per_payment=Decimal(420), weekly_budget=Decimal(2000))
+    lagos = timezone(timedelta(hours=1))
+    return Toolbox(decisions=[d], ledger=None, journal=journal, policy=policy,
+                   now=datetime(2026, 10, 10, 1, 12, tzinfo=UTC), zone=lagos,
+                   room=lambda: Decimal("343.5"), funds=funds)
+
+
+def test_a_payment_that_does_not_fit_cannot_be_scheduled_before_the_real_renewal(tmp_path):
+    seen = {"weekly_room_resets_at_utc": "2026-10-14 02:25", "owner_balance": "383.45",
+            "payments_authorized": "yes"}
+    with SqliteJournal(tmp_path / "j.sqlite3") as journal:
+        box = big_invoice_box(journal, lambda: seen)
+        with pytest.raises(ToolError, match="renews on 2026-10-14"):
+            schedule(box, "2026-10-12")  # what Claude assumed: a calendar week
+        assert "scheduled for 2026-10-14" in schedule(box, "2026-10-14")
+
+
+def test_without_the_renewal_date_a_payment_that_does_not_fit_is_not_scheduled(tmp_path):
+    with SqliteJournal(tmp_path / "j.sqlite3") as journal:
+        box = big_invoice_box(journal, lambda: None)
+        with pytest.raises(ToolError, match="cannot be read right now"):
+            schedule(box, "2026-10-20")
