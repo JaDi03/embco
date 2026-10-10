@@ -41,6 +41,7 @@ PROTECTED_PAYMENT_FIELDS = frozenset({
 })
 TESTNET_REMARK = "TESTNET: paid in test USDC, no real money moved. Do not submit."
 DOC_INFO = "frappe.desk.form.load.get_docinfo"  # change history of a document the user can read
+INDEX_LIMIT = 5000  # documents listed in one request; a shop with more needs paging
 
 
 class ErpnextAdapter:
@@ -97,6 +98,25 @@ class ErpnextAdapter:
             order_by="due_date asc",
         )
         return [self.get_purchase_invoice(name) for name in names]
+
+    def invoice_index(self) -> list[dict[str, Any]]:
+        """Every submitted invoice in one light request: name, when it last changed, and the
+        fields that can change without a new version (amount still due, due date)."""
+        return self._frappe.list_rows(
+            "Purchase Invoice",
+            fields=["name", "modified", "supplier", "posting_date", "due_date",
+                    "outstanding_amount"],
+            filters=[["docstatus", "=", 1], *self._company_filter],
+            order_by="posting_date asc, name asc",
+            limit=INDEX_LIMIT,
+        )
+
+    def stamps(self, doctype: str) -> dict[str, str]:
+        """When each submitted document of a type last changed, in one light request."""
+        rows = self._frappe.list_rows(doctype, ["name", "modified"],
+                                      [["docstatus", "=", 1], *self._company_filter],
+                                      order_by="modified desc", limit=INDEX_LIMIT)
+        return {row["name"]: str(row["modified"]) for row in rows}
 
     def list_supplier_invoices(self, supplier: str) -> list[PurchaseInvoice]:
         names = self._frappe.list_names(

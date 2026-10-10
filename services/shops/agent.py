@@ -23,6 +23,7 @@ from agent.think import converse
 from agent.wiring import brain_setup, room_of
 from services.circle import CircleClient
 from services.erp import ErpnextAdapter, LedgerError
+from services.erp.erpnext.cache import CachedLedger
 from services.hub.chain import DEFAULT_FACTORY, ShopChain, ShopLimits
 from services.payments import ArcRpc, ChainError, Payer, PaymentEvent
 from services.payments.encoding import ref_scope
@@ -176,8 +177,10 @@ def run_shop(
 ) -> int:
     """Returns how many cycles ran without an ERP error."""
     settings = store.settings(shop, platform)
-    ledger = erp(settings)
-    payments = payer(settings, ledger)
+    live = erp(settings)
+    # the checks read only what changed; the payer always reads the ERP itself before paying
+    ledger = CachedLedger(live) if isinstance(live, ErpnextAdapter) else live
+    payments = payer(settings, live)
     log.info("shop %s: watching %s every %s (payments %s)", shop, settings.company,
              settings.interval, "on, testnet drafts in the ERP" if payments else "off")
     signatures: dict[str, dict[str, str]] = {}  # the last outcome per supplier, for its page
@@ -238,6 +241,8 @@ def run_shop(
             started = datetime.now(UTC)
             activity.append_activity(folder, [activity.check_started(started)])
             try:
+                if isinstance(ledger, CachedLedger):
+                    ledger.refresh()
                 signed = take_signatures(folder, journal, ledger)
                 answered = take_answers(folder, journal)
                 signatures.update(signed)
@@ -279,6 +284,8 @@ def run_shop(
             store.write_supplier_view(shop, supplier_view(report, journal, settings.company,
                                                           signatures, wallet_of=wallet_of))
             log.info("shop %s: %s", shop, format_report(report))
+            if isinstance(ledger, CachedLedger):
+                log.info("shop %s: %d documents read in full this check", shop, ledger.downloads)
 
         def nap(seconds: float) -> None:
             """Wait for the next check on its own clock (a chat never moves it), but wake at
