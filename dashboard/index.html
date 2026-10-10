@@ -83,7 +83,7 @@
           </div>
           <dl class="figures">
             <div><dt>In your wallet <span class="tag-testnet" title="Test network: test dollars with no real value">Testnet</span></dt><dd id="balance"></dd></div>
-            <div><dt>Agent may use</dt><dd id="allowance"></dd></div>
+            <div><dt>Payments</dt><dd id="allowance"></dd></div>
             <div><dt>Left this week</dt><dd><span id="remaining"></span> <span class="of">/ <span id="weekly-cap"></span></span></dd></div>
             <div><dt>Per payment</dt><dd id="max-per-payment"></dd></div>
             <div class="owner-only"><dt>Claude today</dt><dd id="claude-today">-</dd></div>
@@ -252,13 +252,15 @@
           </div>
 
           <section>
-            <h3>What the agent may use</h3>
+            <h3>Payments from your wallet</h3>
             <p class="hint">
-              The money never leaves your wallet until a payment is made. Revoking stops every payment at once.
+              Your money stays in your wallet until a payment is made. Authorize once: the contract may then pay
+              approved suppliers up to your weekly budget, every week, and never more. Revoke stops every payment at
+              once.
             </p>
+            <p class="hint" id="authorization-note"></p>
             <form id="allowance-form" class="inline-form owner-only" novalidate>
-              <input name="amount" inputmode="decimal" placeholder="Amount in USDC" aria-label="Amount the agent may use" />
-              <button class="btn btn-primary" type="submit">Set</button>
+              <button class="btn btn-primary" type="submit">Authorize payments</button>
               <button class="btn btn-danger" type="button" id="revoke-button">Revoke</button>
             </form>
           </section>

@@ -11,7 +11,7 @@ import * as hub from "./hub.js";
 import { agentView, groupTasks, raisedLimits, taskFor } from "./needs.js";
 import * as suppliers from "./suppliers.js";
 import { factory, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
-import { formatUsdc, parseUsdc, shortAddress, ZERO_ADDRESS } from "./units.js";
+import { AUTHORIZE_ALL, authorizationView, formatUsdc, parseUsdc, shortAddress, ZERO_ADDRESS } from "./units.js";
 import * as wallet from "./wallet.js";
 
 const $ = (id) => document.getElementById(id);
@@ -105,7 +105,10 @@ async function renderShop() {
   for (const el of document.querySelectorAll(".owner-only")) el.hidden = !isOwner;
 
   $("balance").textContent = `${formatUsdc(state.balance)} USDC`;
-  $("allowance").textContent = `${formatUsdc(state.allowance)} USDC`;
+  const authorization = authorizationView(state.allowance, state.weeklyCap);
+  $("allowance").textContent = authorization.text;
+  $("allowance").className = authorization.state === "on" ? "status-on" : "status-off";
+  $("authorization-note").textContent = authorization.note;
   $("max-per-payment").textContent = `${formatUsdc(state.maxPerPayment)} USDC`;
   $("weekly-cap").textContent = `${formatUsdc(state.weeklyCap)} USDC`;
   $("remaining").textContent = `${formatUsdc(state.remaining)} USDC`;
@@ -852,7 +855,7 @@ function wireActions() {
       notify("Creating your shop contract on Arc...");
       await tx.wait();
       await render();
-      notify("Your shop contract is ready. Next: let it use some USDC and approve your suppliers.", "success");
+      notify("Your shop contract is ready. Next: authorize payments in Settings and approve your suppliers.", "success");
     } catch (error) {
       notify(describeError(error), "error");
     } finally {
@@ -860,17 +863,8 @@ function wireActions() {
     }
   });
 
-  onSubmit("allowance-form", (data, button, form) => {
-    let amount;
-    try {
-      amount = parseUsdc(data.get("amount"));
-    } catch (error) {
-      notify(describeError(error), "error");
-      return;
-    }
-    act(button, "Set the amount the agent may use", (_shop, signer) => usdc(signer).approve(session.shop, amount)).then(
-      (ok) => ok && form.reset(),
-    );
+  onSubmit("allowance-form", (_data, button) => {
+    act(button, "Authorize payments", (_shop, signer) => usdc(signer).approve(session.shop, AUTHORIZE_ALL));
   });
 
   $("revoke-button").addEventListener("click", (event) =>
