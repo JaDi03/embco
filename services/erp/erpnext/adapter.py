@@ -14,7 +14,7 @@ from typing import Any
 import httpx
 
 from services.erp.base import LedgerError
-from services.erp.erpnext import bank_wallets, mappers
+from services.erp.erpnext import bank_wallets, mail, mappers
 from services.erp.erpnext.client import FrappeClient
 from services.erp.models import (
     OwnerMark,
@@ -64,6 +64,7 @@ class ErpnextAdapter:
         self._wallet_field = wallet_field
         self._payee_wallet_field = payee_wallet_field
         self._company_filter = [["company", "=", company]] if company else []
+        self._company = company or ""
         self._paid_from = paid_from
         self._payment_extra = dict(payment_extra or {})
         self._wallet_bank = wallet_bank  # set: wallets are Bank Account rows, no custom fields
@@ -98,6 +99,10 @@ class ErpnextAdapter:
             order_by="due_date asc",
         )
         return [self.get_purchase_invoice(name) for name in names]
+
+    def email_supplier(self, supplier: str, subject: str, body: str) -> str:
+        """Write to the supplier from the shop's own ERPNext; returns the address used."""
+        return mail.email_supplier_message(self._frappe, supplier, self._company, subject, body)
 
     def invoice_index(self) -> list[dict[str, Any]]:
         """Every submitted invoice in one light request: name, when it last changed, and the

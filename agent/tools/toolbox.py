@@ -28,6 +28,8 @@ MAX_ALARM_DAYS = 60
 MAX_REPLY_CHARS = 1500
 SEARCH_LIMIT = 50
 MAX_NOTICES = 3
+MAX_EMAILS_PER_DAY = 3
+LINKS = re.compile(r"https?://|www\.|\b[a-z0-9-]+\.(com|net|org|xyz|io|app|link)\b", re.I)
 UNKNOWN_FUNDS = {"weekly_room_resets_at_utc": "unknown", "owner_balance": "unknown",
                  "payments_authorized": "unknown"}  # the chain did not answer: never a guess
 RECENT = 10
@@ -50,6 +52,8 @@ class Toolbox:
     standing: Mapping[str, AgentDecision] = field(default_factory=dict)
     room: Callable[[], Decimal | None] = lambda: None  # what the contract allows this week
     funds: Callable[[], dict[str, str] | None] = lambda: None  # reset time, balance, authorization
+    mailer: Callable[[str, str, str], str] | None = None  # writes to a supplier from the ERP
+    emails_today: int = 0  # emails the agent already sent today, for the daily cap
     past_notes: tuple[Note, ...] = ()
     messages: tuple[str, ...] = ()  # what the owner wrote since the agent's last reply
     require_all: bool = True  # a decision round decides every open invoice; a chat does not
@@ -58,6 +62,7 @@ class Toolbox:
     notes: list[Note] = field(default_factory=list)
     replies: list[str] = field(default_factory=list)  # to the owner: answers and notices
     notices: int = 0
+    emailed: list[str] = field(default_factory=list)
     summary: str | None = None
 
     def __post_init__(self) -> None:
@@ -217,6 +222,12 @@ class Toolbox:
                                    room=self._room_this_week(), renews_on=self._renews_on())
         if refusal:
             raise ToolError(f"not allowed: {refusal}")
+        if decision.due_date and day > decision.due_date and not self.messages:
+            raise ToolError(
+                f"not allowed: {day} is after its due date ({decision.due_date}); paying late is "
+                "the owner's call. Ask with ask_owner: the options (pay on the first day it "
+                "fits, the owner raises the weekly budget or adds funds, you write to the "
+                "supplier) and what you recommend")
         self._choose(decision, Choice.SCHEDULE, reason, pay_on=day)
         late = decision.due_date and day > decision.due_date
         return f"{invoice}: scheduled for {day}" + (
@@ -255,6 +266,29 @@ class Toolbox:
         self.notes.append(Note(about=about.strip(), text=text.strip()[:MAX_NOTE_CHARS],
                                at=self.now))
         return "noted"
+
+    def _email_supplier(self, supplier: str, subject: str, body: str) -> str:
+        if self.mailer is None:
+            raise ToolError("email is not available for this shop")
+        if not self.messages:
+            raise ToolError("write to a supplier only after the owner agreed in this "
+                            "conversation; ask the owner first")
+        if supplier not in {d.supplier for d in self.decisions}:
+            raise ToolError(f"{supplier} has no open invoice")
+        if self.emails_today + len(self.emailed) >= MAX_EMAILS_PER_DAY:
+            raise ToolError(f"at most {MAX_EMAILS_PER_DAY} emails to suppliers per day")
+        text = f"{subject}\n{body}"
+        if LINKS.search(text):
+            raise ToolError("no links in an email to a supplier")
+        if not subject.strip() or not body.strip():
+            raise ToolError("the subject and the message must not be empty")
+        _refuse_workarounds(text)
+        try:
+            address = self.mailer(supplier, subject.strip()[:120], body.strip()[:MAX_REPLY_CHARS])
+        except LedgerError as error:
+            raise ToolError(f"the email was not sent: {error}") from None
+        self.emailed.append(supplier)
+        return f"sent to {supplier} at {address}"
 
     def _notify_owner(self, text: str) -> str:
         if self.notices >= MAX_NOTICES:

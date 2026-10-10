@@ -89,6 +89,14 @@ TOOLS: list[dict[str, Any]] = [
           "reaches their dashboard and phone. Say the date, the numbers and what to do. At most "
           "3 per session; never for routine news (the summary is for that).",
           text=_text("The notice, a few plain sentences with the numbers that matter.")),
+    _tool("email_supplier",
+          "Write to a supplier from the shop's own ERPNext, at the email on its record: for "
+          "example that a payment will be late and when it will go out. Only after the owner "
+          "agreed in this conversation. Short and plain; never a link, never about wallets or "
+          "payment details.",
+          supplier=_text("The supplier name exactly as listed."),
+          subject=_text("A short subject."),
+          body=_text("The message, a few plain sentences; blank lines between paragraphs.")),
     _tool("finish",
           "End the session once every open invoice has your decision. The summary is what the "
           "owner reads first.",

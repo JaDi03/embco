@@ -54,6 +54,7 @@ def funds_of(payer: Payer | None) -> Callable[[], dict[str, str] | None] | None:
 def brain_setup(
     settings: Settings, room: Callable[[], Decimal | None] | None = None,
     funds: Callable[[], dict[str, str] | None] | None = None,
+    mailer: Callable[[str, str, str], str] | None = None,
 ) -> BrainSetup | None:
     if not settings.brain:
         return None
@@ -68,4 +69,5 @@ def brain_setup(
         daily_tokens=settings.brain_daily_tokens,
         **({"room": room} if room else {}),
         **({"funds": funds} if funds else {}),
+        **({"mailer": mailer} if mailer else {}),
     )

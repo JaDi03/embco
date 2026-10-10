@@ -59,3 +59,25 @@ def email_supplier_notice(frappe: FrappeClient, supplier: str, company: str, sit
         "sent_or_received": "Sent",
         "send_email": "1",
     })
+
+
+def email_supplier_message(frappe: FrappeClient, supplier: str, company: str, subject: str,
+                           body: str) -> str:
+    """A short message from the shop to the supplier, at the email on its record in the ERP.
+    Plain text only: written by the agent, escaped, never a link. Returns the address used."""
+    recipient = supplier_email(frappe, supplier)
+    if not recipient:
+        raise LedgerError(f"{supplier} has no email in the ERP; add one to its contact")
+    paragraphs = "".join(f"<p>{escape(part.strip())}</p>" for part in body.split("\n\n")
+                         if part.strip())
+    frappe.call_method(SEND_EMAIL, {
+        "doctype": "Supplier",
+        "name": supplier,
+        "recipients": recipient,
+        "subject": f"{company}: {subject}",
+        "content": paragraphs,
+        "communication_medium": "Email",
+        "sent_or_received": "Sent",
+        "send_email": "1",
+    })
+    return recipient
