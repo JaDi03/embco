@@ -35,6 +35,8 @@ def brain_setup(
     return BrainSetup(
         brain=ClaudeBrain(settings.brain_model, effort=settings.brain_effort,
                           api_key=settings.anthropic_api_key),
+        chat_brain=ClaudeBrain(settings.brain_model, effort="low",
+                               api_key=settings.anthropic_api_key),
         zone=timezone(settings.utc_offset),
         round_hour=settings.round_hour,
         autonomy=settings.autonomy,

@@ -15,7 +15,7 @@ from agent.agent import Brain
 from agent.guardrails.rules import Decision, PolicyConfig
 from agent.memory import Change, DecisionJournal
 from agent.models import AgentDecision, Autonomy, Session, Wake
-from agent.prompt import briefing
+from agent.prompt import briefing, chat_briefing
 from agent.reflexes.wake import backing_off, pending_alarms, recent_notes, wakes_for
 from agent.tools import Toolbox
 from services.erp import LedgerAdapter
@@ -35,6 +35,7 @@ class BrainSetup:
     autonomy: Autonomy = Autonomy.ACT
     daily_tokens: int = DAILY_TOKENS
     room: Callable[[], Decimal | None] = field(default=lambda: None)
+    chat_brain: Brain | None = None  # answers the owner; faster, lower effort
 
 
 @dataclass(frozen=True)
@@ -103,5 +104,59 @@ def think(
     journal.record_session(session)
     if not finished:
         log.warning("agent session did not finish: %s", error)
+    return Thought(agent={**standing, **{d.invoice: d for d in session.decisions}},
+                   session=session, last=session)
+
+
+def converse(
+    setup: BrainSetup,
+    *,
+    journal: DecisionJournal,
+    ledger: LedgerAdapter,
+    decisions: Sequence[Decision],
+    policy: PolicyConfig,
+    done: set[str],
+    now: datetime,
+    messages: Sequence[str],
+    conversation: Sequence[Mapping[str, Any]] = (),
+) -> Thought:
+    """Answer the owner between two checks, on the decisions of the last check: no new look at
+    the whole ERP. The agent reads only what the question needs, with its tools. Whatever it
+    chooses on an invoice is applied, and paid if so, by the next full check."""
+    sessions = journal.sessions()
+    standing = journal.latest_agent_decisions()
+    last = sessions[-1] if sessions else None
+    if backing_off(sessions, now):
+        return Thought(agent=standing, last=last,
+                       skipped="the last session failed; trying again soon")
+    today = now.astimezone(setup.zone).date()
+    used = sum(s.usage.total for s in sessions if s.at.astimezone(setup.zone).date() == today)
+    if used >= setup.daily_tokens:
+        return Thought(agent=standing, last=last,
+                       skipped="the agent's daily budget is used up")
+    brain = setup.chat_brain or setup.brain
+    toolbox = Toolbox(decisions=list(decisions), ledger=ledger, journal=journal, policy=policy,
+                      now=now, zone=setup.zone, done=set(done), standing=standing,
+                      room=setup.room, past_notes=tuple(recent_notes(sessions)),
+                      messages=tuple(messages), require_all=False)
+    text = chat_briefing(toolbox, pending_alarms(sessions, now), recent_notes(sessions),
+                         conversation)
+    try:
+        run = brain.run(toolbox, text)
+        finished, error, steps, usage = run.finished, run.error, run.steps, run.usage
+    except Exception:  # a surprise in the loop must not stop the reflexes
+        log.exception("agent chat session crashed")
+        finished, error, steps, usage = False, "the session crashed", 0, None
+    session = Session(
+        at=now, wakes=(Wake("message", f"The owner wrote to you ({len(messages)} message(s))."),),
+        finished=finished, summary=toolbox.summary or "",
+        decisions=tuple(toolbox.chosen.values()) if finished else (),
+        alarms=tuple(toolbox.alarms) if finished else (),
+        notes=tuple(toolbox.notes) if finished else (),
+        steps=steps, model=brain.model, error=error,
+        replies=tuple(toolbox.replies) if finished else (),
+        **({"usage": usage} if usage else {}),
+    )
+    journal.record_session(session)
     return Thought(agent={**standing, **{d.invoice: d for d in session.decisions}},
                    session=session, last=session)

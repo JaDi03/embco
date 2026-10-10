@@ -15,10 +15,11 @@ from typing import Any
 from agent.cost import estimate, shown
 from agent.guardrails.rules import PolicyConfig
 from agent.memory import JournalError, SqliteJournal
-from agent.models import Autonomy, Wake
+from agent.models import Autonomy, Choice, Wake
 from agent.reflexes.cycle import CycleReport, run_cycle
 from agent.reflexes.report import format_report
 from agent.reflexes.watch import watch
+from agent.think import converse
 from agent.wiring import brain_setup, room_of
 from services.circle import CircleClient
 from services.erp import ErpnextAdapter, LedgerError
@@ -101,10 +102,9 @@ def inbox_wakes(signed: Mapping[str, Mapping[str, str]],
     return wakes
 
 
-def chat_replies(report: CycleReport, owner_waiting: bool) -> list[dict[str, Any]]:
-    """The agent's answers from this cycle's session, the cost on the last one; or a word from
-    the service when the owner is waiting and the session could not answer."""
-    session = report.thought.session if report.thought else None
+def chat_replies(session, owner_waiting: bool) -> list[dict[str, Any]]:
+    """The agent's answers from a session, the cost on the last one; or a word from the service
+    when the owner is waiting and the session could not answer."""
     if session is None:
         return []
     at = session.at.isoformat()
@@ -202,11 +202,39 @@ def run_shop(
         if added := activity.backfill(folder, journal.entries()):
             log.info("shop %s: %d past events added to the activity feed", shop, added)
         seen: dict[str, PolicyConfig | None] = {"limits": None}
+        last_check: dict[str, Any] = {"decisions": None, "done": set(), "at": None, "due": 0.0}
+        every = settings.interval.total_seconds()
+
+        def fresh() -> bool:
+            """The last full check is recent enough to answer the owner on."""
+            return last_check["decisions"] is not None and (
+                time.monotonic() - last_check["at"] < every)
+
+        def chat_turn() -> None:
+            """Answer the owner on the last check's decisions: no full look at the ERP."""
+            chat.take_messages(folder)
+            waiting = chat.unanswered(folder)
+            if not waiting or brain is None:
+                return
+            thought = converse(brain, journal=journal, ledger=ledger,
+                               decisions=last_check["decisions"], policy=policy["now"],
+                               done=last_check["done"], now=datetime.now(UTC),
+                               messages=[m["text"] for m in waiting],
+                               conversation=chat.read_chat(folder, limit=12))
+            activity.append_activity(folder, activity.session_events(thought.session))
+            chat.append_chat(folder, chat_replies(thought.session, True))
+            if thought.session and any(d.choice is Choice.PAY_NOW
+                                       for d in thought.session.decisions):
+                last_check["due"] = 0.0  # the owner asked to pay: the next check runs now
 
         def cycle() -> None:
             if not store.agent_on(shop):
                 log.info("shop %s: the owner turned the agent off; nothing runs", shop)
                 return
+            if chat.messages_waiting(folder) and fresh() and time.monotonic() < last_check["due"]:
+                chat_turn()
+                return
+            last_check["due"] = time.monotonic() + every  # set first: a failed check waits too
             started = datetime.now(UTC)
             activity.append_activity(folder, [activity.check_started(started)])
             try:
@@ -241,7 +269,10 @@ def run_shop(
                 raise
             activity.append_activity(folder, [*activity.agent_events(report),
                                               *activity.cycle_events(report, minutes)])
-            chat.append_chat(folder, chat_replies(report, bool(waiting)))
+            chat.append_chat(folder, chat_replies(report.thought.session if report.thought
+                                                   else None, bool(waiting)))
+            last_check.update(decisions=list(report.decisions), done=set(report.already_paid),
+                              at=time.monotonic())
             latest = {p.invoice: p for p in journal.latest_payments()}
             today = claude_today(journal.sessions(), brain.zone, report.at) if brain else None
             store.write_last_run(shop, summarize(report, latest, answers, policy["now"], today))
@@ -250,9 +281,9 @@ def run_shop(
             log.info("shop %s: %s", shop, format_report(report))
 
         def nap(seconds: float) -> None:
-            """Wait for the next check, but wake at once when the owner writes."""
-            end = time.monotonic() + seconds
-            while (left := end - time.monotonic()) > 0:
+            """Wait for the next check on its own clock (a chat never moves it), but wake at
+            once when the owner writes."""
+            while (left := last_check["due"] - time.monotonic()) > 0:
                 if chat.messages_waiting(folder):
                     return
                 time.sleep(min(MESSAGE_POLL, left))

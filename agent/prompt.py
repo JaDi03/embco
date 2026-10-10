@@ -6,8 +6,11 @@ what the checks say, its alarms and notes. No keys, no personal data of customer
 
 import json
 from collections.abc import Mapping, Sequence
+from datetime import timedelta
+from decimal import Decimal
 from typing import Any
 
+from agent.guardrails.controls.base import fmt
 from agent.models import Alarm, Note, Wake
 from agent.tools.toolbox import Toolbox
 
@@ -71,3 +74,41 @@ def briefing(toolbox: Toolbox, wakes: Sequence[Wake], alarms: Sequence[Alarm],
                                        for e in conversation]
     return ("You were woken. Here is the situation; decide what to do, then call finish.\n\n"
             + json.dumps(data, indent=1, ensure_ascii=False))
+
+
+def chat_briefing(toolbox: Toolbox, alarms: Sequence[Alarm], notes: Sequence[Note],
+                  conversation: Sequence[Mapping[str, Any]] = ()) -> str:
+    """For a message from the owner: a short picture of the shop, not every invoice. The agent
+    looks up what the question needs with search_invoices and get_invoice."""
+    local = toolbox.now.astimezone(toolbox.zone)
+    today = local.date()
+    open_ = [d for d in toolbox.decisions if d.invoice not in toolbox.done]
+    by_checks: dict[str, int] = {}
+    for d in open_:
+        by_checks[d.action.value] = by_checks.get(d.action.value, 0) + 1
+    soon = sorted((d for d in open_ if d.due_date and d.due_date <= today + timedelta(days=7)),
+                  key=lambda d: d.due_date)
+    data = {
+        "now_shop_time": local.strftime("%Y-%m-%d %H:%M"),
+        "owner_messages": list(toolbox.messages),
+        "recent_conversation": [{"from": e.get("from"), "text": e.get("text")}
+                                for e in conversation],
+        "shop": {
+            "open_invoices": len(open_),
+            "open_total": fmt(sum((d.amount for d in open_), Decimal(0))),
+            "what_the_checks_say": by_checks,
+            "due_within_7_days": [{"invoice": d.invoice, "supplier": d.supplier,
+                                   "amount": fmt(d.amount), "due": d.due_date.isoformat(),
+                                   "checks_say": d.action.value} for d in soon[:15]],
+            "already_paid_or_sent_by_you": len(toolbox.done),
+            "limits": {"max_per_payment": str(toolbox.policy.max_per_payment),
+                       "weekly_cap": str(toolbox.policy.weekly_budget)},
+        },
+        "your_alarms_still_set": [{"at": a.at.astimezone(toolbox.zone).strftime(
+            "%Y-%m-%d %H:%M"), "why": a.why} for a in alarms],
+        "your_recent_notes": [{"about": n.about, "text": n.text} for n in notes],
+    }
+    return ("The owner wrote to you. This is a conversation, not a decision round: answer with "
+            "reply_owner, then call finish. Look up only what the question needs "
+            "(search_invoices, get_invoice, supplier_profile, cash_position). Act on an invoice "
+            "only if the owner asks you to.\n\n" + json.dumps(data, indent=1, ensure_ascii=False))

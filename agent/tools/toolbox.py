@@ -26,6 +26,7 @@ MAX_NOTES = 10
 MAX_NOTE_CHARS = 600
 MAX_ALARM_DAYS = 60
 MAX_REPLY_CHARS = 1500
+SEARCH_LIMIT = 50
 RECENT = 10
 INPUTS = {t["name"]: set(t["input_schema"]["properties"]) for t in TOOLS}
 
@@ -47,6 +48,7 @@ class Toolbox:
     room: Callable[[], Decimal | None] = lambda: None  # what the contract allows this week
     past_notes: tuple[Note, ...] = ()
     messages: tuple[str, ...] = ()  # what the owner wrote since the agent's last reply
+    require_all: bool = True  # a decision round decides every open invoice; a chat does not
     chosen: dict[str, AgentDecision] = field(default_factory=dict)
     alarms: list[Alarm] = field(default_factory=list)
     notes: list[Note] = field(default_factory=list)
@@ -96,6 +98,22 @@ class Toolbox:
 
     def _list_open_invoices(self) -> list[dict[str, Any]]:
         return self.open_invoices()
+
+    def _search_invoices(self, supplier: str, due_from: str, due_to: str,
+                         checks_say: str) -> dict[str, Any]:
+        start = _parse_day(due_from) if due_from.strip() else None
+        end = _parse_day(due_to) if due_to.strip() else None
+        says = checks_say.strip().upper()
+        if says and says not in {a.value for a in Action}:
+            raise ToolError("checks_say is PAY, HOLD, ASK or empty")
+        name = supplier.strip().lower()
+        found = [d for d in self.decisions
+                 if (not name or name in d.supplier.lower())
+                 and (not says or d.action.value == says)
+                 and (start is None or (d.due_date is not None and d.due_date >= start))
+                 and (end is None or (d.due_date is not None and d.due_date <= end))]
+        return {"count": len(found), "total": fmt(sum((d.amount for d in found), Decimal(0))),
+                "invoices": [self._row(d) for d in found[:SEARCH_LIMIT]]}
 
     def _get_invoice(self, invoice: str) -> dict[str, Any]:
         decision = self._decision(invoice)
@@ -241,7 +259,7 @@ class Toolbox:
         return "sent to the owner"
 
     def _finish(self, summary: str) -> str:
-        missing = self.undecided()
+        missing = self.undecided() if self.require_all else []
         if missing:
             raise ToolError("decide on these invoices first: " + ", ".join(missing))
         if self.messages and not self.replies:
