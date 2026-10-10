@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { describeError } from "../errors.js";
-import { AmountError, formatUsdc, parseUsdc, shortAddress } from "../units.js";
+import { AmountError, AUTHORIZE_ALL, authorizationView, formatUsdc, parseUsdc, shortAddress } from "../units.js";
 
 test("amounts become exact 6-decimal integers", () => {
   assert.equal(parseUsdc("250"), 250_000_000n);
@@ -41,4 +41,13 @@ test("contract and wallet errors read as plain sentences", () => {
   assert.match(describeError({ code: "INSUFFICIENT_FUNDS" }), /faucet/);
   assert.equal(describeError(new AmountError("bad")), "bad");
   assert.ok(describeError({ message: "x".repeat(500) }).length <= 203);
+});
+
+test("payments are authorized or not: never a second budget below the weekly one", () => {
+  const week = 2_000_000_000n;
+  assert.equal(authorizationView(AUTHORIZE_ALL, week).state, "on");
+  assert.equal(authorizationView(AUTHORIZE_ALL - 420_000_000n, week).text, "Authorized");
+  assert.deepEqual(authorizationView(181_500_000n, week).state, "low");
+  assert.match(authorizationView(181_500_000n, week).text, /181\.5/);
+  assert.equal(authorizationView(0n, week).text, "Not authorized");
 });

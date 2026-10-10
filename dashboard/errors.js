@@ -11,7 +11,7 @@ const CONTRACT_ERRORS = {
   InvalidLimits: "The per-payment limit must be greater than zero and not above the weekly cap.",
   InvalidAddress: "That wallet address cannot be used here (it may be your own wallet).",
   InvalidPayment: "A payment needs a supplier, an amount and an invoice reference.",
-  TransferFailed: "The USDC transfer failed. Check your balance and the allowance.",
+  TransferFailed: "The USDC transfer failed. Check your balance and that payments are authorized in Settings.",
 };
 
 /** A readable message for anything thrown by MetaMask, ethers or the contracts. */

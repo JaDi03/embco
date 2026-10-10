@@ -38,3 +38,20 @@ export function shortAddress(address) {
 }
 
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+/**
+ * The owner authorizes payments once: the contract may then take from the owner's wallet up to the
+ * weekly budget, every week, and never more (the contract enforces it). Technically this is an
+ * ERC-20 allowance; it is set to the largest value so it is never a second, lower budget.
+ */
+export const AUTHORIZE_ALL = 2n ** 256n - 1n;
+
+/** What the owner reads about the authorization: on, running low, or off. */
+export function authorizationView(allowance, weeklyCap) {
+  const left = BigInt(allowance);
+  if (left === 0n) return { state: "off", text: "Not authorized", note: "Authorize payments so the agent can pay within your budget." };
+  if (left < BigInt(weeklyCap)) {
+    return { state: "low", text: `Low: ${formatUsdc(left)} USDC`, note: "Authorize again so the agent can spend your whole weekly budget." };
+  }
+  return { state: "on", text: "Authorized", note: "" };
+}
