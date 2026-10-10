@@ -3,11 +3,14 @@
 The node URL carries an access token, so errors never include it.
 """
 
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 from eth_abi import decode, encode
 from eth_utils import keccak, to_checksum_address
+
+WEEK_SECONDS = 7 * 24 * 3600
 
 
 class ChainError(Exception):
@@ -105,6 +108,23 @@ class ArcRpc:
     def remaining_this_week(self, shop: str) -> int:
         (units,) = decode(["uint256"], self._view(shop, "remainingThisWeek()", [], []))
         return units
+
+    def week_resets_at(self, shop: str) -> datetime:
+        """The contract counts weeks of 7 days from its creation, not calendar weeks."""
+        (started,) = decode(["uint256"], self._view(shop, "startedAt()", [], []))
+        (week,) = decode(["uint256"], self._view(shop, "currentWeek()", [], []))
+        return datetime.fromtimestamp(started + (week + 1) * WEEK_SECONDS, UTC)
+
+    def owner_funds(self, shop: str) -> tuple[int, int]:
+        """The owner's USDC balance and what it lets the contract take, in 6-decimal units."""
+        (owner,) = decode(["address"], self._view(shop, "owner()", [], []))
+        (token,) = decode(["address"], self._view(shop, "usdc()", [], []))
+        (balance,) = decode(["uint256"], self._view(token, "balanceOf(address)", ["address"],
+                                                    [owner]))
+        (allowed,) = decode(["uint256"], self._view(token, "allowance(address,address)",
+                                                    ["address", "address"],
+                                                    [owner, to_checksum_address(shop)]))
+        return balance, allowed
 
     def agent_of(self, shop: str) -> str:
         (agent,) = decode(["address"], self._view(shop, "agent()", [], []))

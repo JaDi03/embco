@@ -20,7 +20,7 @@ from agent.reflexes.cycle import CycleReport, run_cycle
 from agent.reflexes.report import format_report
 from agent.reflexes.watch import watch
 from agent.think import converse
-from agent.wiring import brain_setup, room_of
+from agent.wiring import brain_setup, funds_of, room_of
 from services.circle import CircleClient
 from services.erp import ErpnextAdapter, LedgerError
 from services.erp.erpnext.cache import CachedLedger
@@ -187,7 +187,7 @@ def run_shop(
     answers: dict[str, dict[str, str]] = {}  # the last outcome per invoice, for the owner
     read_limits = limits(settings)
     policy = {"now": settings.policy}
-    brain = brain_setup(settings, room_of(payments))
+    brain = brain_setup(settings, room_of(payments), funds_of(payments))
     if brain:
         log.info("shop %s: agent brain on (%s, %s)", shop, brain.brain.model,
                  brain.autonomy.value)

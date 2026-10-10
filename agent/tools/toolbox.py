@@ -46,6 +46,7 @@ class Toolbox:
     done: set[str] = field(default_factory=set)  # paid or sent by the agent already
     standing: Mapping[str, AgentDecision] = field(default_factory=dict)
     room: Callable[[], Decimal | None] = lambda: None  # what the contract allows this week
+    funds: Callable[[], dict[str, str] | None] = lambda: None  # reset time, balance, authorization
     past_notes: tuple[Note, ...] = ()
     messages: tuple[str, ...] = ()  # what the owner wrote since the agent's last reply
     require_all: bool = True  # a decision round decides every open invoice; a chat does not
@@ -189,6 +190,8 @@ class Toolbox:
                            "amount": fmt(self._by_invoice[i].amount)} for i, c in scheduled],
             "payable_due_within_7_days": fmt(sum((d.amount for d in due_soon), Decimal(0))),
             "today": self.today.isoformat(),
+            **(self.funds() or {"weekly_room_resets_at_utc": "unknown", "owner_balance": "unknown",
+                                "payments_authorized": "unknown"}),
         }
 
     # acting
