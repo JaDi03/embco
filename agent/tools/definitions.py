@@ -83,6 +83,12 @@ TOOLS: list[dict[str, Any]] = [
           "Answer the owner's message. Plain words, the facts and numbers that matter, what you "
           "did about it. Call it once per session that has owner messages, before finish.",
           text=_text("Your answer to the owner, a few sentences at most.")),
+    _tool("notify_owner",
+          "Tell the owner something they should act on, without waiting for them to write: money "
+          "that will not reach a coming payment, a deadline, a problem only they can fix. It "
+          "reaches their dashboard and phone. Say the date, the numbers and what to do. At most "
+          "3 per session; never for routine news (the summary is for that).",
+          text=_text("The notice, a few plain sentences with the numbers that matter.")),
     _tool("finish",
           "End the session once every open invoice has your decision. The summary is what the "
           "owner reads first.",

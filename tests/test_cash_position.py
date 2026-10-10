@@ -69,7 +69,8 @@ def funds(rpc):
 def test_the_agent_reads_plain_facts_it_can_act_on():
     seen = funds(contract(0, 383_445_034, 2**256 - 1))
     assert seen == {"weekly_room_resets_at_utc": "2026-10-14 02:25",
-                    "owner_balance": "383.445034", "payments_authorized": "yes"}
+                    "owner_balance": "383.445034", "payments_authorized": "yes",
+                    "available_to_pay": "383.445034"}
     assert "authorize again" in funds(contract(0, 1, 181_500_000))["payments_authorized"]
     assert funds(contract(0, 1, 0))["payments_authorized"] == "no"
 

@@ -27,6 +27,7 @@ MAX_NOTE_CHARS = 600
 MAX_ALARM_DAYS = 60
 MAX_REPLY_CHARS = 1500
 SEARCH_LIMIT = 50
+MAX_NOTICES = 3
 UNKNOWN_FUNDS = {"weekly_room_resets_at_utc": "unknown", "owner_balance": "unknown",
                  "payments_authorized": "unknown"}  # the chain did not answer: never a guess
 RECENT = 10
@@ -55,7 +56,8 @@ class Toolbox:
     chosen: dict[str, AgentDecision] = field(default_factory=dict)
     alarms: list[Alarm] = field(default_factory=list)
     notes: list[Note] = field(default_factory=list)
-    replies: list[str] = field(default_factory=list)
+    replies: list[str] = field(default_factory=list)  # to the owner: answers and notices
+    notices: int = 0
     summary: str | None = None
 
     def __post_init__(self) -> None:
@@ -253,6 +255,16 @@ class Toolbox:
         self.notes.append(Note(about=about.strip(), text=text.strip()[:MAX_NOTE_CHARS],
                                at=self.now))
         return "noted"
+
+    def _notify_owner(self, text: str) -> str:
+        if self.notices >= MAX_NOTICES:
+            raise ToolError(f"at most {MAX_NOTICES} notices per session")
+        if not text.strip():
+            raise ToolError("the notice is empty")
+        _refuse_workarounds(text)
+        self.replies.append(text.strip()[:MAX_REPLY_CHARS])
+        self.notices += 1
+        return "the owner will see it on the dashboard and on their phone"
 
     def _reply_owner(self, text: str) -> str:
         if not self.messages:

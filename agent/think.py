@@ -16,6 +16,7 @@ from agent.guardrails.rules import Decision, PolicyConfig
 from agent.memory import Change, DecisionJournal
 from agent.models import AgentDecision, Autonomy, Session, Wake
 from agent.prompt import briefing, chat_briefing
+from agent.reflexes.funds import funds_wake
 from agent.reflexes.wake import backing_off, pending_alarms, recent_notes, wakes_for
 from agent.tools import Toolbox
 from services.erp import LedgerAdapter
@@ -65,10 +66,13 @@ def think(
     recent exchange, for context."""
     sessions = journal.sessions()
     standing = journal.latest_agent_decisions()
+    fired = {w.key for s in sessions if s.finished for w in s.wakes if w.key}
+    short = funds_wake(decisions, standing, done, setup.funds(),
+                       now.astimezone(setup.zone).date(), fired)
     wakes = wakes_for(now=now, zone=setup.zone, decisions=decisions, changes=changes,
                       sessions=sessions, standing=standing, done=done,
                       payments=journal.latest_payments(), round_hour=setup.round_hour,
-                      extra=extra)
+                      extra=[*extra, *([short] if short else [])])
     last = sessions[-1] if sessions else None
     if not wakes:
         return Thought(agent=standing, last=last)

@@ -113,7 +113,7 @@ def session_events(session) -> list[dict[str, Any]]:
                              invoice=d.invoice, choice=d.choice.value))
     events.extend(_event(at, AGENT, f"Will look again on {a.at:%Y-%m-%d %H:%M}: {a.why}")
                   for a in session.alarms)
-    events.extend(_event(at, AGENT, f"Answered you: {reply}") for reply in session.replies)
+    events.extend(_event(at, AGENT, f"To you: {reply}") for reply in session.replies)
     if session.summary:
         cost = shown(estimate(session.usage, session.model))
         events.append(_event(at, AGENT, session.summary, cost=cost,
