@@ -114,12 +114,13 @@ printf 'EMBCO_SITE=%s\nEMBCO_RPC_UPSTREAM=%s\nEMBCO_RPC_PATH=%s\n' "$site" "$ups
 install -m 640 -o root -g caddy "$CADDY_ENV.tmp" "$CADDY_ENV"
 rm -f "$CADDY_ENV.tmp"
 
+KEY_CREATED=0
 if [ ! -f "$CONF/shops.key" ]; then
   "$APP/.venv/bin/python" -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" \
     > "$CONF/shops.key"
   chgrp embco "$CONF/shops.key"
   chmod 640 "$CONF/shops.key"
-  echo "Created $CONF/shops.key. Keep a copy: without it, every shop has to connect its ERPNext again."
+  KEY_CREATED=1
 fi
 
 say "4/6 Services"
@@ -168,3 +169,8 @@ if [ "$code" != 401 ]; then
   exit 1
 fi
 echo "Done. Open $public"
+if [ "$KEY_CREATED" = 1 ]; then
+  echo
+  echo "Save a copy of the shop key now: sudo cat $CONF/shops.key"
+  echo "It encrypts each shop's ERPNext keys. Without it, every shop has to connect its ERPNext again."
+fi

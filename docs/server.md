@@ -33,8 +33,9 @@ The script checks `.env` before it installs anything, and says what is missing. 
 there, shop owners follow [Connect your ERPNext](connect.md).
 
 !!! warning "Keep a copy of the shop key"
-    The script creates `/etc/embco/shops.key`, which encrypts each shop's ERPNext keys on disk.
-    Copy it somewhere safe: without it, every shop has to connect its ERPNext again.
+    The script creates `/etc/embco/shops.key`, which encrypts each shop's ERPNext keys on disk,
+    and reminds you after `Done`. Print it with `sudo cat /etc/embco/shops.key` and save the
+    line in a password manager: without it, every shop has to connect its ERPNext again.
 
 ## Update or change a setting
 
