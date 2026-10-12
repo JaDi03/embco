@@ -6,6 +6,8 @@ USDC on Arc through Circle. The model proposes. A smart contract releases the mo
 
 Built for the Tameion Agents Hackathon (Canteen x Circle, on Arc).
 
+> **Docs: [jadi03.github.io/embco](https://jadi03.github.io/embco/)** (diagrams, contracts, how to connect).
+>
 > **Status: early, built in public, testnet only.** The agent reads, checks, decides,
 > remembers and explains, on its own, against a live ERPNext. With payments turned on, it pays
 > the invoices it approved through the shop contract on Arc Testnet, from its Circle wallet.

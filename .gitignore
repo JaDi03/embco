@@ -11,3 +11,4 @@ out/
 cache/
 *.sqlite3
 contracts/broadcast/
+site/

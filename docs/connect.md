@@ -1,61 +1,116 @@
-# Connect embco to your ERPNext
+# Connect your ERPNext
 
-embco runs as its own service next to your ERPNext. You do not deploy a new system and you do
-not give it admin rights. The connection is three changes:
+This guide is for the person who runs the shop's ERPNext. You will make four small changes in
+ERPNext and then paste two keys into the embco dashboard. Nothing is installed on your ERPNext,
+and the agent never gets admin rights.
 
-1. **An API user with a limited role** (roles: Purchase User, Stock User, Accounts User). The
-   agent reads suppliers, purchase orders, purchase receipts, purchase invoices and
-   payment entries. Its one write: when it pays, it submits the Payment Entry for that invoice,
-   with the Arc transaction hash. `EMBCO_ERPNEXT_PAID_FROM` names the account the money leaves
-   from (for example a "USDC Wallet" bank account); without it, ERPNext's default is used.
-2. **A wallet field on Supplier** (`custom_wallet_address`) and payee and transaction fields on
-   Payment Entry. Created through Customize Form; no code.
-3. **Two settings in Buying Settings**: purchase order required and purchase receipt required.
-   They default to No in ERPNext. Turning them on is what makes the three-way match enforceable.
-4. **An owner answer on Purchase Invoice** (`custom_owner_answer`: Approve or Reject, plus a
-   note), at a permission level only System Manager can write and Accounts User can read. When
-   the agent asks about an invoice, the owner answers there. The answer counts only when the
-   ERP's change history shows it was written by an account in `EMBCO_OWNER_USERS`, for the
-   question the agent last showed, and once: a new question needs the answer written again.
+!!! info "Before you start"
+    - Your shop is already created in the [dashboard](https://app.embco.xyz) (your wallet is
+      connected and your shop contract exists).
+    - You can sign in to ERPNext as an administrator (System Manager) to make the changes below.
+    - Your ERPNext opens with an `https://` address. embco is tested with ERPNext v16, including
+      Frappe Cloud.
 
-`connector/prereqs.py` applies the custom fields, the permissions and the two settings, and can
-be run twice safely. Adding the permissions turns the doctype's standard rules into custom
-ones (same rules, plus the new level). The agent checks ERPNext on its own every `EMBCO_INTERVAL_MINUTES` (15 by default);
-nothing needs to be opened on your side.
+## Step 1: Create a user for the agent
 
-Tested with ERPNext v16 (v16.37.0): unit-tested, and run on its own against a live instance
-with a limited API user.
+The agent signs in to ERPNext as its own user, with only the roles it needs.
 
-Supplier wallets are entered once, in ERPNext. Only roles that can edit Supplier (Purchase
-Manager, Purchase Master Manager) can change them; give everyday staff Purchase User. A new or
-changed wallet is held until the supplier signs for it and the owner approves it, and the shop
-contract still pays only wallets the owner approved with their own signature: the dashboard
-lists the ones the agent is waiting to pay, and approving one there also answers the agent's
-question about it, so the first payment needs one approval. The agent requires an `https://`
-ERPNext URL (plain `http://` only to the same machine).
+1. In ERPNext, create a new **User** for the agent (for example `agent@your-shop.com`).
+2. Give it these three roles, and no others:
+    - **Accounts User**
+    - **Purchase User**
+    - **Stock User**
+3. Open that user and, under **API Access**, generate its keys. ERPNext shows an **API Key** and
+   an **API Secret**. Copy both now: the secret is shown only once.
 
-## Hosted ERPNext, without custom fields
+With these roles the agent can read suppliers, purchase orders, receipts and invoices. The only
+thing it writes is the Payment Entry for an invoice it paid.
 
-On a hosted ERPNext (for example Frappe Cloud) the shop may not want custom fields. Set
-`EMBCO_ERPNEXT_WALLET_BANK` and the agent uses standard records only:
+## Step 2: Require an order and a receipt for every invoice
 
-- **Wallets**: create a Bank with that name (for example `USDC on Arc`) and, for each supplier,
-  one Bank Account at that bank with the wallet as Bank Account No. The supplier's real bank
-  account and its default stay as they are. Bank Account No holds 30 characters by default and
-  a wallet has 42: raise its Length to 64 once in Customize Form (Bank Account). Two active
-  accounts with different wallets hold the invoice: the agent does not choose between them.
-  Who set a wallet comes from the account's change history, or from who created it.
-- **Payments**: the transaction hash goes in Reference No, and the wallet paid in the remarks,
-  which ERPNext keeps unchanged once the entry is submitted.
-- **Required fields**: if your ERP requires extra fields on a Payment Entry (for example a
-  local payment form), set them in `EMBCO_ERPNEXT_PAYMENT_EXTRA` as JSON. They cannot change
-  the amount, the party, the invoice or the hash.
+This is what lets the agent check that what you were billed is what you ordered and received.
 
-The limited API user and the Buying Settings are the same as above. The owner answers the
-agent's questions with `embco answer` or, for a new wallet, in the dashboard.
+1. Open **Buying Settings**.
+2. Set the option that requires a **Purchase Order** to **Yes**.
+3. Set the option that requires a **Purchase Receipt** to **Yes**.
+4. Save.
 
-Tested on Frappe Cloud with ERPNext v16.50.0: the agent read a shop's purchases and submitted a
-Payment Entry with a limited API user. A site with an app that blocks supplier payments (seen
-with a Mexican e-invoicing app) cannot submit them by hand either; fix that on the ERP first.
+Both are **No** in a new ERPNext.
 
-Credentials go in a local `.env` (see `.env.example`), never in the repository.
+## Step 3: Make room for wallet addresses
+
+A wallet address is 42 characters long, and ERPNext's bank account number field holds 30. You
+change this once:
+
+1. Open **Customize Form** and choose **Bank Account**.
+2. Find the field **Bank Account No** and set its **Length** to **64**.
+3. Save.
+
+## Step 4: Add your suppliers' wallets
+
+Each supplier's wallet is saved as a bank account at a bank called **USDC on Arc**. The
+supplier's real bank account stays as it is.
+
+1. Create a **Bank** named `USDC on Arc` (once).
+2. For each supplier you will pay with embco, create a **Bank Account**:
+    - **Bank**: `USDC on Arc`
+    - **Party Type**: Supplier
+    - **Party**: the supplier
+    - **Bank Account No**: the supplier's wallet address (starts with `0x`)
+
+!!! warning "One wallet per supplier"
+    If a supplier has two active accounts at `USDC on Arc` with different wallets, the agent
+    holds its invoices and does not choose between them.
+
+A new or changed wallet is never paid right away. The supplier first confirms it is theirs, and
+then you approve it in the dashboard (see [What happens next](#what-happens-next)).
+
+## Step 5: Connect in the dashboard
+
+1. Open [app.embco.xyz](https://app.embco.xyz) and **Sign in** with your wallet. It is a
+   signature, not a transaction: it costs nothing.
+2. In **Your ERPNext**, fill in:
+
+    | Field | What to write |
+    |---|---|
+    | ERPNext address | The address you open ERPNext with, for example `https://your-shop.frappe.cloud` |
+    | Company | Your company's name exactly as it is written in ERPNext |
+    | API key | The key from Step 1 |
+    | API secret | The secret from Step 1 |
+    | Bank that holds supplier wallets | `USDC on Arc` (already filled in) |
+    | Extra payment fields | Leave it empty, unless your ERPNext asks for extra fields when you submit a payment by hand (some local tax setups do). Then ask whoever set up your ERPNext which fields and values to write |
+
+3. Click **Test and connect**. The dashboard tries the keys without changing anything in
+   ERPNext, and shows each check:
+
+    | Check | What it means |
+    |---|---|
+    | Keys | ERPNext accepted the agent's key (required) |
+    | Invoices | The agent can read your unpaid purchase invoices (required) |
+    | Company | The company name was found |
+    | Payments | ERPNext can draft a payment for an invoice (nothing is saved) |
+    | Wallets | How many supplier wallets were found at `USDC on Arc` |
+
+4. Click **Make it the agent**. This lets your shop's agent wallet pay approved suppliers, within
+   the limits you set.
+
+The keys are stored encrypted and are never shown again.
+
+## What happens next
+
+- **The agent checks ERPNext on its own** every 15 minutes. You do not need to open anything.
+- **A new supplier wallet** is confirmed by the supplier at `app.embco.xyz/supplier`, with a
+  signature from that wallet. Then it appears in the dashboard under **Waiting for your
+  approval**. Before approving, check in ERPNext that the wallet belongs to the supplier you
+  expect.
+- **When the agent pays**, it submits a Payment Entry in ERPNext for that invoice. The
+  transaction hash is in **Reference No**, and the wallet paid is in the remarks.
+
+## If something does not work
+
+| Problem | What to do |
+|---|---|
+| Keys check fails | Check the address starts with `https://`, and generate the keys again (Step 1) |
+| Invoices check fails | Check the agent's user has the three roles from Step 1 |
+| Payments check fails | Try to submit a payment to a supplier by hand in ERPNext. If you cannot either, an app or a required field is blocking it (seen with a Mexican e-invoicing app). Fix that in ERPNext first, or use **Extra payment fields** |
+| Wallets check finds 0 | Check the Bank is named exactly `USDC on Arc` and each Bank Account has Party Type Supplier |
