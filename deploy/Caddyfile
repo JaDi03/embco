@@ -1,0 +1,33 @@
+# The dashboard, its /rpc proxy to the Arc node and the hub API. Imported from /etc/caddy/Caddyfile.
+{$EMBCO_SITE} {
+	encode zstd gzip
+	root * /opt/embco/dashboard
+	@rpc {
+		path /rpc
+		method POST
+	}
+	handle @rpc {
+		rewrite * {$EMBCO_RPC_PATH}
+		reverse_proxy {$EMBCO_RPC_UPSTREAM} {
+			header_up Host {upstream_hostport}
+		}
+	}
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8090
+	}
+	@rpc_other path /rpc
+	respond @rpc_other "POST JSON-RPC only" 405
+	@private path /test/* /package.json
+	respond @private 404
+	file_server
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://explorer.testnet.arc.io; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Strict-Transport-Security "max-age=31536000"
+		Cache-Control "no-cache"
+	}
+	@manifest path *.webmanifest
+	header @manifest Content-Type application/manifest+json
+}

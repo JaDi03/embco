@@ -50,6 +50,7 @@ nav:
   - Smart contracts: contracts.md
   - Connect your ERPNext: connect.md
   - Command line: cli.md
+  - Run your own server: server.md
 
 markdown_extensions:
   - admonition

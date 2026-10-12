@@ -2,3 +2,5 @@
 *.sol text eol=lf
 contracts/foundry.toml text eol=lf
 contracts/foundry.lock text eol=lf
+# Server files are read on Linux: LF everywhere.
+deploy/** text eol=lf
