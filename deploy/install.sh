@@ -42,11 +42,12 @@ PY
 ask() {
   local file=$1 key=$2 question=$3 secret=${4:-0} optional=${5:-0} value
   [ -n "$(get "$file" "$key")" ] && return 0
+  [ "$optional" = 1 ] && [ "$FIRST_INSTALL" != 1 ] && return 0  # skipped once, not asked again
   while true; do
     if [ "$secret" = 1 ]; then
-      read -rsp "$question: " value </dev/tty; echo
+      read -rsp "$question: " value || fail "no answer for $key"; echo
     else
-      read -rp "$question: " value </dev/tty
+      read -rp "$question: " value || fail "no answer for $key"
     fi
     [ -n "$value" ] || [ "$optional" = 1 ] && break
   done
@@ -75,7 +76,11 @@ install -d -m 700 -o embco -g embco "$DATA/shops"
 
 say "3/6 Settings (only what is still empty; Enter skips the optional ones)"
 install -d -m 750 -o root -g embco "$CONF"
-[ -f "$CONF/embco.env" ] || install -m 640 -o root -g embco "$APP/deploy/embco.env.example" "$CONF/embco.env"
+FIRST_INSTALL=0
+if [ ! -f "$CONF/embco.env" ]; then
+  install -m 640 -o root -g embco "$APP/deploy/embco.env.example" "$CONF/embco.env"
+  FIRST_INSTALL=1
+fi
 [ -f "$CADDY_ENV" ] || install -m 640 -o root -g caddy "$APP/deploy/caddy.env.example" "$CADDY_ENV"
 # The examples hold placeholders: a fresh copy asks for them.
 [ "$(get "$CADDY_ENV" EMBCO_SITE)" = "app.example.com" ] && put "$CADDY_ENV" EMBCO_SITE ""
@@ -143,11 +148,14 @@ systemctl enable -q caddy
 systemctl restart caddy
 
 say "6/6 Check"
-sleep 3
+for _ in $(seq 30); do  # the hub takes a few seconds to start
+  code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8090/api/supplier/me || true)
+  [ "$code" = 401 ] && break
+  sleep 1
+done
 for unit in embco-hub caddy; do
   systemctl is-active -q "$unit" || fail "$unit did not start: journalctl -u $unit -n 50"
 done
-code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8090/api/supplier/me || true)
 [ "$code" = 401 ] || fail "the hub does not answer (got $code): journalctl -u embco-hub -n 50"
 chain=$(curl -s -X POST -H 'content-type: application/json' \
   --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' "$rpc" || true)
