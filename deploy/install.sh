@@ -89,6 +89,7 @@ else
 fi
 (cd "$APP" && sudo -u embco -H uv sync -q --frozen --no-dev)
 install -d -m 700 -o embco -g embco "$DATA/shops"
+chown -R embco:embco "$DATA/shops"  # shops restored from a backup belong to the agent too
 
 say "3/6 Settings"
 install -d -m 750 -o root -g embco "$CONF"
@@ -118,10 +119,10 @@ KEY_CREATED=0
 if [ ! -f "$CONF/shops.key" ]; then
   "$APP/.venv/bin/python" -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" \
     > "$CONF/shops.key"
-  chgrp embco "$CONF/shops.key"
-  chmod 640 "$CONF/shops.key"
   KEY_CREATED=1
 fi
+chgrp embco "$CONF/shops.key"  # also a key restored from a backup
+chmod 640 "$CONF/shops.key"
 
 say "4/6 Services"
 cp "$APP"/deploy/systemd/embco-*.service /etc/systemd/system/
@@ -171,6 +172,6 @@ fi
 echo "Done. Open $public"
 if [ "$KEY_CREATED" = 1 ]; then
   echo
-  echo "Save a copy of the shop key now: sudo cat $CONF/shops.key"
-  echo "It encrypts each shop's ERPNext keys. Without it, every shop has to connect its ERPNext again."
+  echo "A new shop key was created in $CONF/shops.key. It encrypts each shop's ERPNext keys:"
+  echo "back it up with the shops' data, as the guide says (Back up and move to a new server)."
 fi

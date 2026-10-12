@@ -14,7 +14,8 @@ from services.hub.api import create_app
 from services.hub.auth import Auth, AuthError
 from services.hub.chain import ShopLimits
 from services.hub.guard import UnsafeUrl, check_erp_url
-from services.shops import ShopStore, new_key
+from services.hub.units import UnitError, start_connected
+from services.shops import ErpCredentials, ShopConfig, ShopStore, new_key
 
 SHOP = "0x" + "a1" * 20
 OTHER_SHOP = "0x" + "b2" * 20
@@ -147,11 +148,17 @@ def erp_transport(invoices=({"name": "PINV-1"},), status=200):
 
 
 class FakeUnits:
-    def __init__(self):
-        self.started, self.stopped = [], []
+    def __init__(self, failing=()):
+        self.started, self.stopped, self.ensured = [], [], []
+        self.failing = set(failing)
 
     def start(self, shop):
         self.started.append(shop)
+
+    def ensure(self, shop):
+        if shop in self.failing:
+            raise UnitError(f"systemctl start embco-shop@{shop}.service failed (1)")
+        self.ensured.append(shop)
 
     def stop(self, shop):
         self.stopped.append(shop)
@@ -298,3 +305,30 @@ def test_circle_names_stay_short_and_keys_stay_the_same_for_a_shop():
     create_agent_wallet(Recording(), SHOP)
     assert calls[:2] == calls[2:]  # a retry sends the same names and idempotency keys
     assert calls[0] == ("embco " + SHOP[:10], calls[0][1])
+
+
+# ---- after a reboot
+
+
+def connected_store(tmp_path, *shops):
+    store = ShopStore(tmp_path / "shops", new_key())
+    for shop in shops:
+        keys = ErpCredentials(api_key=secrets.token_hex(8), api_secret=secrets.token_urlsafe(24))
+        store.save(ShopConfig(shop=shop, erp_url="https://shop.frappe.cloud", company="TEST Shop",
+                              max_per_payment="300", weekly_budget="2000"), keys)
+    return store
+
+
+def test_the_hub_starts_again_the_agents_their_owners_left_on(tmp_path):
+    store = connected_store(tmp_path, SHOP, OTHER_SHOP)
+    store.set_agent_on(OTHER_SHOP, False, "2026-10-12T00:00:00+00:00")
+    (tmp_path / "shops" / ("0x" + "c3" * 20)).mkdir()  # a folder without keys is not connected
+    units = FakeUnits()
+    assert start_connected(store, units) == [SHOP]
+    assert units.ensured == [SHOP] and units.started == []
+
+
+def test_one_agent_that_fails_to_start_does_not_keep_the_others_off(tmp_path):
+    store = connected_store(tmp_path, SHOP, OTHER_SHOP)
+    units = FakeUnits(failing={SHOP})
+    assert start_connected(store, units) == [OTHER_SHOP]

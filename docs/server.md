@@ -32,10 +32,9 @@ The script checks `.env` before it installs anything, and says what is missing. 
 `Done. Open https://your-domain`: open it, and the dashboard asks to connect a wallet. From
 there, shop owners follow [Connect your ERPNext](connect.md).
 
-!!! warning "Keep a copy of the shop key"
-    The script creates `/etc/embco/shops.key`, which encrypts each shop's ERPNext keys on disk,
-    and reminds you after `Done`. Print it with `sudo cat /etc/embco/shops.key` and save the
-    line in a password manager: without it, every shop has to connect its ERPNext again.
+!!! warning "Back up the shops"
+    The script creates `/etc/embco/shops.key`, which encrypts each shop's ERPNext keys on disk.
+    Back it up together with the shops' data, as [below](#back-up-and-move-to-a-new-server).
 
 ## Update or change a setting
 
@@ -49,6 +48,35 @@ sudo bash deploy/install.sh
 The script moves `.env` to `/etc/embco/embco.env`, so no copy with your keys stays in the
 folder you cloned. To change a setting, edit that file, or write a new `.env` in the folder, and
 run the command again.
+
+## Back up and move to a new server
+
+Everything a shop connected lives in two places: the shop key and the shops' folders (settings,
+encrypted ERPNext keys, journal). The key alone is not enough, and the folders cannot be read
+without it. To back up both, with the agents stopped for a moment so the journals are complete:
+
+```bash
+sudo systemctl stop 'embco-shop@*'
+sudo tar czf embco-backup.tar.gz /etc/embco/shops.key /var/lib/embco/shops
+sudo systemctl restart embco-hub
+```
+
+Restarting the hub starts the agents again. Keep the file off the server: it holds the shops'
+ERPNext keys, encrypted with the key that travels next to them, so store it like a password.
+
+On the new server, put the backup back before you install, then install as usual:
+
+```bash
+sudo tar xzf embco-backup.tar.gz -C /
+git clone https://github.com/JaDi03/embco.git
+cd embco
+cp .env.example .env
+nano .env
+sudo bash deploy/install.sh
+```
+
+The script keeps the restored key, gives the files to the `embco` user, and the hub starts the
+agents of the shops whose owners left them on. Point your domain to the new server first.
 
 ## What the script sets up
 
