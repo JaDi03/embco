@@ -1,123 +1,173 @@
+<div align="center">
+
+<img src="dashboard/brand/logo.svg" width="88" alt="embco logo" />
+
 # embco
 
-A payables agent you plug into the ERPNext you already run. It reads purchase orders, receipts
-and invoices, decides **PAY / HOLD / ASK THE OWNER** with a written reason, and settles in
-USDC on Arc through Circle. The model proposes. A smart contract releases the money.
+**The payables agent for the ERPNext you already run.**
 
-Built for the Tameion Agents Hackathon (Canteen x Circle, on Arc).
+It reads your purchases, decides what to pay, and pays suppliers in USDC on Arc,
+within limits that a smart contract enforces. The model proposes. The contract releases the money.
 
-> **Docs: [jadi03.github.io/embco](https://jadi03.github.io/embco/)** (diagrams, contracts, how to connect).
->
-> **Status: early, built in public, testnet only.** The agent reads, checks, decides,
-> remembers and explains, on its own, against a live ERPNext. With payments turned on, it pays
-> the invoices it approved through the shop contract on Arc Testnet, from its Circle wallet.
+[**Documentation**](https://jadi03.github.io/embco/) ·
+[**Dashboard**](https://app.embco.xyz) ·
+[How it works](https://jadi03.github.io/embco/how-it-works/) ·
+[Connect your ERPNext](https://jadi03.github.io/embco/connect/)
 
-## Why it exists
+[![CI](https://github.com/JaDi03/embco/actions/workflows/ci.yml/badge.svg)](https://github.com/JaDi03/embco/actions/workflows/ci.yml)
+[![Docs](https://github.com/JaDi03/embco/actions/workflows/docs.yml/badge.svg)](https://jadi03.github.io/embco/)
+![Status](https://img.shields.io/badge/status-testnet%20only-orange)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-Double entry only proves that debits equal credits, and almost every mistake an LLM can make
-with money passes that check. The controls that catch those mistakes live outside the ledger:
-a match against the order and the receipt, change control on the payee, a witness such as the
-chain, and a hard limit that a prompt cannot move. embco puts those controls between the model
-and the money. Background: [Agents and Ledgers in 2026](https://thecanteenapp.com/analysis/2026/09/12/agents-and-ledgers.html).
+</div>
 
-## How it works
+> Built for the Tameion Agents Hackathon (Canteen x Circle, on Arc). Early and built in public:
+> the agent runs against a live ERPNext and pays on Arc Testnet.
+
+## What it does
+
+- **Checks** every invoice against its order and receipt, and looks for duplicates, price jumps
+  and unsigned supplier wallets.
+- **Decides** PAY, HOLD or ASK the owner, with a written reason. An AI model plans what to pay
+  and when, inside rules it cannot change.
+- **Pays** in USDC, through a shop contract on Arc that holds the owner's limits, and records the
+  payment back in ERPNext.
+- **Remembers** every decision and answer in a hash-chained journal that nobody can rewrite
+  unnoticed.
+
+Why it exists: [Agents and Ledgers in 2026](https://thecanteenapp.com/analysis/2026/09/12/agents-and-ledgers.html).
+How each part works, with diagrams: [the documentation](https://jadi03.github.io/embco/).
+
+## Built with
+
+| Layer | Technology |
+|---|---|
+| Agent | ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white) ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white) ![Pydantic](https://img.shields.io/badge/Pydantic-v2-E92063?logo=pydantic&logoColor=white) ![SQLite](https://img.shields.io/badge/SQLite-journal-003B57?logo=sqlite&logoColor=white) |
+| Chain | ![Arc](https://img.shields.io/badge/Arc-Testnet-0f172a) ![USDC](https://img.shields.io/badge/USDC-payments-2775CA) ![Circle](https://img.shields.io/badge/Circle-wallets-1d4ed8) ![Solidity](https://img.shields.io/badge/Solidity-0.8.37-363636?logo=solidity&logoColor=white) |
+| ERP | ![ERPNext](https://img.shields.io/badge/ERPNext-v16-0089FF?logo=erpnext&logoColor=white) ![Frappe](https://img.shields.io/badge/Frappe%20Cloud-tested-0089FF?logo=frappe&logoColor=white) |
+| Owner apps | ![JavaScript](https://img.shields.io/badge/JavaScript-no%20build-F7DF1E?logo=javascript&logoColor=black) ![ethers](https://img.shields.io/badge/ethers-6.17.0-2535A0?logo=ethers&logoColor=white) ![MetaMask](https://img.shields.io/badge/MetaMask-sign--in-F6851B) ![Telegram](https://img.shields.io/badge/Telegram-bot-26A5E4?logo=telegram&logoColor=white) |
+| Tooling | ![uv](https://img.shields.io/badge/uv-DE5FE9?logo=uv&logoColor=white) ![Ruff](https://img.shields.io/badge/Ruff-D7FF64?logo=ruff&logoColor=black) ![pytest](https://img.shields.io/badge/pytest-0A9EDC?logo=pytest&logoColor=white) ![MkDocs](https://img.shields.io/badge/Material%20for%20MkDocs-526CFE?logo=materialformkdocs&logoColor=white) ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?logo=githubactions&logoColor=white) |
+
+## Project structure
 
 ```
-ERPNext (system of record)  ->  embco agent                    ->  owner
- orders, receipts, invoices     checks, decides, remembers,        approves what the agent
-                                explains, pays, every 15 minutes    asks about
-                                     |
-                                     v
-                                Arc: shop contract pays the supplier in USDC, within limits
+embco/
+├── agent/               the agent: its brain and the checks it cannot skip
+│   ├── agent.py         the brain: the AI model plans what to pay and when
+│   ├── tools/           what the agent can read and do
+│   ├── reflexes/        what wakes it, and the cycle every 15 minutes
+│   ├── guardrails/      the controls, the fixed PAY / HOLD / ASK rule and the gate
+│   ├── memory/          the hash-chained journal
+│   └── explain/         plain-language explanations for the owner
+├── services/            what the agent stands on
+│   ├── erp/             the ERPNext adapter
+│   ├── circle/          Circle wallets and contract calls
+│   ├── payments/        simulate on Arc, send, follow, record
+│   ├── hub/  shops/     the hosted service behind the dashboard
+│   ├── signing/         supplier wallet signatures
+│   ├── telegram/        the Telegram bot
+│   └── cli.py           the embco command
+├── contracts/           ShopPayables and its factory (Solidity, Arc Foundry)
+├── dashboard/           the owner dashboard and the supplier page (static, MetaMask)
+├── connector/           prepares an ERPNext instance
+├── docs/                the documentation site (MkDocs)
+└── tests/               tests for the agent and the services
 ```
 
-1. **Read** the shop's documents from ERPNext through its REST API, with a limited user.
-2. **Check** them: three-way match, duplicates, price anomaly, payment limit, supplier status,
-   and the supplier's wallet. A new wallet must be signed for by the supplier, then approved by
-   the owner once, in the dashboard: that one signature in the contract is also the answer.
-3. **Decide** PAY, HOLD or ASK with a fixed rule, and write the reason. A model never decides.
-4. **Remember** every decision and every owner answer in an append-only, hash-chained journal,
-   so the agent knows what changed and nobody can rewrite the past unnoticed.
-5. **Explain**, optionally, each held or asked invoice in plain words, with Claude.
-6. **Pay** what it approved, optionally: it simulates the exact call first, sends it through
-   Circle with an idempotency key, follows it to a final state, records it, and submits the
-   Payment Entry in ERPNext so the invoice closes there too. The contract
-   refuses anything outside the owner's limits, and each invoice can be paid only once.
+## Getting started
 
-## Built on Arc and Circle
+### Use it with your shop
 
-- **USDC on Arc.** Suppliers are paid in USDC, straight from the shop owner's wallet.
-- **A contract per shop on Arc** (`contracts/`). The owner creates it from their own wallet.
-  The agent can only pay suppliers the owner approved, once per invoice, within a per-payment
-  and a weekly cap. Only the owner can change those limits, and revoking the contract's
-  allowance stops everything.
-- **A Circle wallet for the agent.** A developer-controlled EOA wallet signs and sends the
-  agent's payments through Circle. It holds only a little USDC for gas; the money it pays
-  comes from the owner's wallet, through the contract.
-- **Arc's Memo contract.** Every payment carries the ERPNext invoice number on chain, so a
-  payment can be matched to its invoice without asking anyone.
-- **An owner dashboard** at [app.embco.xyz](https://app.embco.xyz) (`dashboard/`). With
-  MetaMask, the owner creates their shop contract, sets the limits and the allowance, approves
-  supplier wallets (the ones the agent is waiting to pay appear there, ready to approve with one
-  signature), pauses the agent and sees every payment. The page holds no keys.
+No installation. Open the [dashboard](https://app.embco.xyz), connect your wallet, create your
+shop contract, and follow [Connect your ERPNext](https://jadi03.github.io/embco/connect/).
 
-| Arc Testnet | Address |
-|---|---|
-| `ShopPayablesFactory` | [`0x4d8efEc867e9F46c05E8359e81dEC6C7D13c95A8`](https://explorer.testnet.arc.io/address/0x4d8efEc867e9F46c05E8359e81dEC6C7D13c95A8) (source verified on [Sourcify](https://repo.sourcify.dev/5042002/0x4d8efEc867e9F46c05E8359e81dEC6C7D13c95A8)) |
-| USDC (ERC-20 interface) | `0x3600000000000000000000000000000000000000` |
-| Memo (Arc, predeployed) | `0x5294E9927c3306DcBaDb03fe70b92e01cCede505` |
-| Agent wallet (Circle, EOA) | [`0x2309ed4a43e3b1ab4222f6938538a6c88bd27dd8`](https://explorer.testnet.arc.io/address/0x2309ed4a43e3b1ab4222f6938538a6c88bd27dd8) |
+### Run it yourself
 
-## Plug it into your ERPNext
+Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 
-No new system to deploy. The connection is three small changes to your instance: an API user
-with a limited role, a wallet field on Supplier, and the two purchasing settings that enforce
-the three-way match. See [docs/connect.md](docs/connect.md).
+**1. Clone the repository**
 
-## Repo map
+```bash
+git clone https://github.com/JaDi03/embco.git
+cd embco
+```
 
-| Path | What is there |
-|---|---|
-| `agent/` | The agent. `agent.py` is its brain: Claude decides what to pay and when. Next to it: `tools/` (what it can do), `reflexes/` (what wakes it and the automatic work), `guardrails/` (the checks it cannot skip) and `memory/` |
-| `services/` | What the agent stands on: ERPNext (`erp/`), Circle, the Arc chain (`payments/`), the hosted service (`hub/`, `shops/`) and the `embco` command |
-| `tests/` | Tests of the agent and the services |
-| `contracts/` | The shop contract and its factory (Solidity, Arc Foundry): the limits the agent cannot move |
-| `dashboard/` | The owner's page: a static site with MetaMask, no build step and no server code |
-| `connector/` | Prepares an ERPNext instance for the agent |
-| `docs/` | Architecture and how to connect your ERPNext |
-
-## Run it
+**2. Install dependencies**
 
 ```bash
 uv sync
-uv run ruff check . && uv run pytest -q
 ```
 
-Copy `.env.example` to `.env`, fill it in, then:
+**3. Configure your environment**
 
 ```bash
-uv run embco --env-file .env run      # one cycle, full report
-uv run embco --env-file .env watch    # a cycle every 15 minutes, on its own
-uv run embco --env-file .env answer ACC-PINV-0001 approve --by owner   # or answer on the invoice in ERPNext
-uv run embco --env-file .env verify   # check the memory was not altered
-uv run embco --env-file .env create-wallet   # once: the agent's wallet, with Circle
+cp .env.example .env
 ```
 
-Claude decides every payment: the rules say what may be paid, Claude decides what is paid and
-when (`ANTHROPIC_API_KEY`). Without its decision nothing is paid. Payments are off by default:
-with `EMBCO_PAY=on`, the shop contract's address in `EMBCO_SHOP_ADDRESS`, the Circle settings and
-an Arc Testnet node, it pays what Claude chose, in USD only (the contract pays USDC). With `EMBCO_EXPLAIN=on` and an
-`ANTHROPIC_API_KEY`, Claude adds a plain-language explanation and a next step to every invoice
-that is held or needs the owner. It is called only for decisions it has not explained yet, and
-its words never change a decision.
+Edit `.env` with your ERPNext and your limits:
 
-Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
+```bash
+# ERPNext: its address and the keys of the agent's user
+EMBCO_ERPNEXT_URL=https://your-erpnext.example.com
+EMBCO_ERPNEXT_API_KEY=
+EMBCO_ERPNEXT_API_SECRET=
+EMBCO_COMPANY=
+EMBCO_ERPNEXT_WALLET_BANK=USDC on Arc
+
+# Limits, in the company currency
+EMBCO_MAX_PER_PAYMENT=
+EMBCO_WEEKLY_BUDGET=
+```
+
+The same file asks for the AI model's key, the agent's Circle wallet and the shop contract,
+each with a short note. Create the agent's wallet once, then paste its id in `.env`:
+
+```bash
+uv run embco --env-file .env create-wallet
+```
+
+Payments stay off until you set `EMBCO_PAY=on`. Settings with a default are not in the file:
+see [Optional settings](https://jadi03.github.io/embco/cli/#optional-settings).
+
+**4. Run the agent**
+
+```bash
+uv run embco --env-file .env run      # one cycle, with the full report
+uv run embco --env-file .env watch    # a cycle every 15 minutes, on its own
+```
+
+Every command: [Command line](https://jadi03.github.io/embco/cli/).
+
+<details>
+<summary>Tests: agent, contracts, dashboard and docs</summary>
+
+```bash
+uv run ruff check . && uv run pytest -q
+```
 
 The contracts use [Arc Foundry](https://github.com/circlefin/arc-foundry) (Linux and macOS; on
 Windows, WSL):
 
 ```bash
 cd contracts
-arc-forge test                                                    # unit and fuzz tests
-ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.io arc-forge test --network arc   # plus the Arc fork test
+arc-forge test                                                                 # unit and fuzz tests
+ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.io arc-forge test --network arc    # plus the Arc fork test
 ```
+
+The dashboard has no build step:
+
+```bash
+cd dashboard && node --test
+```
+
+The documentation site, locally:
+
+```bash
+uv run --no-project --with-requirements requirements-docs.txt mkdocs serve
+```
+
+</details>
+
+## License
+
+[MIT](LICENSE)

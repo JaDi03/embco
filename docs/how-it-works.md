@@ -7,8 +7,8 @@ if payments are on, pays what was approved.
 ## One cycle
 
 <figure class="diagram" markdown>
-![One cycle: the reflex reads ERPNext, the controls check each invoice, the rules decide PAY, HOLD or ASK and write it to the journal, the model plans the payments with each choice checked by the gate, and payments re-read the ERP, simulate on Arc, send through Circle and submit the Payment Entry](assets/diagrams/one-cycle.svg#only-light "One cycle")
-![One cycle: the reflex reads ERPNext, the controls check each invoice, the rules decide PAY, HOLD or ASK and write it to the journal, the model plans the payments with each choice checked by the gate, and payments re-read the ERP, simulate on Arc, send through Circle and submit the Payment Entry](assets/diagrams/one-cycle-dark.svg#only-dark "One cycle")
+![One cycle: the reflex reads ERPNext, the controls check each invoice, the rules decide PAY, HOLD or ASK and write it to the journal, the model plans the payments with each choice checked by the gate, and payments re-read the ERP, simulate on Arc, send through Circle and record the Payment Entry](assets/diagrams/one-cycle.svg#only-light "One cycle")
+![One cycle: the reflex reads ERPNext, the controls check each invoice, the rules decide PAY, HOLD or ASK and write it to the journal, the model plans the payments with each choice checked by the gate, and payments re-read the ERP, simulate on Arc, send through Circle and record the Payment Entry](assets/diagrams/one-cycle-dark.svg#only-dark "One cycle")
 </figure>
 
 ## The fixed rule

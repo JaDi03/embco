@@ -31,7 +31,7 @@ uv run embco --env-file .env <command>
 | `create-wallet` | Creates the agent's paying wallet with Circle. Run once |
 | `hub` | Serves the API the dashboard uses to connect shops |
 | `shop --dir ROOT/ADDRESS [--key-file PATH] [--cycles N]` | Runs the hosted agent of one shop from its folder |
-| `telegram` | Runs the Telegram bot: `/status`, `/pause`, `/stop`, and messages to the agent |
+| `telegram` | Runs the Telegram bot for the hosted shops: `/status`, `/pause`, `/stop`, and messages to the agent. Needs `TELEGRAM_BOT_TOKEN` |
 
 ## Example
 
@@ -73,3 +73,23 @@ custom ones (same rules, plus the new level).
 
 Tested with ERPNext v16.37.0 (custom fields) and on Frappe Cloud with v16.50.0 (standard
 records), with a limited API user.
+
+## Optional settings
+
+`.env.example` lists only what you must fill in. These settings already have a default; set
+them in `.env` only to change it.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `EMBCO_INTERVAL_MINUTES` | `15` | Minutes between cycles in `watch` |
+| `EMBCO_ROUND_HOUR` | `8` | The shop's local hour for the daily round |
+| `EMBCO_MAX_PRICE_INCREASE` | `0.15` | A price this much above past purchases (15%) asks the owner |
+| `EMBCO_JOURNAL_PATH` | `data/journal.sqlite3` | Where the journal is stored |
+| `EMBCO_BRAIN` | `on` | `off`: the rules only report, and nothing is paid |
+| `EMBCO_AUTONOMY` | `act` | `observe`: the agent decides and explains, but pays nothing |
+| `EMBCO_BRAIN_MODEL` | `claude-haiku-5-5` | The AI model that decides |
+| `EMBCO_BRAIN_EFFORT` | `medium` | `low`, `medium` or `high` |
+| `EMBCO_BRAIN_DAILY_TOKENS` | `2000000` | The most the agent spends on the model in a day |
+| `EMBCO_EXPLAIN` | `off` | `on`: a plain-language explanation for each HOLD or ASK |
+| `EMBCO_LLM_MODEL` | `claude-haiku-5-5` | The AI model that writes those explanations |
+| `EMBCO_APPROVALS_FILE` | none | Where the agent publishes the wallets waiting for the owner's approval |
