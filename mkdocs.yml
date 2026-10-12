@@ -1,0 +1,77 @@
+site_name: embco
+site_description: A payables agent for the ERPNext you already run. It decides, it remembers, it pays in USDC on Arc.
+site_url: https://jadi03.github.io/embco/
+repo_name: JaDi03/embco
+repo_url: https://github.com/JaDi03/embco
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  language: en
+  favicon: assets/brand/logo.svg
+  logo: assets/brand/logo.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - content.code.copy
+    - content.action.edit
+    - search.highlight
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/diagrams.js
+
+nav:
+  - Home: index.md
+  - How it works: how-it-works.md
+  - Architecture: architecture.md
+  - Smart contracts: contracts.md
+  - Connect your ERPNext: connect.md
+  - Command line: cli.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: warn
