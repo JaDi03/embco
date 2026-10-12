@@ -104,9 +104,21 @@ The keys are stored encrypted and are never shown again.
   approval**. Before approving, check in ERPNext that the wallet belongs to the supplier you
   expect.
 - **When the agent pays**, it records a Payment Entry in ERPNext for that invoice. The
-  transaction hash is in **Reference No**, and the wallet paid is in the remarks. While embco
-  runs on testnet, the entry stays as a **draft** whose remarks start with "TESTNET": test USDC
-  never closes a real invoice.
+  transaction hash is in **Reference No**, and the wallet paid is in the remarks.
+
+## Draft mode
+
+While embco runs on testnet, payments are made in test USDC. So that test USDC never closes a
+real invoice, each Payment Entry stays as a **draft** whose remarks start with "TESTNET". This
+is **draft mode**, and it is on for every new shop.
+
+- The dashboard shows the mode next to the agent's status: **Draft mode** or **Submitting to
+  ERPNext**.
+- To change it, open **Settings > ERPNext**. Turning draft mode off asks you to confirm a second
+  time: from then on each payment is submitted and closes its invoice, even when it was paid in
+  test USDC, and your books show those invoices as paid.
+- Turning it back on takes one click. Each change is written in **Agent activity**, and if the
+  agent is on, it restarts with the new mode.
 
 ## If something does not work
 
