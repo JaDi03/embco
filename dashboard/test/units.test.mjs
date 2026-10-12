@@ -51,3 +51,14 @@ test("payments are authorized or not: never a second budget below the weekly one
   assert.match(authorizationView(181_500_000n, week).text, /181\.5/);
   assert.equal(authorizationView(0n, week).text, "Not authorized");
 });
+
+test("the owner is offered only what changes something: authorize, revoke, or both when low", () => {
+  const week = 2_000_000_000n;
+  const offers = (allowance) => {
+    const { canAuthorize, canRevoke } = authorizationView(allowance, week);
+    return { canAuthorize, canRevoke };
+  };
+  assert.deepEqual(offers(0n), { canAuthorize: true, canRevoke: false });
+  assert.deepEqual(offers(181_500_000n), { canAuthorize: true, canRevoke: true });
+  assert.deepEqual(offers(AUTHORIZE_ALL), { canAuthorize: false, canRevoke: true });
+});

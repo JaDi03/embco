@@ -109,6 +109,8 @@ async function renderShop() {
   $("allowance").textContent = authorization.text;
   $("allowance").className = authorization.state === "on" ? "status-on" : "status-off";
   $("authorization-note").textContent = authorization.note;
+  $("authorize-button").hidden = !authorization.canAuthorize;  // nothing to authorize or revoke twice
+  $("revoke-button").hidden = !authorization.canRevoke;
   $("max-per-payment").textContent = `${formatUsdc(state.maxPerPayment)} USDC`;
   $("weekly-cap").textContent = `${formatUsdc(state.weeklyCap)} USDC`;
   $("remaining").textContent = `${formatUsdc(state.remaining)} USDC`;

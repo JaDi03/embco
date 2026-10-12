@@ -49,9 +49,13 @@ export const AUTHORIZE_ALL = 2n ** 256n - 1n;
 /** What the owner reads about the authorization: on, running low, or off. */
 export function authorizationView(allowance, weeklyCap) {
   const left = BigInt(allowance);
-  if (left === 0n) return { state: "off", text: "Not authorized", note: "Authorize payments so the agent can pay within your budget." };
-  if (left < BigInt(weeklyCap)) {
-    return { state: "low", text: `Low: ${formatUsdc(left)} USDC`, note: "Authorize again so the agent can spend your whole weekly budget." };
+  if (left === 0n) {
+    return { state: "off", text: "Not authorized", note: "Authorize payments so the agent can pay within your budget.",
+      canAuthorize: true, canRevoke: false };
   }
-  return { state: "on", text: "Authorized", note: "" };
+  if (left < BigInt(weeklyCap)) {
+    return { state: "low", text: `Low: ${formatUsdc(left)} USDC`, note: "Authorize again so the agent can spend your whole weekly budget.",
+      canAuthorize: true, canRevoke: true };
+  }
+  return { state: "on", text: "Authorized", note: "", canAuthorize: false, canRevoke: true };
 }
