@@ -43,7 +43,7 @@ async function render() {
   const page = await suppliers.myPage();
   if (!page) {
     show("view-welcome");
-    const hasWallet = wallet.hasWallet();
+    const hasWallet = await wallet.hasWallet();
     $("sign-in").hidden = !hasWallet;
     $("no-wallet").hidden = hasWallet;
     $("open-in-metamask").href = metamaskAppLink();
