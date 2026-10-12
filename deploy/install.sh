@@ -80,14 +80,15 @@ say "2/6 Code"
 id embco >/dev/null 2>&1 ||
   useradd --system --home-dir "$DATA" --create-home --shell /usr/sbin/nologin embco
 install -d -o embco -g embco "$DATA"  # its home, also when a backup created it first
-if [ -d "$APP/.git" ]; then
-  sudo -u embco git -C "$APP" pull -q --ff-only
-else
+# The installed code follows the branch of the folder this runs from.
+branch=$(git -c safe.directory='*' -C "$SRC" rev-parse --abbrev-ref HEAD)
+if [ ! -d "$APP/.git" ]; then
   repo=$(git -c safe.directory='*' -C "$SRC" remote get-url origin)
-  branch=$(git -c safe.directory='*' -C "$SRC" rev-parse --abbrev-ref HEAD)
   install -d -o embco -g embco "$APP"
   sudo -u embco git clone -q --branch "$branch" "$repo" "$APP"
 fi
+sudo -u embco git -C "$APP" fetch -q origin
+sudo -u embco git -C "$APP" checkout -q -B "$branch" "origin/$branch"
 (cd "$APP" && sudo -u embco -H uv sync -q --frozen --no-dev)
 install -d -m 700 -o embco -g embco "$DATA/shops"
 chown -R embco:embco "$DATA/shops"  # shops restored from a backup belong to the agent too
