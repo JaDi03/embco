@@ -94,8 +94,6 @@ then you approve it in the dashboard (see [What happens next](#what-happens-next
 4. Click **Make it the agent**. This lets your shop's agent wallet pay approved suppliers, within
    the limits you set.
 
-The keys are stored encrypted and are never shown again.
-
 ## What happens next
 
 - **The agent checks ERPNext on its own** every 15 minutes. You do not need to open anything.
@@ -105,6 +103,10 @@ The keys are stored encrypted and are never shown again.
   expect.
 - **When the agent pays**, it records a Payment Entry in ERPNext for that invoice. The
   transaction hash is in **Reference No**, and the wallet paid is in the remarks.
+- **Telegram (optional):** in the dashboard, **Connect Telegram** gives a code to send to the
+  embco bot. Then `/status` says how the agent is, `/pause` pauses payments while the agent keeps
+  watching, and `/stop` turns the agent off and pauses the shop contract. Only the dashboard
+  turns it back on. Any other message goes to your agent.
 
 ## Draft mode
 

@@ -24,6 +24,9 @@ export const RPC_PATH = "/rpc";
 export const EXPLORER_API = "https://explorer.testnet.arc.io/api/v2";
 export const HISTORY_MAX_PAGES = 10;
 
+// The node answers 413 to a batch of more than 10 calls; ethers batches up to 100 by default.
+export const RPC_BATCH_MAX = 10;
+
 // If the explorer fails, history is read from the node, in ranges it accepts (under 100,000 blocks).
 export const LOG_CHUNK_BLOCKS = 99999;
 

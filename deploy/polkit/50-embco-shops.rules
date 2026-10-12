@@ -1,0 +1,11 @@
+// The hub runs as the embco user and may only start, stop and restart the shops' agents.
+polkit.addRule(function (action, subject) {
+  if (action.id == "org.freedesktop.systemd1.manage-units" && subject.user == "embco") {
+    var unit = action.lookup("unit");
+    var verb = action.lookup("verb");
+    if (unit && /^embco-shop@0x[0-9a-f]{40}\.service$/.test(unit) &&
+        (verb == "start" || verb == "stop" || verb == "restart")) {
+      return polkit.Result.YES;
+    }
+  }
+});

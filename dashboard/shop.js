@@ -12,6 +12,7 @@ import {
   FACTORY_DEPLOY_BLOCK,
   HISTORY_MAX_PAGES,
   LOG_CHUNK_BLOCKS,
+  RPC_BATCH_MAX,
   rpcUrl,
   USDC_ADDRESS,
 } from "./config.js";
@@ -22,7 +23,8 @@ let reader = null;
 /** The read-only provider, created once, with the network fixed. */
 function readProvider() {
   if (!reader) {
-    reader = new ethers.JsonRpcProvider(rpcUrl(), Number(ARC_TESTNET.chainId), { staticNetwork: true });
+    reader = new ethers.JsonRpcProvider(rpcUrl(), Number(ARC_TESTNET.chainId),
+      { staticNetwork: true, batchMaxCount: RPC_BATCH_MAX });
   }
   return reader;
 }

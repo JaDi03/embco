@@ -70,73 +70,32 @@ embco/
 ├── contracts/           ShopPayables and its factory (Solidity, Arc Foundry)
 ├── dashboard/           the owner dashboard and the supplier page (static, MetaMask)
 ├── connector/           prepares an ERPNext instance
+├── deploy/              install.sh and the server files it sets up
 ├── docs/                the documentation site (MkDocs)
 └── tests/               tests for the agent and the services
 ```
 
 ## Getting started
 
-### Use it with your shop
+### Use ours
 
 No installation. Open the [dashboard](https://app.embco.xyz), connect your wallet, create your
 shop contract, and follow [Connect your ERPNext](https://jadi03.github.io/embco/connect/).
 
-### Run it yourself
+### Run your own
 
-Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
-
-**1. Clone the repository**
+The same dashboard and agents on your own server (Ubuntu or Debian, with a domain):
 
 ```bash
 git clone https://github.com/JaDi03/embco.git
 cd embco
-```
-
-**2. Install dependencies**
-
-```bash
-uv sync
-```
-
-**3. Configure your environment**
-
-```bash
 cp .env.example .env
+nano .env                       # your domain, an Arc node URL, Circle and Anthropic keys
+sudo bash deploy/install.sh
 ```
 
-Edit `.env` with your ERPNext and your limits:
-
-```bash
-# ERPNext: its address and the keys of the agent's user
-EMBCO_ERPNEXT_URL=https://your-erpnext.example.com
-EMBCO_ERPNEXT_API_KEY=
-EMBCO_ERPNEXT_API_SECRET=
-EMBCO_COMPANY=
-EMBCO_ERPNEXT_WALLET_BANK=USDC on Arc
-
-# Limits, in the company currency
-EMBCO_MAX_PER_PAYMENT=
-EMBCO_WEEKLY_BUDGET=
-```
-
-The same file asks for the AI model's key, the agent's Circle wallet and the shop contract,
-each with a short note. Create the agent's wallet once, then paste its id in `.env`:
-
-```bash
-uv run embco --env-file .env create-wallet
-```
-
-Payments stay off until you set `EMBCO_PAY=on`. Settings with a default are not in the file:
-see [Optional settings](https://jadi03.github.io/embco/cli/#optional-settings).
-
-**4. Run the agent**
-
-```bash
-uv run embco --env-file .env run      # one cycle, with the full report
-uv run embco --env-file .env watch    # a cycle every 15 minutes, on its own
-```
-
-Every command: [Command line](https://jadi03.github.io/embco/cli/).
+Then shops connect through your dashboard, as they do on ours. Details:
+[Run your own server](https://jadi03.github.io/embco/server/).
 
 <details>
 <summary>Tests: agent, contracts, dashboard and docs</summary>

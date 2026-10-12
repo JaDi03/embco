@@ -1,0 +1,22 @@
+[Unit]
+Description=embco hub (dashboard API: connect a shop's ERP, start its agent)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=embco
+Group=embco
+WorkingDirectory=/opt/embco
+ExecStart=/opt/embco/.venv/bin/embco --env-file /etc/embco/embco.env hub
+Restart=always
+RestartSec=10
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/embco/shops
+
+[Install]
+WantedBy=multi-user.target

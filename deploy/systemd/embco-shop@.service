@@ -1,0 +1,23 @@
+[Unit]
+Description=embco agent of shop %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=embco
+Group=embco
+WorkingDirectory=/opt/embco
+EnvironmentFile=/etc/embco/embco.env
+ExecStart=/opt/embco/.venv/bin/embco shop --dir /var/lib/embco/shops/%i --key-file /etc/embco/shops.key
+Restart=always
+RestartSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/embco/shops/%i
+
+[Install]
+WantedBy=multi-user.target

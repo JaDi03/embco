@@ -30,12 +30,11 @@ finding with its evidence, so the reason on screen is the reason the rule used.
 |---|---|---|
 | Is the invoice allowed to be paid at all? | The rules | Fixed, testable, no model involved |
 | Is this supplier's wallet safe? | The wallet control, then the owner | A new wallet waits for the supplier's signature and the owner's approval |
-| What is paid now, and what waits for a date? | The AI model, when `EMBCO_BRAIN` is on (default) | It stages choices; the gate refuses anything the rules forbid |
+| What is paid now, and what waits for a date? | The AI model | It stages choices; the gate refuses anything the rules forbid |
 | Is the payment allowed on chain? | The shop contract | Limits, approved payee, once per invoice, pause |
-| Plain-language explanation | The AI model, when `EMBCO_EXPLAIN=on` | Display only; it never changes a decision |
 
-With `EMBCO_AUTONOMY=observe` the agent decides and explains, but pays nothing. With
-`EMBCO_PAY` off (the default), nothing leaves the owner's wallet.
+Nothing leaves the owner's wallet until the owner authorizes payments in the dashboard and makes
+the shop's agent wallet the agent of the contract.
 
 ## Memory
 
