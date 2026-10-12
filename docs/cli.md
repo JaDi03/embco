@@ -56,6 +56,7 @@ Settings, plus these settings in `.env` (see `.env.example`; never commit it):
 | `EMBCO_ERPNEXT_PAID_FROM` | The account the money leaves from (for example a "USDC Wallet" bank account); without it, ERPNext's default is used |
 | `EMBCO_ERPNEXT_WALLET_BANK` | Read supplier wallets from Bank Accounts at this Bank (standard records, as in the dashboard flow) |
 | `EMBCO_ERPNEXT_PAYMENT_EXTRA` | Extra Payment Entry fields your ERP requires, as JSON. They cannot change the amount, the party, the invoice or the hash |
+| `EMBCO_ERPNEXT_DRAFT_PAYMENTS` | `on` (the default): draft mode, each Payment Entry stays as a draft marked TESTNET, so test USDC closes no invoice. `off`: entries are submitted. `run` and `watch` say which mode they use before anything else |
 | `EMBCO_OWNER_USERS` | ERP accounts whose answer on the invoice counts as the owner's |
 
 Without `EMBCO_ERPNEXT_WALLET_BANK`, the agent uses custom fields instead:
