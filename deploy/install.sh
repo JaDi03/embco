@@ -1,116 +1,111 @@
 #!/usr/bin/env bash
 # Installs or updates an embco server: the dashboard, the hub and the shops' agents.
-# Run it from a clone of the repository: sudo bash deploy/install.sh
-# It asks only for the settings that are still empty, and running it again updates the server.
+#   First install, from a clone with a filled-in .env:  sudo bash deploy/install.sh
+#   Update, any time later:                             sudo bash /opt/embco/deploy/install.sh
 set -euo pipefail
 
 APP=/opt/embco
 CONF=/etc/embco
+SETTINGS=$CONF/embco.env
 DATA=/var/lib/embco
 CADDY_ENV=/etc/caddy/embco.env
 
 say() { printf '\n== %s\n' "$*"; }
-fail() { printf 'error: %s\n' "$*" >&2; exit 1; }
+fail() { printf '\nerror: %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || fail "run it with sudo: sudo bash deploy/install.sh"
 command -v apt-get >/dev/null || fail "this script needs Debian or Ubuntu (apt-get)"
 command -v systemctl >/dev/null || fail "this script needs systemd"
 
 SRC=$(cd "$(dirname "$0")/.." && pwd)
-git_src() { git -c safe.directory='*' -C "$SRC" "$@"; }
-REPO=$(git_src remote get-url origin) || fail "run it from a clone of the repository"
-BRANCH=$(git_src rev-parse --abbrev-ref HEAD)
 
-# Reads the value of KEY in an env file; empty if missing.
-get() { sed -n "s/^$2=//p" "$1" | tail -n 1; }
+# The value of KEY in an env file, without quotes or a Windows line end; empty if missing.
+get() {
+  sed -n "s/^$2=//p" "$1" | tail -n 1 | tr -d '\r' | sed -E "s/^['\"]//; s/['\"]\$//"
+}
 
 # Writes KEY=VALUE in an env file, replacing the line if it is there.
 put() {
   python3 - "$1" "$2" "$3" <<'PY'
 import pathlib, sys
 path, key, value = pathlib.Path(sys.argv[1]), sys.argv[2], sys.argv[3]
-lines = path.read_text().splitlines()
-if any(line.startswith(key + "=") for line in lines):
-    lines = [f"{key}={value}" if line.startswith(key + "=") else line for line in lines]
-else:
-    lines.append(f"{key}={value}")
-path.write_text("\n".join(lines) + "\n")
+lines = [line for line in path.read_text().splitlines() if not line.startswith(key + "=")]
+path.write_text("\n".join(lines + [f"{key}={value}"]) + "\n")
 PY
 }
 
-# Asks for KEY only if it is still empty. secret=1 hides what is typed; optional=1 allows empty.
-ask() {
-  local file=$1 key=$2 question=$3 secret=${4:-0} optional=${5:-0} value
-  [ -n "$(get "$file" "$key")" ] && return 0
-  [ "$optional" = 1 ] && [ "$FIRST_INSTALL" != 1 ] && return 0  # skipped once, not asked again
-  while true; do
-    if [ "$secret" = 1 ]; then
-      read -rsp "$question: " value || fail "no answer for $key"; echo
-    else
-      read -rp "$question: " value || fail "no answer for $key"
-    fi
-    [ -n "$value" ] || [ "$optional" = 1 ] && break
-  done
-  [ -n "$value" ] && put "$file" "$key" "$value"
-  return 0
-}
+# A new .env next to the code is installed; without one, the installed settings are kept.
+NEW=""
+if [ "$SRC" != "$APP" ] && [ -f "$SRC/.env" ]; then
+  NEW=$SRC/.env
+elif [ ! -f "$SETTINGS" ]; then
+  fail "copy .env.example to .env in $SRC, fill it in, and run this again"
+fi
+FROM=${NEW:-$SETTINGS}
+
+missing=()
+for key in EMBCO_SITE ARC_TESTNET_RPC_URL CIRCLE_API_KEY CIRCLE_ENTITY_SECRET ANTHROPIC_API_KEY; do
+  [ -n "$(get "$FROM" "$key")" ] || missing+=("$key")
+done
+if [ -n "$(get "$FROM" TELEGRAM_BOT_TOKEN)" ] && [ -z "$(get "$FROM" TELEGRAM_BOT_USERNAME)" ]; then
+  missing+=(TELEGRAM_BOT_USERNAME)
+fi
+[ ${#missing[@]} -eq 0 ] || fail "fill in ${missing[*]} in $FROM, then run this again"
+
+site=$(get "$FROM" EMBCO_SITE)
+case $site in http://*|https://*) public=$site ;; *) public="https://$site" ;; esac
+if [ -f /etc/caddy/Caddyfile ] && grep -qE "^[[:space:]]*${site//./\\.}[[:space:]]*\{" /etc/caddy/Caddyfile; then
+  fail "/etc/caddy/Caddyfile already has a block for $site: remove it, the install adds its own"
+fi
 
 say "1/6 Tools"
 apt-get update -qq
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git curl caddy polkitd python3 >/dev/null
-if ! command -v uv >/dev/null; then
+command -v uv >/dev/null ||
   curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh >/dev/null
-fi
 
-say "2/6 Service user and code ($BRANCH)"
+rpc=$(get "$FROM" ARC_TESTNET_RPC_URL)
+chain=$(curl -s -m 15 -X POST -H 'content-type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' "$rpc" || true)
+case $chain in *0x4cef52*) ;; *) fail "ARC_TESTNET_RPC_URL does not answer as Arc Testnet" ;; esac
+
+say "2/6 Code"
 id embco >/dev/null 2>&1 ||
   useradd --system --home-dir "$DATA" --create-home --shell /usr/sbin/nologin embco
 if [ -d "$APP/.git" ]; then
   sudo -u embco git -C "$APP" pull -q --ff-only
 else
+  repo=$(git -c safe.directory='*' -C "$SRC" remote get-url origin)
+  branch=$(git -c safe.directory='*' -C "$SRC" rev-parse --abbrev-ref HEAD)
   install -d -o embco -g embco "$APP"
-  sudo -u embco git clone -q --branch "$BRANCH" "$REPO" "$APP"
+  sudo -u embco git clone -q --branch "$branch" "$repo" "$APP"
 fi
 (cd "$APP" && sudo -u embco -H uv sync -q --frozen --no-dev)
 install -d -m 700 -o embco -g embco "$DATA/shops"
 
-say "3/6 Settings (only what is still empty; Enter skips the optional ones)"
+say "3/6 Settings"
 install -d -m 750 -o root -g embco "$CONF"
-FIRST_INSTALL=0
-if [ ! -f "$CONF/embco.env" ]; then
-  install -m 640 -o root -g embco "$APP/deploy/embco.env.example" "$CONF/embco.env"
-  FIRST_INSTALL=1
+if [ -n "$NEW" ]; then
+  # moved, not copied: no second file with the keys is left in the clone
+  tr -d '\r' < "$NEW" > "$SETTINGS.tmp"
+  install -m 640 -o root -g embco "$SETTINGS.tmp" "$SETTINGS"
+  rm -f "$SETTINGS.tmp" "$NEW"
+  echo "Settings moved to $SETTINGS. To change them later, edit that file and run this again."
 fi
-[ -f "$CADDY_ENV" ] || install -m 640 -o root -g caddy "$APP/deploy/caddy.env.example" "$CADDY_ENV"
-# The examples hold placeholders: a fresh copy asks for them.
-[ "$(get "$CADDY_ENV" EMBCO_SITE)" = "app.example.com" ] && put "$CADDY_ENV" EMBCO_SITE ""
-[ "$(get "$CONF/embco.env" EMBCO_PUBLIC_URL)" = "https://app.example.com" ] && put "$CONF/embco.env" EMBCO_PUBLIC_URL ""
-[ "$(get "$CONF/embco.env" ARC_TESTNET_RPC_URL)" = "https://rpc.testnet.arc.io" ] && put "$CONF/embco.env" ARC_TESTNET_RPC_URL ""
+put "$SETTINGS" EMBCO_PUBLIC_URL "$public"
 
-ask "$CADDY_ENV" EMBCO_SITE "Dashboard address (a domain like app.example.com, or http://localhost)"
-site=$(get "$CADDY_ENV" EMBCO_SITE)
-case $site in http://*|https://*) public=$site ;; *) public="https://$site" ;; esac
-[ -n "$(get "$CONF/embco.env" EMBCO_PUBLIC_URL)" ] || put "$CONF/embco.env" EMBCO_PUBLIC_URL "$public"
-ask "$CONF/embco.env" ARC_TESTNET_RPC_URL "Arc Testnet node URL" 1
-ask "$CONF/embco.env" CIRCLE_API_KEY "Circle API key" 1
-ask "$CONF/embco.env" CIRCLE_ENTITY_SECRET "Circle entity secret" 1
-ask "$CONF/embco.env" ANTHROPIC_API_KEY "Anthropic API key" 1
-ask "$CONF/embco.env" TELEGRAM_BOT_TOKEN "Telegram bot token (optional)" 1 1
-[ -z "$(get "$CONF/embco.env" TELEGRAM_BOT_TOKEN)" ] ||
-  ask "$CONF/embco.env" TELEGRAM_BOT_USERNAME "Telegram bot username"
-
-# The dashboard reads the same node through /rpc: Caddy needs it as host and path.
-rpc=$(get "$CONF/embco.env" ARC_TESTNET_RPC_URL)
+# Caddy needs the node as host and path, so a key in the node URL stays on the server.
 read -r upstream path < <(python3 - "$rpc" <<'PY'
 import sys
 from urllib.parse import urlsplit
 url = urlsplit(sys.argv[1])
-path = (url.path or "/") + (f"?{url.query}" if url.query else "")
-print(f"{url.scheme}://{url.netloc}", path)
+print(f"{url.scheme}://{url.netloc}", (url.path or "/") + (f"?{url.query}" if url.query else ""))
 PY
 )
-put "$CADDY_ENV" EMBCO_RPC_UPSTREAM "$upstream"
-put "$CADDY_ENV" EMBCO_RPC_PATH "$path"
+printf 'EMBCO_SITE=%s\nEMBCO_RPC_UPSTREAM=%s\nEMBCO_RPC_PATH=%s\n' "$site" "$upstream" "$path" \
+  > "$CADDY_ENV.tmp"
+install -m 640 -o root -g caddy "$CADDY_ENV.tmp" "$CADDY_ENV"
+rm -f "$CADDY_ENV.tmp"
 
 if [ ! -f "$CONF/shops.key" ]; then
   "$APP/.venv/bin/python" -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" \
@@ -128,24 +123,25 @@ cp "$APP/deploy/systemd/caddy-embco.conf" /etc/systemd/system/caddy.service.d/em
 systemctl daemon-reload
 systemctl enable -q embco-hub
 systemctl restart embco-hub
-if [ -n "$(get "$CONF/embco.env" TELEGRAM_BOT_TOKEN)" ]; then
+if [ -n "$(get "$SETTINGS" TELEGRAM_BOT_TOKEN)" ]; then
   systemctl enable -q embco-telegram
   systemctl restart embco-telegram
+else
+  systemctl disable -q --now embco-telegram 2>/dev/null || true
 fi
-# Shops already connected get the new code too.
 for unit in $(systemctl list-units --plain --no-legend 'embco-shop@*' | awk '{print $1}'); do
-  systemctl restart "$unit"
+  systemctl restart "$unit"  # shops already connected get the new code too
 done
 
 say "5/6 Dashboard"
 import="import $APP/deploy/Caddyfile"
 if grep -q "The Caddyfile is an easy way" /etc/caddy/Caddyfile 2>/dev/null; then
   echo "$import" > /etc/caddy/Caddyfile  # the package's welcome page: replaced
-elif ! grep -qxF "$import" /etc/caddy/Caddyfile; then
+elif ! grep -qxF "$import" /etc/caddy/Caddyfile 2>/dev/null; then
   echo "$import" >> /etc/caddy/Caddyfile  # other sites already there: kept
 fi
 systemctl enable -q caddy
-systemctl restart caddy
+systemctl restart caddy || fail "Caddy did not start: journalctl -u caddy -n 50"
 
 say "6/6 Check"
 for _ in $(seq 30); do  # the hub takes a few seconds to start
@@ -153,11 +149,15 @@ for _ in $(seq 30); do  # the hub takes a few seconds to start
   [ "$code" = 401 ] && break
   sleep 1
 done
-for unit in embco-hub caddy; do
-  systemctl is-active -q "$unit" || fail "$unit did not start: journalctl -u $unit -n 50"
+[ "$code" = 401 ] || fail "the hub does not answer: journalctl -u embco-hub -n 50"
+for _ in $(seq 60); do  # Caddy may still be getting the HTTPS certificate
+  code=$(curl -s -o /dev/null -w '%{http_code}' "$public/api/supplier/me" || true)
+  [ "$code" = 401 ] && break
+  sleep 1
 done
-[ "$code" = 401 ] || fail "the hub does not answer (got $code): journalctl -u embco-hub -n 50"
-chain=$(curl -s -X POST -H 'content-type: application/json' \
-  --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' "$rpc" || true)
-case $chain in *0x4cef52*) ;; *) fail "the Arc node did not answer as Arc Testnet: check ARC_TESTNET_RPC_URL" ;; esac
+if [ "$code" != 401 ]; then
+  echo "warning: $public does not answer yet. Check that $site points to this server and that"
+  echo "ports 80 and 443 are open, then: journalctl -u caddy -n 50"
+  exit 1
+fi
 echo "Done. Open $public"

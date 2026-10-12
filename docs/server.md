@@ -2,15 +2,13 @@
 
 This guide sets up what runs behind [app.embco.xyz](https://app.embco.xyz) on a server of your
 own: the dashboard, the hub (the API the dashboard uses to connect shops) and one agent per shop.
-Shop owners then use your dashboard exactly as they use app.embco.xyz.
-
-To run a single agent from the command line instead, see the README and
-[Command line](cli.md).
+Shop owners then use your dashboard exactly as they use app.embco.xyz: they create their shop
+contract, connect their ERPNext and set their limits there.
 
 !!! info "What you need"
     - A server with Ubuntu or Debian (tested on Ubuntu 24.04), and a user with `sudo`.
-    - A domain pointing to the server, for HTTPS. To try it on your own computer, use
-      `http://localhost` instead.
+    - A domain pointing to the server, with ports 80 and 443 open. The dashboard gets its HTTPS
+      certificate on its own.
     - A [Circle](https://console.circle.com) account with developer-controlled wallets: an API
       key and a registered entity secret.
     - An [Anthropic](https://console.anthropic.com) API key, for the AI model that decides.
@@ -21,26 +19,33 @@ To run a single agent from the command line instead, see the README and
 
 ```bash
 git clone https://github.com/JaDi03/embco.git
-sudo bash embco/deploy/install.sh
+cd embco
+cp .env.example .env
+nano .env
+sudo bash deploy/install.sh
 ```
 
-The script asks for the dashboard address, the Arc node URL, the Circle key and entity secret,
-the Anthropic key and, optionally, the Telegram bot. Keys are not shown while you type them.
+In `.env`, write your domain in `EMBCO_SITE` and fill in the node URL and the keys. Each line has
+a short note.
 
-When it ends with `Done. Open https://...`, open that address: the dashboard asks to connect a
-wallet. From here, shop owners follow [Connect your ERPNext](connect.md).
+The script checks `.env` before it installs anything, and says what is missing. It ends with
+`Done. Open https://your-domain`: open it, and the dashboard asks to connect a wallet. From
+there, shop owners follow [Connect your ERPNext](connect.md).
 
 !!! warning "Keep a copy of the shop key"
     The script creates `/etc/embco/shops.key`, which encrypts each shop's ERPNext keys on disk.
     Copy it somewhere safe: without it, every shop has to connect its ERPNext again.
 
-## Update
+## Update or change a setting
 
-Run the same script again. It takes the new code, keeps your settings and restarts everything:
+The script moves `.env` to `/etc/embco/embco.env`, so no copy with your keys stays in the
+folder you cloned. To change a setting, edit that file. To update, or to apply a change, run:
 
 ```bash
 sudo bash /opt/embco/deploy/install.sh
 ```
+
+It takes the new code, keeps your settings and restarts everything.
 
 ## What the script sets up
 
@@ -51,13 +56,10 @@ sudo bash /opt/embco/deploy/install.sh
 | Each shop's settings, ERPNext keys (encrypted) and journal | `/var/lib/embco/shops` |
 | The hub, the Telegram bot and one agent per shop, restarted if they stop | systemd: `embco-hub`, `embco-telegram`, `embco-shop@<contract address>` |
 | A rule that lets the hub start, stop and restart the shops' agents, and nothing else | polkit |
-| The dashboard with HTTPS, `/api` to the hub and `/rpc` to your Arc node, whose URL stays on the server | Caddy, settings in `/etc/caddy/embco.env` |
+| The dashboard with HTTPS, `/api` to the hub and `/rpc` to your Arc node, whose URL stays on the server | Caddy |
 
 The hub starts a shop's agent when its owner connects ERPNext in the dashboard. If Caddy already
 serves other sites on the server, the script adds the dashboard next to them.
-
-To change a setting later, edit `/etc/embco/embco.env` (the dashboard address is in
-`/etc/caddy/embco.env`) and run the script again.
 
 ## Logs
 

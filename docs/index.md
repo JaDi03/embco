@@ -38,9 +38,9 @@ model and the money:
 
     A step-by-step guide: four small changes in ERPNext, then two keys in the dashboard.
 
--   :material-console: **[Command line](cli.md)**
+-   :material-server: **[Run your own server](server.md)**
 
-    Every `embco` command, with what it does.
+    The same dashboard and agents on your server: one `.env` and one install script.
 
 </div>
 
