@@ -21,6 +21,8 @@
 	respond @private 404
 	file_server
 	header {
+		# No HTTP/3 offer: QUIC over UDP breaks on some networks and antivirus, and the page gains nothing
+		-Alt-Svc
 		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://explorer.testnet.arc.io; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
 		X-Content-Type-Options nosniff
 		Referrer-Policy no-referrer
