@@ -1,4 +1,4 @@
-// The owner's dashboard: connect MetaMask, create the shop contract, and run it.
+// The owner's dashboard: connect MetaMask, run the shop, and create its contract from Settings.
 // Every change is a transaction the owner signs in MetaMask; this page holds no keys.
 
 import { ethers } from "./vendor/ethers-6.17.0.min.js";
@@ -15,7 +15,7 @@ import { AUTHORIZE_ALL, authorizationView, formatUsdc, parseUsdc, shortAddress, 
 import * as wallet from "./wallet.js";
 
 const $ = (id) => document.getElementById(id);
-const VIEWS = ["view-welcome", "view-network", "view-create", "view-shop"];
+const VIEWS = ["view-welcome", "view-network", "view-shop"];
 
 let session = { provider: null, account: null, shop: null };
 
@@ -84,13 +84,37 @@ async function render() {
   notify("Looking for your shop contract...");
   const shops = await shopsOf(account);
   notify("");
-  if (shops.length === 0) {
-    show("view-create");
-    return;
-  }
-  session.shop = shops[shops.length - 1];
+  session.shop = shops.length ? shops[shops.length - 1] : null;
   show("view-shop");
-  await renderShop();
+  setShopMode(Boolean(session.shop));
+  if (session.shop) await renderShop();
+  else await renderNoShop();
+}
+
+/** The console is the same with or without a contract; without one, Settings offers to create it. */
+function setShopMode(hasShop) {
+  $("no-shop").hidden = hasShop;
+  $("create-section").hidden = hasShop;
+  for (const el of document.querySelectorAll(".shop-only")) el.hidden = !hasShop;
+  if (!hasShop) {
+    for (const id of ["tab-invoices", "tab-suppliers", "tab-payments"]) $(id).hidden = true;
+  } else if (work.current === null) {
+    $("tab-invoices").hidden = false;  // as the page loads, before the tabs are painted
+  }
+}
+
+async function renderNoShop() {
+  stopTerminal();
+  $("panes").dataset.mview = "work";
+  for (const el of document.querySelectorAll(".owner-only")) el.hidden = true;
+  $("not-owner").hidden = true;
+  $("agent-note").textContent = "";
+  const shopLink = $("shop-link");
+  shopLink.textContent = "No contract yet";
+  shopLink.removeAttribute("href");
+  for (const id of ["allowance", "remaining", "max-per-payment"]) $(id).textContent = "-";
+  const balance = await read((provider) => usdc(provider).balanceOf(session.account)).catch(() => null);
+  $("balance").textContent = balance === null ? "-" : `${formatUsdc(balance)} USDC`;
 }
 
 async function renderShop() {
@@ -866,6 +890,12 @@ function onSubmit(formId, handler) {
   });
 }
 
+function settings(open) {
+  $("settings-drawer").hidden = !open;
+  $("settings-scrim").hidden = !open;
+  if (open) $("close-settings").focus();
+}
+
 function wireActions() {
   $("connect-button").addEventListener("click", async () => {
     try {
@@ -900,6 +930,7 @@ function wireActions() {
       const tx = await factory(signer).create(agent, maxPerPayment, weeklyCap);
       notify("Creating your shop contract on Arc...");
       await tx.wait();
+      settings(false);
       await render();
       notify("Your shop contract is ready. Next: authorize payments in Settings and approve your suppliers.", "success");
     } catch (error) {
@@ -931,15 +962,14 @@ function wireActions() {
     act(button, "Change limits", (shop) => shop.setLimits(maxPerPayment, weeklyCap)).then((ok) => ok && form.reset());
   });
 
-  const drawer = (open) => {
-    $("settings-drawer").hidden = !open;
-    $("settings-scrim").hidden = !open;
-    if (open) $("close-settings").focus();
-  };
-  $("open-settings").addEventListener("click", () => drawer(true));
-  $("close-settings").addEventListener("click", () => drawer(false));
-  $("settings-scrim").addEventListener("click", () => drawer(false));
-  $("settings-drawer").addEventListener("keydown", (event) => { if (event.key === "Escape") drawer(false); });
+  $("open-settings").addEventListener("click", () => settings(true));
+  $("open-create").addEventListener("click", () => {
+    settings(true);
+    $("create-form").elements.maxPerPayment.focus();
+  });
+  $("close-settings").addEventListener("click", () => settings(false));
+  $("settings-scrim").addEventListener("click", () => settings(false));
+  $("settings-drawer").addEventListener("keydown", (event) => { if (event.key === "Escape") settings(false); });
   for (const button of document.querySelectorAll(".mtab")) {
     button.addEventListener("click", () => {
       $("panes").dataset.mview = button.dataset.mview;

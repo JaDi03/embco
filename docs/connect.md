@@ -5,8 +5,8 @@ ERPNext and then paste two keys into the embco dashboard. Nothing is installed o
 and the agent never gets admin rights.
 
 !!! info "Before you start"
-    - Your shop is already created in the [dashboard](https://app.embco.xyz) (your wallet is
-      connected and your shop contract exists).
+    - Your shop is already created in the [dashboard](https://app.embco.xyz): your wallet is
+      connected and your shop contract exists (create it in **Settings**).
     - You can sign in to ERPNext as an administrator (System Manager) to make the changes below.
     - Your ERPNext opens with an `https://` address. embco is tested with ERPNext v16, including
       Frappe Cloud.

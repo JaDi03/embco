@@ -48,35 +48,13 @@
         <button class="btn btn-primary" id="switch-button">Switch network</button>
       </section>
 
-      <section id="view-create" class="view" hidden>
-        <h1>Create your shop contract</h1>
-        <p class="lead">
-          You will be its owner. Only you can change these limits later. The agent can never go above them.
-        </p>
-        <form id="create-form" class="card form" novalidate>
-          <label>
-            Most the agent may pay in one payment (USDC)
-            <input name="maxPerPayment" inputmode="decimal" placeholder="300" required />
-          </label>
-          <label>
-            Most the agent may pay in a week (USDC)
-            <input name="weeklyCap" inputmode="decimal" placeholder="1000" required />
-          </label>
-          <label>
-            Agent wallet <span class="optional">(optional, you can add it later)</span>
-            <input name="agent" placeholder="0x..." autocomplete="off" spellcheck="false" />
-          </label>
-          <button class="btn btn-primary" type="submit">Create my shop contract</button>
-        </form>
-      </section>
-
       <section id="view-shop" class="view console" hidden>
         <div class="console-head">
           <div class="shop-id">
             <span class="eyebrow">Shop</span>
             <a class="mono" id="shop-link" target="_blank" rel="noopener"></a>
           </div>
-          <div class="agent-switch">
+          <div class="agent-switch shop-only">
             <span class="state" id="agent-status"></span>
             <span class="tag-mode owner-only" id="draft-badge" hidden></span>
             <button class="btn btn-danger btn-small owner-only" id="agent-off" type="button">Turn the agent off</button>
@@ -85,7 +63,7 @@
           <dl class="figures">
             <div><dt>In your wallet <span class="tag-testnet" title="Test network: test dollars with no real value">Testnet</span></dt><dd id="balance"></dd></div>
             <div><dt>Payments</dt><dd id="allowance"></dd></div>
-            <div><dt>Left this week</dt><dd><span id="remaining"></span> <span class="of">/ <span id="weekly-cap"></span></span></dd></div>
+            <div><dt>Left this week</dt><dd><span id="remaining"></span> <span class="of shop-only">/ <span id="weekly-cap"></span></span></dd></div>
             <div><dt>Per payment</dt><dd id="max-per-payment"></dd></div>
             <div class="owner-only"><dt>Claude today</dt><dd id="claude-today">-</dd></div>
           </dl>
@@ -94,7 +72,7 @@
         <p class="hint agent-note" id="agent-note"></p>
         <p class="hint" id="not-owner" hidden>You are viewing this shop with a wallet that is not its owner.</p>
 
-        <nav class="mtabs" aria-label="View">
+        <nav class="mtabs shop-only" aria-label="View">
           <button class="mtab" type="button" data-mview="work" aria-pressed="true">Invoices</button>
           <button class="mtab" type="button" data-mview="activity" aria-pressed="false">Activity</button>
           <button class="mtab" type="button" data-mview="chat" aria-pressed="false">Chat</button>
@@ -102,6 +80,14 @@
 
         <div class="panes" id="panes" data-mview="work">
           <section class="pane work" aria-label="Invoices">
+            <article class="card wide" id="no-shop" hidden>
+              <h2>No shop contract yet</h2>
+              <p class="hint">
+                The agent pays your suppliers through a contract you own, within the limits you set in it. Create it in
+                Settings when you are ready; until then nothing can be paid.
+              </p>
+              <button class="btn btn-primary" id="open-create" type="button">Create it in Settings</button>
+            </article>
             <div id="work-setup">
               <article class="card wide owner-only" id="erp-card">
                 <h2>Your ERPNext</h2>
@@ -188,7 +174,7 @@
               <ul class="list" id="approvals"></ul>
             </article>
 
-            <div class="pane-tabs">
+            <div class="pane-tabs shop-only">
               <div class="tabs" id="work-tabs" role="tablist" aria-label="Invoices by state"></div>
             </div>
 
@@ -267,7 +253,29 @@
             <button class="btn btn-ghost btn-small" id="close-settings" type="button">Close</button>
           </div>
 
-          <section>
+          <section id="create-section" hidden>
+            <h3>Shop contract</h3>
+            <p class="hint">
+              You will be its owner. Only you can change these limits later. The agent can never go above them.
+            </p>
+            <form id="create-form" class="form" novalidate>
+              <label>
+                Most the agent may pay in one payment (USDC)
+                <input name="maxPerPayment" inputmode="decimal" placeholder="300" required />
+              </label>
+              <label>
+                Most the agent may pay in a week (USDC)
+                <input name="weeklyCap" inputmode="decimal" placeholder="1000" required />
+              </label>
+              <label>
+                Agent wallet <span class="optional">(optional, you can add it later)</span>
+                <input name="agent" placeholder="0x..." autocomplete="off" spellcheck="false" />
+              </label>
+              <button class="btn btn-primary" type="submit">Create my shop contract</button>
+            </form>
+          </section>
+
+          <section class="shop-only">
             <h3>Payments from your wallet</h3>
             <p class="hint">
               Your money stays in your wallet until a payment is made. Authorize once: the contract may then pay
@@ -290,7 +298,7 @@
             </form>
           </section>
 
-          <section>
+          <section class="shop-only">
             <h3>Agent</h3>
             <dl class="facts">
               <div><dt>Wallet</dt><dd class="mono" id="agent-address"></dd></div>
