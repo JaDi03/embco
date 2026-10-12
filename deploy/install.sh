@@ -79,6 +79,7 @@ case $chain in *0x4cef52*) ;; *) fail "ARC_TESTNET_RPC_URL does not answer as Ar
 say "2/6 Code"
 id embco >/dev/null 2>&1 ||
   useradd --system --home-dir "$DATA" --create-home --shell /usr/sbin/nologin embco
+install -d -o embco -g embco "$DATA"  # its home, also when a backup created it first
 if [ -d "$APP/.git" ]; then
   sudo -u embco git -C "$APP" pull -q --ff-only
 else
