@@ -78,6 +78,7 @@
           </div>
           <div class="agent-switch">
             <span class="state" id="agent-status"></span>
+            <span class="tag-mode owner-only" id="draft-badge" hidden></span>
             <button class="btn btn-danger btn-small owner-only" id="agent-off" type="button">Turn the agent off</button>
             <button class="btn btn-primary btn-small owner-only" id="agent-on" type="button">Turn the agent on</button>
           </div>
@@ -157,6 +158,21 @@
                       within your limits.
                     </p>
                     <button class="btn btn-primary" id="erp-set-agent-button" type="button">Make it the agent</button>
+                  </div>
+                  <div class="draft-mode" id="draft-mode">
+                    <p><b>Payments in ERPNext:</b> <span id="draft-mode-state"></span></p>
+                    <p class="hint" id="draft-mode-note"></p>
+                    <button class="btn btn-ghost btn-small" id="draft-mode-toggle" type="button"></button>
+                    <div id="draft-mode-confirm" hidden>
+                      <p class="hint status-off">
+                        Each payment will be submitted in ERPNext and close its invoice, even when it was paid in test USDC.
+                        Your books will show those invoices as paid.
+                      </p>
+                      <div class="row">
+                        <button class="btn btn-danger btn-small" id="draft-mode-yes" type="button">Yes, submit payments in ERPNext</button>
+                        <button class="btn btn-ghost btn-small" id="draft-mode-cancel" type="button">Cancel</button>
+                      </div>
+                    </div>
                   </div>
                   <p id="erp-summary"></p>
                   <div class="row">

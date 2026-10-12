@@ -121,6 +121,14 @@ async function renderShop() {
   status.textContent = !hasAgent ? "No agent yet" : view.status;
   status.className = hasAgent && view.on ? "status-on" : "status-off";
   $("agent-note").textContent = hasAgent ? view.note : "";
+  const mode = hub.draftModeView(service);
+  const badge = $("draft-badge");
+  badge.hidden = !isOwner || !mode;
+  if (mode) {
+    badge.textContent = mode.badge;
+    badge.className = `${mode.badgeClass} owner-only`;
+    badge.title = mode.note;
+  }
   const today = service?.last_run?.brain?.today;
   $("claude-today").textContent = today
     ? `${today.sessions} session${today.sessions === 1 ? "" : "s"}${today.cost ? ` · ${today.cost} est.` : ""}`
@@ -208,6 +216,7 @@ async function renderErp(isOwner, state) {
     shop.agent_wallet ? link(shortAddress(shop.agent_wallet), addressUrl(shop.agent_wallet)) : "not created",
   );
   $("erp-set-agent").hidden = !hub.needsSetAgent(shop.agent_wallet, state.agent);
+  renderDraftMode(shop);
   const view = hub.lastRunView(shop.last_run);
   $("erp-last-at").textContent = view.at ? new Date(view.at).toLocaleString() : "not yet";
   $("erp-summary").textContent = view.text;
@@ -771,6 +780,41 @@ async function act(button, label, send) {
   }
 }
 
+function renderDraftMode(shop) {
+  const mode = hub.draftModeView(shop);
+  $("draft-mode").hidden = !mode;
+  if (!mode) return;
+  $("draft-mode-state").textContent = mode.draft ? "drafts (draft mode)" : "submitted";
+  $("draft-mode-state").className = mode.draft ? "status-on" : "status-off";
+  $("draft-mode-note").textContent = mode.note;
+  const toggle = $("draft-mode-toggle");
+  toggle.textContent = mode.action;
+  toggle.dataset.draft = String(mode.draft);
+  toggle.hidden = false;
+  $("draft-mode-confirm").hidden = true;
+}
+
+/** Leaving draft mode is two clicks: the second one says what it does to the owner's books. */
+function askDraftModeOff(show) {
+  $("draft-mode-confirm").hidden = !show;
+  $("draft-mode-toggle").hidden = show;
+  if (show) $("draft-mode-yes").focus();
+}
+
+async function setDraftMode(button, draft) {
+  button.disabled = true;
+  try {
+    await hub.setDraftMode(session.shop, draft, !draft);
+    notify(draft ? "Draft mode is on: each payment stays as a draft in ERPNext."
+      : "Draft mode is off: each payment is submitted in ERPNext.", "success");
+  } catch (error) {
+    notify(`Draft mode was not changed: ${describeError(error)}`, "error");
+  } finally {
+    button.disabled = false;
+    await renderShop();
+  }
+}
+
 /**
  * Off: the service stops the agent's process first (no checks, no Claude), then the owner pauses
  * the contract so no payment can leave either. On: the contract first, then the process.
@@ -947,6 +991,12 @@ function wireActions() {
 
   $("agent-off").addEventListener("click", (event) => switchAgent(event.currentTarget, false));
   $("agent-on").addEventListener("click", (event) => switchAgent(event.currentTarget, true));
+  $("draft-mode-toggle").addEventListener("click", (event) => {
+    if (event.currentTarget.dataset.draft === "true") askDraftModeOff(true);
+    else setDraftMode(event.currentTarget, true);
+  });
+  $("draft-mode-cancel").addEventListener("click", () => askDraftModeOff(false));
+  $("draft-mode-yes").addEventListener("click", (event) => setDraftMode(event.currentTarget, false));
 
   onSubmit("agent-form", (data, button, form) => {
     let agent;

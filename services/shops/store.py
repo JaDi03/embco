@@ -8,6 +8,8 @@
     <root>/<shop>/inbox/           wallet signatures from suppliers, for the agent to check
     <root>/<shop>/agent_off        present while the owner has the agent turned off
     <root>/<shop>/payments_paused  present while payments are paused: the agent only observes
+    <root>/<shop>/submit_payments  present while the owner chose to submit Payment Entries;
+                                   absent, each payment stays in the ERP as a TESTNET draft
 
 A shop is the address of its ShopPayables contract, in lower case. A shop's settings are built
 from its folder only, so no shop inherits another's. The only values from outside are the
@@ -33,6 +35,7 @@ LAST_RUN = "last_run.json"
 SUPPLIER_VIEW = "suppliers.json"
 AGENT_OFF = "agent_off"
 PAYMENTS_PAUSED = "payments_paused"
+SUBMIT_PAYMENTS = "submit_payments"
 _SHOP = re.compile(r"^0x[0-9a-f]{40}$")
 PLATFORM = ("CIRCLE_API_KEY", "CIRCLE_ENTITY_SECRET", "ARC_TESTNET_RPC_URL")
 BRAIN_PLATFORM = ("ANTHROPIC_API_KEY",)  # the platform's model account, for shops with a brain
@@ -130,9 +133,9 @@ class ShopStore:
 
     def settings(self, shop: str, platform: Mapping[str, str] | None = None) -> Settings:
         """Payments are on once the shop has its agent wallet and the platform gives the Circle
-        account and the Arc node. Testnet only for now: each payment is left in the ERP as a
-        draft marked TESTNET, never submitted. AI explanations stay off; the agent's brain is on
-        when the shop chose it."""
+        account and the Arc node. Each payment is left in the ERP as a draft marked TESTNET
+        (draft mode) unless the owner chose to submit them. AI explanations stay off; the
+        agent's brain is on when the shop chose it."""
         config, credentials = self.config(shop), self.credentials(shop)
         shared = {name: (platform or {}).get(name, "").strip() for name in PLATFORM}
         pay = bool(config.agent_wallet_id) and all(shared.values())
@@ -149,7 +152,7 @@ class ShopStore:
             "EMBCO_ERPNEXT_PAYMENT_EXTRA": json.dumps(config.payment_extra)
             if config.payment_extra else "",
             "EMBCO_PAY": "on" if pay else "off",
-            "EMBCO_ERPNEXT_DRAFT_PAYMENTS": "on",
+            "EMBCO_ERPNEXT_DRAFT_PAYMENTS": "on" if self.draft_payments(shop) else "off",
             "EMBCO_EXPLAIN": "off",
             "EMBCO_BRAIN": "on" if config.brain else "off",
             "EMBCO_AUTONOMY": config.autonomy,
@@ -197,6 +200,19 @@ class ShopStore:
             _write(flag, at.encode())
         else:
             flag.unlink(missing_ok=True)
+
+    def draft_payments(self, shop: str) -> bool:
+        """Draft mode unless the owner chose to submit: a lost flag falls back to drafts."""
+        return not (self.folder(shop) / SUBMIT_PAYMENTS).exists()
+
+    def set_draft_payments(self, shop: str, draft: bool, at: str) -> None:
+        """Kept apart from the configuration, so reconnecting the ERP does not change it."""
+        flag = self.folder(shop) / SUBMIT_PAYMENTS
+        if draft:
+            flag.unlink(missing_ok=True)
+        else:
+            self.folder(shop).mkdir(parents=True, exist_ok=True)
+            _write(flag, at.encode())
 
     def shops(self) -> list[str]:
         """Every shop with a folder, connected or not."""

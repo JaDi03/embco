@@ -114,6 +114,29 @@ test("turning the agent off or on is one call with the owner's choice", async ()
   assert.equal(calls[0].credentials, "same-origin");
 });
 
+test("draft mode is shown once the ERP is connected, and on unless the owner turned it off", () => {
+  assert.equal(hub.draftModeView({ connected: false }), null);
+  assert.equal(hub.draftModeView(null), null);
+  const draft = hub.draftModeView({ connected: true, draft_mode: true });
+  assert.equal(draft.draft, true);
+  assert.match(draft.badge, /Draft mode/);
+  assert.match(draft.note, /TESTNET/);
+  assert.equal(hub.draftModeView({ connected: true }).draft, true);  // an older service: drafts
+  const submitted = hub.draftModeView({ connected: true, draft_mode: false });
+  assert.equal(submitted.draft, false);
+  assert.match(submitted.badgeClass, /submitted/);
+  assert.match(submitted.note, /closes its invoice/);
+});
+
+test("leaving draft mode sends the owner's confirmation", async () => {
+  const { impl, calls } = fakeFetch({
+    [`POST /api/shops/${SHOP.toLowerCase()}/draft-mode`]: [200, { draft_mode: false }],
+  });
+  assert.deepEqual(await hub.setDraftMode(SHOP, false, true, impl), { draft_mode: false });
+  assert.deepEqual(calls[0].body, { draft: false, confirm: true });
+  assert.equal(calls[0].credentials, "same-origin");
+});
+
 test("linking Telegram tells the owner exactly what to send, and to which bot", () => {
   assert.equal(hub.linkInstruction({ code: "ABCD-EFGH", bot: "embco_agent_bot" }),
     "In Telegram, send this to @embco_agent_bot within 10 minutes: /link ABCD-EFGH");

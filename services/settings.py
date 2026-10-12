@@ -60,7 +60,7 @@ class Settings:
     erpnext_paid_from: str | None = None
     erpnext_wallet_bank: str | None = None  # wallets in Bank Account rows of this bank
     erpnext_payment_extra: Mapping[str, str] = field(default_factory=dict)  # required by the ERP
-    erpnext_draft_payments: bool = False  # testnet: leave payment entries as drafts
+    erpnext_draft_payments: bool = True  # draft mode: payment entries stay as TESTNET drafts
     approvals_file: Path | None = None
     owner_users: tuple[str, ...] = ()  # ERP accounts whose mark on an invoice answers an ASK
     shop_address: str | None = None
@@ -108,7 +108,8 @@ class Settings:
             erpnext_paid_from=get("ERPNEXT_PAID_FROM") or None,
             erpnext_wallet_bank=get("ERPNEXT_WALLET_BANK") or None,
             erpnext_payment_extra=_payment_extra(get("ERPNEXT_PAYMENT_EXTRA")),
-            erpnext_draft_payments=_flag("ERPNEXT_DRAFT_PAYMENTS", get("ERPNEXT_DRAFT_PAYMENTS")),
+            erpnext_draft_payments=_flag("ERPNEXT_DRAFT_PAYMENTS",
+                                         get("ERPNEXT_DRAFT_PAYMENTS") or "on"),
             approvals_file=Path(get("APPROVALS_FILE")) if get("APPROVALS_FILE") else None,
             shop_address=get("SHOP_ADDRESS") or None,
             owner_users=tuple(u.strip() for u in get("OWNER_USERS").split(",") if u.strip()),

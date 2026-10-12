@@ -16,7 +16,12 @@ from agent.guardrails.rules import Verdict
 from services.hub.errors import HubError
 from services.hub.units import UnitError, Units
 from services.shops import chat
-from services.shops.activity import append_activity, read_activity, switched
+from services.shops.activity import (
+    append_activity,
+    draft_mode_switched,
+    read_activity,
+    switched,
+)
 from services.shops.inbox import answer_waiting, drop_answer
 from services.shops.store import ShopError, ShopStore
 from services.telegram import links
@@ -27,6 +32,11 @@ MESSAGE_EVERY = timedelta(seconds=3)  # one message at a time from the owner
 
 class Switch(BaseModel):
     on: bool
+
+
+class DraftMode(BaseModel):
+    draft: bool
+    confirm: bool = False  # leaving draft mode closes real invoices: the owner must say so
 
 
 class Message(BaseModel):
@@ -180,5 +190,25 @@ def owner_action_routes(
         finally:
             append_activity(store.folder(shop), [switched(now, False)])
         return {"agent_on": False}
+
+    @router.post("/api/shops/{shop}/draft-mode")
+    def draft_mode(shop: str, body: DraftMode,
+                   embco_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+        """Draft mode leaves each payment in the ERP as a draft marked TESTNET. Turning it off
+        submits them, so test USDC closes real invoices: the owner has to confirm it. The agent
+        restarts to use the new mode."""
+        shop = shop_of(shop)
+        owner_session(shop, embco_session)
+        if not body.draft and not body.confirm:
+            raise HubError(400, "turning draft mode off submits payments in your ERP; confirm it")
+        now = clock()
+        store.set_draft_payments(shop, body.draft, now.isoformat())
+        append_activity(store.folder(shop), [draft_mode_switched(now, body.draft)])
+        if shop in store.connected() and store.agent_on(shop):
+            try:
+                units.start(shop)
+            except UnitError as error:
+                raise HubError(500, "saved, but the agent did not restart; try again") from error
+        return {"draft_mode": body.draft}
 
     return router

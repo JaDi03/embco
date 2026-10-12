@@ -95,6 +95,34 @@ export function agentSwitchView(serviceOn, paused) {
   return { on: true, status: "On", note: serviceOn === null ? "Sign in to the embco service to turn it off fully." : "" };
 }
 
+/**
+ * Draft mode leaves each payment in ERPNext as a draft marked TESTNET. Turning it off needs
+ * `confirm`: the service refuses it otherwise, since test USDC would then close real invoices.
+ */
+export const setDraftMode = (shop, draft, confirm = false, fetchImpl = fetch) =>
+  call(`${shopPath(shop)}/draft-mode`, { method: "POST", body: { draft, confirm }, fetchImpl });
+
+/** What the page says about draft mode; nothing until the shop's ERP is connected. */
+export function draftModeView(shop) {
+  if (!shop?.connected) return null;
+  if (shop.draft_mode !== false) {
+    return {
+      draft: true,
+      badge: "Draft mode",
+      badgeClass: "tag-mode draft",
+      note: "Each payment stays in ERPNext as a draft marked TESTNET. It closes no invoice.",
+      action: "Turn draft mode off",
+    };
+  }
+  return {
+    draft: false,
+    badge: "Submitting to ERPNext",
+    badgeClass: "tag-mode submitted",
+    note: "Each payment is submitted in ERPNext and closes its invoice, even when it was paid in test USDC.",
+    action: "Turn draft mode on",
+  };
+}
+
 /** A one-time code to send to the Telegram bot as /link <code>. */
 export const telegramCode = (shop, fetchImpl = fetch) =>
   call(`${shopPath(shop)}/telegram`, { method: "POST", fetchImpl });

@@ -219,6 +219,39 @@ def test_turning_the_agent_off_stops_everything_until_the_owner_turns_it_on(hub,
     assert client.get(f"/api/shops/{SHOP}").json()["agent_on"] is True
 
 
+# ---- draft mode
+
+
+def test_leaving_draft_mode_needs_the_owners_confirmation(hub, owner):  # noqa: F811
+    client = owner_client(hub, owner)
+    assert client.get(f"/api/shops/{SHOP}").json()["draft_mode"] is True
+    response = client.post(f"/api/shops/{SHOP}/draft-mode", json={"draft": False})
+    assert response.status_code == 400
+    assert hub["store"].draft_payments(SHOP) and hub["units"].started == []
+
+
+def test_the_owner_turns_draft_mode_off_and_on_and_the_agent_restarts(hub, owner):  # noqa: F811
+    client = owner_client(hub, owner)
+    response = client.post(f"/api/shops/{SHOP}/draft-mode", json={"draft": False, "confirm": True})
+    assert response.json() == {"draft_mode": False}
+    assert client.get(f"/api/shops/{SHOP}").json()["draft_mode"] is False
+    assert hub["units"].started == [SHOP]
+    events = read_activity(hub["store"].folder(SHOP))
+    assert events[-1]["kind"] == "you" and "submitted in ERPNext" in events[-1]["text"]
+
+    assert client.post(f"/api/shops/{SHOP}/draft-mode", json={"draft": True}).json() == {
+        "draft_mode": True}
+    assert hub["store"].draft_payments(SHOP)
+    assert "draft marked TESTNET" in read_activity(hub["store"].folder(SHOP))[-1]["text"]
+
+
+def test_only_the_owner_changes_draft_mode(hub):
+    client = TestClient(hub["app"], base_url="https://testserver")
+    response = client.post(f"/api/shops/{SHOP}/draft-mode", json={"draft": False, "confirm": True})
+    assert response.status_code == 401
+    assert hub["store"].draft_payments(SHOP)
+
+
 def test_only_the_owner_turns_the_agent_on_or_off(hub):
     client = TestClient(hub["app"], base_url="https://testserver")
     assert client.post(f"/api/shops/{SHOP}/agent", json={"on": False}).status_code == 401
