@@ -51,6 +51,14 @@ def switched(at: datetime, on: bool) -> dict[str, Any]:
                            "checks, no Claude, no payments.")
 
 
+def draft_mode_switched(at: datetime, draft: bool) -> dict[str, Any]:
+    if draft:
+        return _event(at, YOU, "You turned draft mode on: each payment stays in ERPNext as a "
+                               "draft marked TESTNET and closes no invoice.")
+    return _event(at, YOU, "You turned draft mode off: each payment is now submitted in ERPNext "
+                           "and closes its invoice, even when it was paid in test USDC.")
+
+
 def check_started(at: datetime) -> dict[str, Any]:
     return _event(at, CHECK, "Checking your ERPNext for unpaid invoices...")
 

@@ -139,6 +139,7 @@ def create_app(
             "agent_wallet": config.agent_wallet_address,
             "agent_on": store.agent_on(shop),
             "payments_paused": store.payments_paused(shop),
+            "draft_mode": store.draft_payments(shop),
             "telegram_linked": links.link_of(store.folder(shop)) is not None,
             "last_run": (last_run := store.last_run(shop)),
             "answers_waiting": waiting_answers(store, shop, last_run),

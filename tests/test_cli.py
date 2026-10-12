@@ -65,3 +65,18 @@ def test_the_owner_answers_and_reads_the_history(env, tmp_path, capsys):
 def test_a_supplier_without_a_challenge_gets_a_clear_message(env, tmp_path, capsys):
     assert main([*no_env_file(tmp_path), "challenge", "S"]) == 1
     assert "no wallet challenge for S" in capsys.readouterr().err
+
+
+def test_the_payments_mode_is_said_first():
+    from services.cli import _payments_mode
+    from services.settings import Settings
+
+    base = {"EMBCO_ERPNEXT_URL": "https://erp.example.com", "EMBCO_ERPNEXT_API_KEY": "key",
+            "EMBCO_ERPNEXT_API_SECRET": CANARY, "EMBCO_COMPANY": "TEST Shop",
+            "EMBCO_MAX_PER_PAYMENT": "500", "EMBCO_WEEKLY_BUDGET": "2500"}
+    draft = Settings.from_env(base)
+    submitted = Settings.from_env(base | {"EMBCO_ERPNEXT_DRAFT_PAYMENTS": "off"})
+    payer = object()
+    assert _payments_mode(draft, None) == "off"
+    assert "DRAFT MODE" in _payments_mode(draft, payer)
+    assert "SUBMITTED" in _payments_mode(submitted, payer)

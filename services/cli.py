@@ -139,9 +139,20 @@ def _payer(settings: Settings, ledger: ErpnextAdapter) -> Payer | None:
     )
 
 
+def _payments_mode(settings, payer) -> str:
+    """Said first, so nobody pays in a mode they did not mean to."""
+    if not payer:
+        return "off"
+    entries = ("DRAFT MODE: Payment Entries stay as drafts marked TESTNET"
+               if settings.erpnext_draft_payments
+               else "Payment Entries are SUBMITTED in ERPNext")
+    return f"on, shop {settings.shop_address}, {entries}"
+
+
 def _run(args, settings, journal) -> int:
     ledger = _ledger(settings)
     payer = _payer(settings, ledger)
+    print(f"payments {_payments_mode(settings, payer)}")
     report = run_cycle(ledger, journal, settings.policy, settings.company,
                        explainer=_explainer(settings), payments=payer,
                        owners=settings.owner_users, brain=brain_setup(settings, room_of(payer)))
@@ -156,7 +167,7 @@ def _watch(args, settings, journal) -> int:
     brain = brain_setup(settings, room_of(payer))
     log.info("watching %s every %s (AI explanations %s, payments %s, agent brain %s)",
              settings.company, settings.interval, f"on, {explainer.model}" if explainer else "off",
-             f"on, shop {settings.shop_address}" if payer else "off",
+             _payments_mode(settings, payer),
              f"on, {brain.brain.model}, {brain.autonomy.value}" if brain else "off")
 
     def cycle() -> None:

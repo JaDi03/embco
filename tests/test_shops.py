@@ -114,6 +114,24 @@ def test_a_shop_has_the_brain_unless_it_turns_it_off(store):
     assert not settings.brain and settings.anthropic_api_key is None
 
 
+def test_the_owner_can_leave_draft_mode_and_go_back(store):
+    store.save(config(agent_wallet_id="wallet-a"), creds())
+    store.set_draft_payments(SHOP_A, False, "2026-10-12T09:00:00+00:00")
+    assert not store.draft_payments(SHOP_A)
+    assert not store.settings(SHOP_A, platform()).erpnext_draft_payments
+    store.save(config(agent_wallet_id="wallet-a"), creds())  # reconnecting the ERP keeps it
+    assert not store.draft_payments(SHOP_A)
+    store.set_draft_payments(SHOP_A, True, "2026-10-12T10:00:00+00:00")
+    assert store.settings(SHOP_A, platform()).erpnext_draft_payments
+
+
+def test_a_lost_draft_mode_choice_falls_back_to_drafts(store):
+    store.save(config(agent_wallet_id="wallet-a"), creds())
+    store.set_draft_payments(SHOP_A, False, "2026-10-12T09:00:00+00:00")
+    (store.folder(SHOP_A) / "submit_payments").unlink()
+    assert store.settings(SHOP_A, platform()).erpnext_draft_payments
+
+
 def test_a_shop_without_its_agent_wallet_only_observes(store):
     store.save(config(), creds())
     settings = store.settings(SHOP_A, platform())

@@ -268,6 +268,14 @@ body:has(#view-shop:not([hidden])) .notice { margin: 8px 16px 0; }
   font-size: 0.6rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
   color: var(--warn-ink); background: var(--warn-soft); border-radius: 3px; padding: 0 4px;
 }
+.tag-mode {
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  border-radius: 3px; padding: 1px 6px; cursor: help;
+}
+.tag-mode.draft { color: var(--accent-ink); background: var(--accent-soft); border: 1px solid var(--accent-line); }
+.tag-mode.submitted { color: var(--danger); background: var(--danger-soft); border: 1px solid var(--danger-line); }
+.draft-mode { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.draft-mode p { margin: 0 0 6px; }
 .agent-switch { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-left: auto; }
 .agent-switch .state { font-weight: 600; font-size: 0.86rem; display: inline-flex; align-items: center; gap: 7px; }
 .agent-switch .state::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }

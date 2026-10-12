@@ -27,6 +27,14 @@ def test_settings_come_from_the_environment_with_defaults():
 
 
 
+def test_draft_mode_is_on_unless_it_is_turned_off():
+    assert Settings.from_env(ENV).erpnext_draft_payments
+    submitted = Settings.from_env(ENV | {"EMBCO_ERPNEXT_DRAFT_PAYMENTS": "off"})
+    assert not submitted.erpnext_draft_payments
+    with pytest.raises(SettingsError, match="ERPNEXT_DRAFT_PAYMENTS"):
+        Settings.from_env(ENV | {"EMBCO_ERPNEXT_DRAFT_PAYMENTS": "maybe"})
+
+
 def test_owner_accounts_are_a_comma_separated_list_and_off_by_default():
     assert Settings.from_env(ENV).owner_users == ()
     env = {**ENV, "EMBCO_OWNER_USERS": " owner@shop.test, ,admin@shop.test "}
