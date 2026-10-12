@@ -32,9 +32,9 @@ The script checks `.env` before it installs anything, and says what is missing. 
 `Done. Open https://your-domain`: open it, and the dashboard asks to connect a wallet. From
 there, shop owners follow [Connect your ERPNext](connect.md).
 
-!!! warning "Back up the shops"
-    The script creates `/etc/embco/shops.key`, which encrypts each shop's ERPNext keys on disk.
-    Back it up together with the shops' data, as [below](#back-up-and-move-to-a-new-server).
+!!! warning "Save the shop key"
+    The script creates `/etc/embco/shops.key`, which encrypts each shop's connection on disk.
+    Save a copy now, apart from any other backup, as [below](#back-up-and-move-to-a-new-server).
 
 ## Update or change a setting
 
@@ -51,23 +51,32 @@ run the command again.
 
 ## Back up and move to a new server
 
-Everything a shop connected lives in two places: the shop key and the shops' folders (settings,
-encrypted ERPNext keys, journal). The key alone is not enough, and the folders cannot be read
-without it. To back up both, with the agents stopped for a moment so the journals are complete:
+Moving the shops to a new server takes two things, kept in different places so that neither
+one alone is of any use:
+
+1. **The shop key.** It never changes, so you save it once, in a password manager:
+
+    ```bash
+    sudo cat /etc/embco/shops.key
+    ```
+
+2. **The shops' data** (settings, connection and journal), backed up as often as you like, with
+   the agents stopped for a moment so the journals are complete:
+
+    ```bash
+    sudo systemctl stop 'embco-shop@*'
+    sudo tar czf embco-shops.tar.gz /var/lib/embco/shops
+    sudo systemctl restart embco-hub
+    ```
+
+    Restarting the hub starts the agents again. Keep the file off the server.
+
+On the new server, put both back before you install, then install as usual:
 
 ```bash
-sudo systemctl stop 'embco-shop@*'
-sudo tar czf embco-backup.tar.gz /etc/embco/shops.key /var/lib/embco/shops
-sudo systemctl restart embco-hub
-```
-
-Restarting the hub starts the agents again. Keep the file off the server: it holds the shops'
-ERPNext keys, encrypted with the key that travels next to them, so store it like a password.
-
-On the new server, put the backup back before you install, then install as usual:
-
-```bash
-sudo tar xzf embco-backup.tar.gz -C /
+sudo install -d -m 700 /etc/embco
+sudo nano /etc/embco/shops.key            # paste the key from your password manager
+sudo tar xzf embco-shops.tar.gz -C /
 git clone https://github.com/JaDi03/embco.git
 cd embco
 cp .env.example .env

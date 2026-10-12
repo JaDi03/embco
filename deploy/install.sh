@@ -173,6 +173,6 @@ fi
 echo "Done. Open $public"
 if [ "$KEY_CREATED" = 1 ]; then
   echo
-  echo "A new shop key was created in $CONF/shops.key. It encrypts each shop's ERPNext keys:"
-  echo "back it up with the shops' data, as the guide says (Back up and move to a new server)."
+  echo "A new shop key was created. Save a copy in a password manager, apart from other backups:"
+  echo "  sudo cat $CONF/shops.key"
 fi

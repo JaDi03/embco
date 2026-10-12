@@ -94,8 +94,6 @@ then you approve it in the dashboard (see [What happens next](#what-happens-next
 4. Click **Make it the agent**. This lets your shop's agent wallet pay approved suppliers, within
    the limits you set.
 
-The keys are stored encrypted and are never shown again.
-
 ## What happens next
 
 - **The agent checks ERPNext on its own** every 15 minutes. You do not need to open anything.
