@@ -102,7 +102,12 @@ a { color: var(--accent-ink); }
 .brand { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; }
 .brand img { width: 28px; height: 28px; }
 .wordmark { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; }
-.topbar-right { display: flex; align-items: center; gap: 10px; }
+.topbar-right { display: flex; align-items: center; gap: 10px; position: relative; }
+.account-menu {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; width: min(320px, calc(100vw - 32px));
+  display: grid; gap: 8px; padding: 12px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--line); box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
 .pill {
   font-size: 0.75rem; font-weight: 600; padding: 3px 9px; border-radius: 999px;
   background: var(--warn-soft); color: var(--warn-ink);

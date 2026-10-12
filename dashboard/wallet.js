@@ -21,6 +21,17 @@ export async function currentAccount() {
   return accounts[0] ? ethers.getAddress(accounts[0]) : null;
 }
 
+/** Remove this site from MetaMask's connected sites. False when the wallet cannot do it. */
+export async function disconnect() {
+  if (!hasWallet()) return true;
+  try {
+    await window.ethereum.request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function onArc(provider) {
   const network = await provider.getNetwork();
   return network.chainId === ARC_TESTNET.chainId;

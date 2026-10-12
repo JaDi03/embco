@@ -48,6 +48,13 @@ function setAccount(account) {
   button.hidden = !account;
   button.textContent = account ? shortAddress(account) : "";
   button.title = account ?? "";
+  $("account-full").textContent = account ?? "";
+  if (!account) accountMenu(false);
+}
+
+function accountMenu(open) {
+  $("account-menu").hidden = !open;
+  $("account-button").setAttribute("aria-expanded", String(open));
 }
 
 function readAddress(text, { allowEmpty = false } = {}) {
@@ -70,6 +77,7 @@ async function render() {
   const account = await wallet.currentAccount();
   setAccount(account);
   if (!account) {
+    $("network-pill").hidden = true;
     show("view-welcome");
     return;
   }
@@ -874,6 +882,23 @@ function wireActions() {
     } catch (error) {
       notify(describeError(error), "error");
     }
+  });
+
+  $("account-button").addEventListener("click", () => accountMenu($("account-menu").hidden));
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".topbar-right")) accountMenu(false);
+  });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") accountMenu(false); });
+  $("disconnect-button").addEventListener("click", async () => {
+    accountMenu(false);
+    stopTerminal();
+    if (session.shop) await hub.signOut(session.shop).catch(() => null);  // the hub forgets this browser too
+    session = { provider: null, account: null, shop: null };
+    if (!(await wallet.disconnect())) {
+      notify("Your wallet did not let the page disconnect. In MetaMask, open Connected sites and remove this one.", "error");
+      return;
+    }
+    await render();
   });
 
   $("switch-button").addEventListener("click", async () => {
