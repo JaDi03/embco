@@ -68,7 +68,7 @@ function readAddress(text, { allowEmpty = false } = {}) {
 
 async function render() {
   notify("");
-  if (!wallet.hasWallet()) {
+  if (!(await wallet.hasWallet())) {
     show("view-welcome");
     $("connect-button").hidden = true;
     $("no-wallet").hidden = false;
@@ -81,7 +81,7 @@ async function render() {
     show("view-welcome");
     return;
   }
-  const provider = new ethers.BrowserProvider(window.ethereum);
+  const provider = await wallet.browserProvider();
   session = { provider, account, shop: null };
   if (!(await wallet.onArc(provider))) {
     $("network-pill").hidden = true;
