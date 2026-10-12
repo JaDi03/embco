@@ -38,14 +38,16 @@ there, shop owners follow [Connect your ERPNext](connect.md).
 
 ## Update or change a setting
 
-The script moves `.env` to `/etc/embco/embco.env`, so no copy with your keys stays in the
-folder you cloned. To change a setting, edit that file. To update, or to apply a change, run:
+The same command, from the same folder, updates everything and keeps your settings:
 
 ```bash
-sudo bash /opt/embco/deploy/install.sh
+cd embco
+sudo bash deploy/install.sh
 ```
 
-It takes the new code, keeps your settings and restarts everything.
+The script moves `.env` to `/etc/embco/embco.env`, so no copy with your keys stays in the
+folder you cloned. To change a setting, edit that file, or write a new `.env` in the folder, and
+run the command again.
 
 ## What the script sets up
 

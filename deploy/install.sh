@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Installs or updates an embco server: the dashboard, the hub and the shops' agents.
-#   First install, from a clone with a filled-in .env:  sudo bash deploy/install.sh
-#   Update, any time later:                             sudo bash /opt/embco/deploy/install.sh
+# From the folder you cloned, the same command installs, updates and applies new settings:
+#   sudo bash deploy/install.sh
 set -euo pipefail
 
 APP=/opt/embco
@@ -18,6 +18,13 @@ command -v apt-get >/dev/null || fail "this script needs Debian or Ubuntu (apt-g
 command -v systemctl >/dev/null || fail "this script needs systemd"
 
 SRC=$(cd "$(dirname "$0")/.." && pwd)
+
+# Run from a clone: bring it up to date first, then run its new copy of this script.
+if [ "$SRC" != "$APP" ] && [ -z "${EMBCO_CLONE_UPDATED:-}" ]; then
+  sudo -u "$(stat -c %U "$SRC")" git -C "$SRC" pull -q --ff-only ||
+    fail "could not update $SRC with git pull"
+  EMBCO_CLONE_UPDATED=1 exec bash "$SRC/deploy/install.sh"
+fi
 
 # The value of KEY in an env file, without quotes or a Windows line end; empty if missing.
 get() {
@@ -90,7 +97,7 @@ if [ -n "$NEW" ]; then
   tr -d '\r' < "$NEW" > "$SETTINGS.tmp"
   install -m 640 -o root -g embco "$SETTINGS.tmp" "$SETTINGS"
   rm -f "$SETTINGS.tmp" "$NEW"
-  echo "Settings moved to $SETTINGS. To change them later, edit that file and run this again."
+  echo "Settings moved to $SETTINGS. To change them, edit that file and run this again."
 fi
 put "$SETTINGS" EMBCO_PUBLIC_URL "$public"
 
