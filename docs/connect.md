@@ -103,8 +103,10 @@ The keys are stored encrypted and are never shown again.
   signature from that wallet. Then it appears in the dashboard under **Waiting for your
   approval**. Before approving, check in ERPNext that the wallet belongs to the supplier you
   expect.
-- **When the agent pays**, it submits a Payment Entry in ERPNext for that invoice. The
-  transaction hash is in **Reference No**, and the wallet paid is in the remarks.
+- **When the agent pays**, it records a Payment Entry in ERPNext for that invoice. The
+  transaction hash is in **Reference No**, and the wallet paid is in the remarks. While embco
+  runs on testnet, the entry stays as a **draft** whose remarks start with "TESTNET": test USDC
+  never closes a real invoice.
 
 ## If something does not work
 
