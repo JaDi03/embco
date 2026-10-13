@@ -52,19 +52,32 @@ def paid(invoice, status, tx=TX):
 
 
 def test_an_invoice_the_agent_will_pay_is_shown_as_scheduled(journal):
-    [invoice] = view(FakeLedger(), journal)["suppliers"]["S"]["invoices"]
+    from support import agreeing_brain
+
+    report = run_cycle(FakeLedger(), journal, POLICY, "TEST Shop", at=MONDAY,
+                       brain=agreeing_brain())  # the agent chose to pay it
+    [invoice] = supplier_view(report, journal, "TEST Shop")["suppliers"]["S"]["invoices"]
     assert invoice == {"invoice": "PINV-1", "amount": "1000", "due_date": "2026-10-10",
                        "status": SCHEDULED}
 
 
 def test_a_held_invoice_is_under_review_without_the_shops_reasons(journal):
     ledger = FakeLedger()
-    ledger.pending = [make_invoice(qty="12")]  # more than was received: the agent holds it
+    ledger.pending = [make_invoice(bill_no="H-0")]  # the bill number of a paid invoice: held
     report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=MONDAY)
     page = supplier_view(report, journal, "TEST Shop")["suppliers"]["S"]
     assert [i["status"] for i in page["invoices"]] == [UNDER_REVIEW]
     text = json.dumps(page)
     assert report.decisions[0].reasons and not any(r in text for r in report.decisions[0].reasons)
+
+
+def test_an_invoice_with_something_to_weigh_is_under_review_until_the_agent_decides(journal):
+    ledger = FakeLedger()
+    ledger.pending = [make_invoice(qty="12")]  # more than was received: the agent weighs it
+    report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=MONDAY)  # no agent: no choice
+    page = supplier_view(report, journal, "TEST Shop")["suppliers"]["S"]
+    assert [i["status"] for i in page["invoices"]] == [UNDER_REVIEW]
+    assert "received" not in json.dumps(page)
 
 
 def test_a_new_wallet_asks_the_supplier_to_sign_the_exact_challenge(journal):

@@ -14,8 +14,12 @@ payments are on), sees what happened and acts on it.
 
 ## The fixed rule
 
-Each invoice gets one verdict from the controls. The rule combines them in a fixed order, and
-no model can change it:
+Each control returns a finding. Only two kinds stop an invoice, and no model can change them:
+HOLD (the supplier's wallet is missing, invalid or not confirmed by the supplier's signature,
+or the bill repeats one already entered) and ASK (a first payment to a new wallet, answered by
+the owner). Everything else a control finds (a missing receipt, less received than billed, a
+price jump, an amount over the per-payment limit, a disabled supplier) is a NOTE: evidence the
+AI agent weighs before it decides to pay, hold or ask the owner.
 
 <figure class="diagram" markdown>
 ![The fixed rule: any hard stop means HOLD; otherwise anything that needs a person means ASK the owner; otherwise PAY. The owner approving turns ASK into PAY, rejecting turns it into HOLD](assets/diagrams/the-fixed-rule.svg#only-light "The fixed rule")
@@ -29,7 +33,8 @@ finding with its evidence, so the reason on screen is the reason the rule used.
 
 | Question | Decided by | Notes |
 |---|---|---|
-| Is the invoice allowed to be paid at all? | The rules | Fixed, testable, no model involved |
+| Can the invoice be paid at all? | The rules | Only a wallet not yet proven or approved, or a duplicate bill, stops it. Fixed, testable, no model involved |
+| Does what was billed make sense? | The AI model | It weighs the notes (receipt, quantities, price history, limits) and pays, holds or asks the owner, with its reason |
 | Is this supplier's wallet safe? | The wallet control, then the owner | A new wallet waits for the supplier's signature and the owner's approval |
 | What is paid now, and what waits for a date? | The AI model | It pays itself and reads the result; the gate refuses anything the rules forbid before it is sent |
 | A payment did not go out: why, and who fixes it? | The AI model | It looks up the reason with its tools and tells the owner what only they can fix |

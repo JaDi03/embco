@@ -52,6 +52,22 @@ test("a wallet not approved in the contract gets its approve button", () => {
   assert.equal(task.decide.state, "locked");
 });
 
+test("what the agent weighs is listed apart, not as a step for the owner", () => {
+  const d = decision("PAY", [["order_receipt", "NOTE"]]);
+  const task = needs.taskFor(d, { wallet: WALLET, approved: true, maxPerPayment: USDC(400), weeklyCap: USDC(2000) });
+  assert.deepEqual(task.weighed, ["order_receipt reason"]);
+  assert.equal(task.steps.some((s) => s.key === "order"), false);
+});
+
+test("when the agent asks, the owner gets two quick answers for the chat", () => {
+  const d = decision("PAY", [], { agent: { choice: "ASK", question: "Did the 4 sacks arrive?" } });
+  const reply = needs.replyTo(d);
+  assert.equal(reply.question, "Did the 4 sacks arrive?");
+  assert.deepEqual(reply.options.map((o) => o.label), ["Yes, pay it", "No, hold it"]);
+  assert.match(reply.options[0].text, /^About ACC-PINV-2026-00005: yes/);
+  assert.equal(needs.replyTo(decision("PAY", [], { agent: { choice: "HOLD" } })), null);
+});
+
 test("when the wallet is the only question, its approval says it is also the answer", () => {
   const facts = { wallet: WALLET, approved: false, maxPerPayment: USDC(400), weeklyCap: USDC(2000) };
   const only = decision("ASK", [["first_payment"]]);

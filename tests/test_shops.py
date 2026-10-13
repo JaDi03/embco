@@ -171,7 +171,8 @@ def test_each_cycle_decides_with_the_limits_in_the_contract(store):
     run_shop(store, SHOP_A, cycles=2, sleep=lambda s: None, erp=lambda settings: FakeLedger(),
              limits=lambda settings: read)
     [decision] = store.last_run(SHOP_A)["decisions"]
-    assert decision["action"] == "ASK"  # 1000 is above the contract's 300, not the saved 5000
+    # 1000 is above the contract's 300, not the saved 5000: noted for the agent to weigh
+    assert decision["action"] == "PAY"
     assert any("per-payment limit of 300" in r for r in decision["reasons"])
     assert answers == []  # read before each cycle; the second failure kept the last limits
 

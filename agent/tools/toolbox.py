@@ -456,8 +456,11 @@ class Toolbox:
             "amount": fmt(d.amount),
             "due_date": _day(d.due_date),
             "checks_say": d.action.value,
-            "problems": [f.reason for f in d.findings if f.outcome is not Outcome.PASS]
-            or ([r for r in d.reasons if r.startswith(("approved", "rejected"))]),
+            "stops": [] if d.action is Action.PAY else [  # an answered question no longer stops
+                f.reason for f in d.findings if f.outcome in (Outcome.HOLD, Outcome.ASK)],
+            "to_weigh": [f.reason for f in d.findings if f.outcome is Outcome.NOTE],
+            "owner_answer": next((r for r in d.reasons if r.startswith(("approved", "rejected"))),
+                                 None),
             "paid_or_sent": d.invoice in self.done,
             "last_payment": self._last_payment(d.invoice),
             "your_decision": None if mine is None else {

@@ -65,6 +65,15 @@ export function timeline(events) {
   return out;
 }
 
+/** The agent's choice on an invoice, as a short label next to its own words. */
+export function choiceLabel(e) {
+  if (e.choice === "PAY_NOW") return "Pay now";
+  if (e.choice === "SCHEDULE") return e.pay_on ? `Pay on ${e.pay_on}` : "Pay later";
+  if (e.choice === "HOLD") return "Hold";
+  if (e.choice === "ASK") return "Asks you";
+  return "";
+}
+
 /** Keep what a filter shows: a session counts as the agent's. */
 export function filterTimeline(items, filter) {
   if (!filter?.actors) return items;

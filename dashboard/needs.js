@@ -51,9 +51,12 @@ export function taskFor(decision, facts = {}, { waiting = false, answer = null }
     steps.push({ key: "wallet", state: "done", text: `Wallet ${SHORT(wallet)}, already paid before.` });
   }
 
-  // 2. Anything else to fix in ERPNext
+  // 2. What stops it in ERPNext (a duplicate bill); what the agent weighs is listed apart
+  const weighed = [];
   for (const f of decision.findings ?? []) {
-    if (f.step === "order_receipt") {
+    if (f.outcome === "NOTE") {
+      weighed.push(f.reason);
+    } else if (f.step === "order_receipt") {
       steps.push({ key: "order", state: "todo", text: `In ERPNext, link the invoice to its purchase order and receipt (${f.reason}).` });
     } else if (f.step === "other") {
       steps.push({ key: `other-${f.control}`, state: "todo", text: f.reason });
@@ -107,7 +110,21 @@ export function taskFor(decision, facts = {}, { waiting = false, answer = null }
     };
   }
 
-  return { decision, steps, decide, section: sectionOf(decision, steps), payment: paymentText(decision) };
+  return { decision, steps, decide, weighed, reply: replyTo(decision), section: sectionOf(decision, steps), payment: paymentText(decision) };
+}
+
+/** When the agent asks the owner something, two quick answers it reads in the chat; the owner
+ * can also write anything else there. */
+export function replyTo(decision) {
+  const agent = decision.agent;
+  if (decision.action !== "PAY" || agent?.choice !== "ASK") return null;
+  return {
+    question: agent.question || agent.reason,
+    options: [
+      { label: "Yes, pay it", text: `About ${decision.invoice}: yes, go ahead and pay it.` },
+      { label: "No, hold it", text: `About ${decision.invoice}: no, hold it for now.` },
+    ],
+  };
 }
 
 function sectionOf(decision, steps) {

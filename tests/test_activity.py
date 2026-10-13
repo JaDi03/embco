@@ -42,7 +42,7 @@ def test_each_check_is_written_as_numbered_events(store):
     # waits before waking it again
     assert kinds(events) == ["check", "reflex", "error", "new", "done", "check", "done"]
     assert "Nothing new is paid" in events[2]["text"]
-    assert "New invoice PINV-1 from S, 1000 USDC: the checks pass" in events[3]["text"]
+    assert "New invoice PINV-1 from S, 1000 USDC: nothing stops it" in events[3]["text"]
     assert events[4]["text"].startswith("Check done: 1 unpaid")
     assert "Next check in 15 minutes" in events[4]["text"]
     assert [e["seq"] for e in activity.read_activity(store.folder(SHOP), after=5)] == [6, 7]

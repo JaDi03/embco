@@ -37,8 +37,11 @@ def supplier_view(
     one on file in the ERP: only whoever signs in with it sees the entry."""
     payments = {p.invoice: p for p in journal.latest_payments()}
     challenges = {c.supplier: c for c in report.challenges}
+    # scheduled only once the agent chose to pay it: now, or on a date it picked
     scheduled = {d.invoice for d in report.plan.pay_now}
-    scheduled |= {d.decision.invoice for d in report.plan.deferred}
+    scheduled |= {d.decision.invoice for d in report.plan.deferred
+                  if d.reason.startswith(("the agent scheduled it", "not enough weekly budget"))
+                  and report.thought is not None}
     invoices: dict[str, list] = defaultdict(list)
     for d in report.decisions:
         last = payments.get(d.invoice)

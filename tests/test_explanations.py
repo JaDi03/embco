@@ -44,7 +44,8 @@ def journal(tmp_path):
 
 def held_ledger() -> FakeLedger:
     ledger = FakeLedger()
-    ledger.pending = [make_invoice("PINV-1"), make_invoice("PINV-2", "B-2", qty="12")]
+    # PINV-2 repeats the bill number of the paid PINV-0: a duplicate is still held
+    ledger.pending = [make_invoice("PINV-1"), make_invoice("PINV-2", "H-0")]
     return ledger
 
 
@@ -73,7 +74,7 @@ def test_a_changed_decision_is_explained_again(journal):
     explainer = FakeExplainer()
     cycle(held_ledger(), journal, explainer)
     ledger = held_ledger()
-    ledger.pending[1] = make_invoice("PINV-2", "B-2", qty="13")
+    ledger.pending[1] = make_invoice("PINV-2", "H-0", qty="9")  # still a duplicate, new amount
     cycle(ledger, journal, explainer, MONDAY + timedelta(hours=1))
     assert explainer.calls == ["PINV-2", "PINV-2"]
 

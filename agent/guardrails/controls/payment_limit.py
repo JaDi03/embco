@@ -1,8 +1,9 @@
-"""A single payment above the configured limit always needs a person."""
+"""A payment above the per-payment limit: the shop contract refuses it from the agent, so the
+agent knows before trying, and tells the owner what can be done."""
 
 from decimal import Decimal
 
-from agent.guardrails.controls.base import Finding, ask, fmt, passed
+from agent.guardrails.controls.base import Finding, fmt, note, passed
 from agent.guardrails.controls.context import Context
 
 
@@ -15,7 +16,7 @@ class PaymentLimit:
     def check(self, ctx: Context) -> Finding:
         amount = ctx.invoice.outstanding_amount
         if amount > self._max:
-            return ask(
+            return note(
                 self.name,
                 f"amount {fmt(amount)} {ctx.invoice.currency} is above the per-payment "
                 f"limit of {fmt(self._max)}",
