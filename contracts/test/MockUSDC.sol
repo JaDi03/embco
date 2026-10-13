@@ -25,3 +25,10 @@ contract MockUSDC {
         return true;
     }
 }
+
+/// @dev An ERC-20 that answers false instead of reverting, which SafeERC20 must treat as a failure.
+contract FalseUSDC {
+    function transferFrom(address, address, uint256) external pure returns (bool) {
+        return false;
+    }
+}

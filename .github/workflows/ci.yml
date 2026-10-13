@@ -38,7 +38,7 @@ jobs:
           for b in forge cast anvil; do install -m 755 "/tmp/$b" "$HOME/.local/bin/arc-$b"; done
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - run: arc-forge fmt --check
-      - run: arc-forge test
+      - run: arc-forge test --network arc
 
   dashboard:
     runs-on: ubuntu-latest

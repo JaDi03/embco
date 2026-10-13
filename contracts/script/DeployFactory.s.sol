@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
-import {IERC20} from "../src/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ShopPayablesFactory} from "../src/ShopPayablesFactory.sol";
 
 /// @notice Deploys the factory on Arc Testnet. Shops are then created by their owners from

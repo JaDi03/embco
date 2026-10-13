@@ -1,9 +1,10 @@
 // Turn wallet and contract errors into sentences an owner can act on.
 
 const CONTRACT_ERRORS = {
-  NotOwner: "Only the owner of this shop contract can do that.",
+  OwnableUnauthorizedAccount: "Only the owner of this shop contract can do that.",
   NotAuthorized: "This wallet is not allowed to do that on this shop contract.",
-  IsPaused: "The agent is paused. Resume it first.",
+  EnforcedPause: "The agent is paused. Resume it first.",
+  ExpectedPause: "Payments are not paused.",
   PayeeNotApproved: "That supplier wallet is not approved yet.",
   AlreadyPaid: "That invoice was already paid.",
   OverPaymentLimit: "The amount is above the per-payment limit.",
@@ -11,7 +12,8 @@ const CONTRACT_ERRORS = {
   InvalidLimits: "The per-payment limit must be greater than zero and not above the weekly cap.",
   InvalidAddress: "That wallet address cannot be used here (it may be your own wallet).",
   InvalidPayment: "A payment needs a supplier, an amount and an invoice reference.",
-  TransferFailed: "The USDC transfer failed. Check your balance and that payments are authorized in Settings.",
+  SafeERC20FailedOperation: "The USDC transfer failed. Check your balance and that payments are authorized in Settings.",
+  OwnershipFixed: "A shop contract always belongs to the wallet that created it.",
 };
 
 /** A readable message for anything thrown by MetaMask, ethers or the contracts. */
