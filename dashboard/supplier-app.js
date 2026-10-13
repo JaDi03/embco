@@ -5,6 +5,7 @@ import { ARC_TESTNET } from "./config.js";
 import { describeError } from "./errors.js";
 import { chooseWallet } from "./picker.js";
 import * as suppliers from "./suppliers.js";
+import "./theme.js";
 import * as wallet from "./wallet.js";
 
 const $ = (id) => document.getElementById(id);

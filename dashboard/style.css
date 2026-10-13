@@ -116,10 +116,6 @@ a { color: var(--accent-ink); }
   font: inherit; width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
   border: 1px solid var(--line); background: var(--surface); color: var(--text);
 }
-.testnet-banner {
-  text-align: center; font-size: 0.8rem; padding: 5px 12px;
-  background: var(--warn-soft); color: var(--warn-ink);
-}
 
 .container { width: 100%; max-width: 1440px; margin: 0 auto; padding: 28px 20px 48px; flex: 1; }
 h1 { font-size: 1.8rem; line-height: 1.2; margin: 0 0 12px; letter-spacing: -0.02em; }
@@ -192,6 +188,8 @@ input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-col
 }
 .footer nav { display: flex; gap: 16px; }
 .built-on { display: flex; align-items: center; gap: 8px; color: var(--muted); text-decoration: none; }
+:root[data-theme="dark"] .built-on img { filter: invert(1); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .built-on img { filter: invert(1); } }
 
 @media (max-width: 560px) {
   h1 { font-size: 1.45rem; }
