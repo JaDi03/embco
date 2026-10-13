@@ -53,6 +53,8 @@ supplier's real bank account stays as it is.
 
 1. Create a **Bank** named `USDC on Arc` (once).
 2. For each supplier you will pay with embco, create a **Bank Account**:
+    - **Account Name**: the supplier's name (ERPNext names the account "Account Name - Bank",
+      so the same Account Name twice is refused as a duplicate)
     - **Bank**: `USDC on Arc`
     - **Party Type**: Supplier
     - **Party**: the supplier
