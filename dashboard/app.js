@@ -12,6 +12,7 @@ import { agentView, groupTasks, raisedLimits, taskFor } from "./needs.js";
 import * as suppliers from "./suppliers.js";
 import { factory, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
 import { AUTHORIZE_ALL, authorizationView, formatUsdc, parseUsdc, shortAddress, ZERO_ADDRESS } from "./units.js";
+import { chooseWallet } from "./picker.js";
 import * as wallet from "./wallet.js";
 
 const $ = (id) => document.getElementById(id);
@@ -66,24 +67,25 @@ function readAddress(text, { allowEmpty = false } = {}) {
 
 // Rendering
 
+function showWelcome() {
+  const hasWallet = wallet.wallets().length > 0;
+  show("view-welcome");
+  $("connect-button").hidden = !hasWallet;
+  $("no-wallet").hidden = hasWallet;
+}
+
 async function render() {
+  const account = await wallet.reconnect();
   notify("");
-  if (!(await wallet.hasWallet())) {
-    show("view-welcome");
-    $("connect-button").hidden = true;
-    $("no-wallet").hidden = false;
-    return;
-  }
-  const account = await wallet.currentAccount();
   setAccount(account);
   if (!account) {
     $("network-pill").hidden = true;
-    show("view-welcome");
+    showWelcome();
     return;
   }
-  const provider = await wallet.browserProvider();
+  const provider = wallet.provider();
   session = { provider, account, shop: null };
-  if (!(await wallet.onArc(provider))) {
+  if (!(await wallet.onArc())) {
     $("network-pill").hidden = true;
     show("view-network");
     return;
@@ -907,7 +909,7 @@ function settings(open) {
 function wireActions() {
   $("connect-button").addEventListener("click", async () => {
     try {
-      await wallet.connect();
+      await wallet.connect(await chooseWallet($("wallet-list"), wallet.wallets()));
       await render();
     } catch (error) {
       notify(describeError(error), "error");
@@ -924,10 +926,7 @@ function wireActions() {
     stopTerminal();
     if (session.shop) await hub.signOut(session.shop).catch(() => null);  // the hub forgets this browser too
     session = { provider: null, account: null, shop: null };
-    if (!(await wallet.disconnect())) {
-      notify("Your wallet did not let the page disconnect. In MetaMask, open Connected sites and remove this one.", "error");
-      return;
-    }
+    await wallet.disconnect();
     await render();
   });
 
@@ -1183,6 +1182,13 @@ function start() {
   $("explorer-link").href = ARC_TESTNET.explorer;
   wireActions();
   wallet.onWalletChange(() => render().catch((error) => notify(describeError(error), "error")));
+  wallet.onWallets(() => { if (!$("view-welcome").hidden) showWelcome(); });  // a wallet announced late
+  // Reconnecting to the wallet used last time: the start page shows meanwhile, never an empty page.
+  const last = wallet.rememberedWallet();
+  if (last) {
+    show("view-welcome");
+    notify(`Reconnecting to ${last.info.name}...`);
+  }
   render().catch((error) => notify(describeError(error), "error"));
 }
 

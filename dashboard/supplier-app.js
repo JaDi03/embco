@@ -3,6 +3,7 @@
 
 import { ARC_TESTNET } from "./config.js";
 import { describeError } from "./errors.js";
+import { chooseWallet } from "./picker.js";
 import * as suppliers from "./suppliers.js";
 import * as wallet from "./wallet.js";
 
@@ -34,16 +35,16 @@ function metamaskAppLink() {
 }
 
 async function signer() {
-  const provider = await wallet.connect();
-  if (!(await wallet.onArc(provider))) await wallet.switchToArc();
-  return (await wallet.connect()).getSigner();
+  if (!(await wallet.reconnect())) await wallet.connect(await chooseWallet($("wallet-list"), wallet.wallets()));
+  if (!(await wallet.onArc())) await wallet.switchToArc();
+  return wallet.provider().getSigner();
 }
 
 async function render() {
   const page = await suppliers.myPage();
   if (!page) {
     show("view-welcome");
-    const hasWallet = await wallet.hasWallet();
+    const hasWallet = wallet.wallets().length > 0;
     $("sign-in").hidden = !hasWallet;
     $("no-wallet").hidden = hasWallet;
     $("open-in-metamask").href = metamaskAppLink();
@@ -171,6 +172,7 @@ function start() {
   $("explorer-link").href = ARC_TESTNET.explorer;
   wire();
   wallet.onWalletChange(() => suppliers.signOutSupplier().catch(() => null).then(render));
+  wallet.onWallets(() => { if (!$("view-welcome").hidden) render(); });  // a wallet announced late
   render().catch((error) => notify(describeError(error), "error"));
 }
 

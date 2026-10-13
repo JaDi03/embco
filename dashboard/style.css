@@ -149,6 +149,9 @@ h3 { font-size: 0.95rem; margin: 16px 0 8px; }
 .btn-danger { background: var(--surface); color: var(--danger); border-color: var(--danger-line); }
 .btn-danger:hover:not(:disabled) { background: var(--danger-soft); }
 .btn-small { padding: 6px 11px; font-size: 0.82rem; }
+.wallet-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.wallet-choice { display: inline-flex; align-items: center; gap: 8px; }
+.wallet-choice img { width: 20px; height: 20px; border-radius: 4px; }
 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; }
