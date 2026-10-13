@@ -156,6 +156,27 @@ _CHOICE = {
 }
 
 
+def payment_events(at: datetime, payments) -> list[dict[str, Any]]:
+    """What payments did, in order: sent, paid with its transaction, booked, or not paid."""
+    events = []
+    for e in payments:
+        amount, to = f"{fmt(e.amount)} USDC", _short(e.payee) or e.supplier
+        if e.status is PaymentStatus.SUBMITTED:
+            events.append(_event(at, SENDING, f"Sending {amount} to {e.supplier} ({to}) for "
+                                              f"{e.invoice}.", invoice=e.invoice))
+        elif e.status is PaymentStatus.COMPLETE:
+            events.append(_event(at, PAID, f"Paid {amount} to {e.supplier} for {e.invoice}.",
+                                 invoice=e.invoice, tx=e.tx_hash))
+        elif e.status is PaymentStatus.RECORDED:
+            events.append(_event(at, RECORDED, f"{e.invoice} recorded in ERPNext as "
+                                               f"{e.erp_entry}.", invoice=e.invoice,
+                                 tx=e.tx_hash))
+        else:
+            events.append(_event(at, NOT_PAID, f"Did not pay {e.invoice}: {e.reason}.",
+                                 invoice=e.invoice))
+    return events
+
+
 def cycle_events(report: CycleReport, interval_minutes: int) -> list[dict[str, Any]]:
     at = report.at
     events = []
@@ -178,22 +199,9 @@ def cycle_events(report: CycleReport, interval_minutes: int) -> list[dict[str, A
     s = report.settlement
     if s is not None:
         if s.problem:
-            events.append(_event(at, ERROR, f"No payments this check: {s.problem}."))
-        for e in s.events:
-            amount, to = f"{fmt(e.amount)} USDC", _short(e.payee) or e.supplier
-            if e.status is PaymentStatus.SUBMITTED:
-                events.append(_event(at, SENDING, f"Sending {amount} to {e.supplier} ({to}) for "
-                                                  f"{e.invoice}.", invoice=e.invoice))
-            elif e.status is PaymentStatus.COMPLETE:
-                events.append(_event(at, PAID, f"Paid {amount} to {e.supplier} for {e.invoice}.",
-                                     invoice=e.invoice, tx=e.tx_hash))
-            elif e.status is PaymentStatus.RECORDED:
-                events.append(_event(at, RECORDED, f"{e.invoice} recorded in ERPNext as "
-                                                   f"{e.erp_entry}.", invoice=e.invoice,
-                                     tx=e.tx_hash))
-            else:
-                events.append(_event(at, NOT_PAID, f"Did not pay {e.invoice}: {e.reason}.",
-                                     invoice=e.invoice))
+            events.append(_event(at, ERROR, f"Payments could not be followed this check: "
+                                            f"{s.problem}."))
+        events.extend(payment_events(at, s.events))
         events.extend(_event(at, WAITING, f"{i} waits for room under your weekly limit.",
                              invoice=i) for i in s.waiting)
     plan = report.plan

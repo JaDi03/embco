@@ -29,6 +29,7 @@ def session_body(session: Session) -> dict[str, Any]:
         "money": session.money,
         "emails": list(session.emails),
         "wallet_notices": list(session.wallet_notices),
+        "seen_payments": list(session.seen_payments),
     }
 
 
@@ -66,6 +67,7 @@ def session_from(at: datetime, body: dict[str, Any],
         money=body.get("money"),
         emails=tuple(body.get("emails", [])),
         wallet_notices=tuple(body.get("wallet_notices", [])),
+        seen_payments=tuple(body.get("seen_payments", [])),
     )
 
 

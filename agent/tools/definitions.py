@@ -55,12 +55,25 @@ TOOLS: list[dict[str, Any]] = [
           "The shop contract's limits, how much it still lets the shop pay this week, what you "
           "chose to pay now in this session, and the payments scheduled or due soon."),
     _tool("pay_now",
-          "Pay this invoice now. Only invoices the checks allow (PAY) can be paid. The payment "
-          "is sent at the end of the session through the shop contract, which checks it again.",
+          "Pay this invoice now, for real: the payment goes out right away from the owner's "
+          "wallet through the shop contract (simulated first, then sent with your Circle "
+          "wallet) and is written in the ERP once final. Only invoices the checks allow (PAY). "
+          "Returns what happened: paid with its transaction, sent and not confirmed yet, or an "
+          "error with the real reason (the contract's refusal, Circle's own message). After an "
+          "error, find out why (agent_wallet, cash_position, get_invoice) and tell the owner "
+          "what to do if only they can fix it.",
           invoice=INVOICE, reason=REASON),
+    _tool("payment_status",
+          "The current state of your payment of an invoice: sent, paid on Arc, recorded in the "
+          "ERP or failed, with its transaction and the reason when it failed.",
+          invoice=INVOICE),
+    _tool("agent_wallet",
+          "Your own wallet: its address, its balance for Arc network fees (paid in USDC), "
+          "whether the shop contract has it as its agent, and whether the contract is paused."),
     _tool("schedule_payment",
-          "Pay this invoice on a later date you choose (shop's local date). Only invoices the "
-          "checks allow. It is paid on that date without waking you.",
+          "Plan to pay this invoice on a later date you choose (shop's local date). Only "
+          "invoices the checks allow. On that day you are woken to pay it with pay_now, or to "
+          "decide again with what you see then.",
           invoice=INVOICE, pay_on=_text("The date to pay, YYYY-MM-DD."), reason=REASON),
     _tool("hold",
           "Do not pay this invoice for now. Use it for anything you are not sure about.",

@@ -98,3 +98,9 @@ class Session:
     money: dict[str, str] | None = None  # what could be paid when the session ran, from the chain
     emails: tuple[str, ...] = ()  # suppliers the agent wrote to in this session
     wallet_notices: tuple[str, ...] = ()  # suppliers sent the notice to confirm their wallet
+    seen_payments: tuple[str, ...] = ()  # payment results the agent saw in this session
+
+
+def payment_seen_key(event) -> str:
+    """One payment result, as the agent saw it: the same result does not wake it again."""
+    return f"{event.invoice}:{event.status.value}:{event.reason}"

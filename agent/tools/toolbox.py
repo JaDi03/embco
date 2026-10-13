@@ -1,8 +1,9 @@
 """The agent's hands: what each tool reads or does during one session.
 
-Reading tools look at the ERP, the journal and the contract. Acting tools only stage the agent's
-choices; the cycle applies them after the session, and only if the session finishes. Every
-payment choice passes the guardrail gate first, and its refusal goes back to the agent.
+Reading tools look at the ERP, the journal, the contract and the agent's own wallet. pay_now
+acts for real: it passes the guardrail gate, then the payer sends the payment and the agent gets
+back what happened, refusals and errors included, word for word. The other choices (schedule,
+hold, ask) count once the session finishes.
 """
 
 import json
@@ -20,7 +21,10 @@ from agent.guardrails.rules import Action, Decision, PolicyConfig, fingerprint
 from agent.memory import DecisionJournal
 from agent.models import AgentDecision, Alarm, Choice, Note
 from agent.tools.definitions import TOOLS
+from services.circle import CircleError
 from services.erp import LedgerAdapter, LedgerError
+from services.payments import ChainError, PaymentEvent, PaymentStatus
+from services.payments.payer import PaymentRefused
 
 MAX_ALARMS = 5
 MAX_NOTES = 10
@@ -30,6 +34,7 @@ MAX_REPLY_CHARS = 1500
 SEARCH_LIMIT = 50
 MAX_NOTICES = 3
 MAX_EMAILS_PER_DAY = 3
+MAX_PAYMENTS = 10  # per session; the contract's weekly cap is the real limit
 LINKS = re.compile(r"https?://|www\.|\b[a-z0-9-]+\.(com|net|org|xyz|io|app|link)\b", re.I)
 UNKNOWN_FUNDS = {"weekly_room_resets_at_utc": "unknown", "owner_balance": "unknown",
                  "payments_authorized": "unknown"}  # the chain did not answer: never a guess
@@ -59,6 +64,9 @@ class Toolbox:
     past_notes: tuple[Note, ...] = ()
     messages: tuple[str, ...] = ()  # what the owner wrote since the agent's last reply
     require_all: bool = True  # a decision round decides every open invoice; a chat does not
+    payer: Any = None  # pays one invoice when the agent chooses to (services.payments.Payer)
+    can_pay: bool = True  # False while the owner has paused payments
+    payments: list[PaymentEvent] = field(default_factory=list)  # what the agent's payments did
     chosen: dict[str, AgentDecision] = field(default_factory=dict)
     alarms: list[Alarm] = field(default_factory=list)
     notes: list[Note] = field(default_factory=list)
@@ -72,6 +80,7 @@ class Toolbox:
         self._by_invoice = {d.invoice: d for d in self.decisions}
         self._room: Decimal | None = None
         self._room_read = False
+        self._paid_now = 0
 
     @property
     def today(self) -> date:
@@ -207,16 +216,57 @@ class Toolbox:
 
     # acting
 
-    def _pay_now(self, invoice: str, reason: str) -> str:
+    def _pay_now(self, invoice: str, reason: str) -> str | dict[str, Any]:
         decision = self._by_invoice.get(invoice)
         committed = self._committed(excluding=invoice)
         refusal = pay_refusal(decision, done=self.done, room=self._room_this_week(),
                               committed=committed)
         if refusal:
             raise ToolError(f"not allowed: {refusal}")
+        if self.payer is None:
+            self._choose(decision, Choice.PAY_NOW, reason)
+            return (f"{invoice}: payments are not connected for this shop; your decision is "
+                    "recorded and nothing was sent")
+        if not self.can_pay:
+            self._choose(decision, Choice.PAY_NOW, reason)
+            return (f"{invoice}: payments are paused by the owner; your decision is recorded and "
+                    "nothing was sent. Say in your summary what you would pay")
+        if self._paid_now >= MAX_PAYMENTS:
+            raise ToolError(f"at most {MAX_PAYMENTS} payments per session; look again later")
+        _refuse_workarounds(reason)
+        self._paid_now += 1
+        try:
+            events = self.payer.pay(decision, self.journal)
+        except PaymentRefused as error:
+            self.payments.append(self._not_sent(decision, str(error)))
+            raise ToolError(f"not paid, nothing was sent: {error}") from None
+        self.payments.extend(events)
+        last = events[-1]
+        if last.status is PaymentStatus.FAILED:
+            raise ToolError(f"the payment was sent but failed: {last.reason}")
         self._choose(decision, Choice.PAY_NOW, reason)
-        return (f"{invoice}: will be paid at the end of this session "
-                f"({fmt(decision.amount)} USDC); the contract checks it again")
+        self.done.add(invoice)
+        return _payment_view(events)
+
+    def _payment_status(self, invoice: str) -> dict[str, Any]:
+        if self.payer is None:
+            raise ToolError("payments are not connected for this shop")
+        try:
+            events = self.payer.status(invoice, self.journal)
+        except (ChainError, CircleError) as error:
+            raise ToolError(f"could not look it up: {error}") from None
+        if not events:
+            return {"invoice": invoice, "status": "no payment by the agent"}
+        self.payments.extend(e for e in events[1:])
+        return _payment_view(events)
+
+    def _agent_wallet(self) -> dict[str, Any]:
+        if self.payer is None:
+            raise ToolError("payments are not connected for this shop")
+        try:
+            return self.payer.wallet_info()
+        except (ChainError, CircleError) as error:
+            raise ToolError(f"could not read the agent's wallet: {error}") from None
 
     def _schedule_payment(self, invoice: str, pay_on: str, reason: str) -> str:
         decision = self._by_invoice.get(invoice)
@@ -382,6 +432,19 @@ class Toolbox:
             self._room, self._room_read = self.room(), True
         return self._room
 
+    def _last_payment(self, invoice: str) -> dict[str, Any] | None:
+        last = self.journal.latest_payment(invoice)
+        return None if last is None else {"status": _STATUS.get(last.status, last.status.value),
+                                          "reason": last.reason or None,
+                                          "at": last.at.isoformat(timespec="minutes")}
+
+    def _not_sent(self, decision: Decision, reason: str) -> PaymentEvent:
+        """A payment that did not go out, for the owner's feed (the journal keeps only the
+        ones the payer recorded)."""
+        return PaymentEvent(invoice=decision.invoice, status=PaymentStatus.BLOCKED, at=self.now,
+                            supplier=decision.supplier, payee="", amount=decision.amount,
+                            invoice_ref="", reason=reason)
+
     def _notes_about(self, about: str) -> list[Note]:
         return [n for n in (*self.past_notes, *self.notes) if n.about == about]
 
@@ -396,6 +459,7 @@ class Toolbox:
             "problems": [f.reason for f in d.findings if f.outcome is not Outcome.PASS]
             or ([r for r in d.reasons if r.startswith(("approved", "rejected"))]),
             "paid_or_sent": d.invoice in self.done,
+            "last_payment": self._last_payment(d.invoice),
             "your_decision": None if mine is None else {
                 "choice": mine.choice.value, "reason": mine.reason,
                 "pay_on": _day(mine.pay_on)},
@@ -415,6 +479,25 @@ def _refuse_workarounds(*texts: str) -> None:
         if found := WORKAROUNDS.search(text):
             raise ToolError(f"rewrite this without suggesting a way around a limit or a check "
                             f"(found: {found.group(0)!r}); an invoice over a limit waits")
+
+
+_STATUS = {
+    PaymentStatus.SUBMITTED: "sent, not confirmed yet: look again with payment_status",
+    PaymentStatus.COMPLETE: "paid on Arc",
+    PaymentStatus.RECORDED: "paid on Arc and recorded in the ERP",
+    PaymentStatus.FAILED: "failed",
+    PaymentStatus.BLOCKED: "not sent",
+}
+
+
+def _payment_view(events: list[PaymentEvent]) -> dict[str, Any]:
+    """What the agent sees of a payment: its latest state and the facts behind it."""
+    last = events[-1]
+    tx = next((e.tx_hash for e in reversed(events) if e.tx_hash), None)
+    entry = next((e.erp_entry for e in reversed(events) if e.erp_entry), None)
+    return {"invoice": last.invoice, "status": _STATUS.get(last.status, last.status.value),
+            "amount": fmt(last.amount), "to_wallet": short(last.payee) if last.payee else None,
+            "transaction": tx, "erp_entry": entry, "reason": last.reason or None}
 
 
 def _day(value: date | None) -> str | None:

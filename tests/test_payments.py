@@ -39,6 +39,7 @@ from services.payments.payer import (
     CHAIN_APPROVER,
     FOREIGN_REF,
     MAX_ATTEMPTS,
+    PaymentRefused,
     idempotency_key,
     paid_or_sent,
 )
@@ -80,6 +81,15 @@ class FakeChain:
 
     def remaining_this_week(self, shop):
         return self.remaining
+
+    fees = 10**18  # the agent's native balance, for network fees
+    paused = False
+
+    def fee_balance(self, address):
+        return self.fees
+
+    def is_paused(self, shop):
+        return self.paused
 
     def call(self, to, data, *, sender=None):
         self.simulated.append((to, data, sender))
@@ -391,13 +401,50 @@ def test_the_cycle_pays_then_stops_planning_what_it_paid(journal):
     assert "not yet closed in the ERP: PINV-1" in format_report(second)
 
 
-def test_a_payment_problem_is_reported_and_the_agent_still_decides(journal):
+def test_a_payment_problem_goes_back_to_the_agent_with_its_reason(journal):
     ledger = matching_ledger()
-    payer, chain, _ = make_payer(ledger)
+    payer, chain, circle = make_payer(ledger)
     chain.agent = to_checksum_address("0x" + "ee" * 20)
     report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer, **DECIDES)
-    assert report.decisions and "dashboard" in report.settlement.problem
-    assert "payments skipped" in format_report(report)
+    assert circle.sent == []
+    [refused] = report.thought.payments
+    assert refused.status is PaymentStatus.BLOCKED and "dashboard" in refused.reason
+    assert "BLOCKED" in format_report(report) and "dashboard" in format_report(report)
+
+
+def test_the_agent_reads_its_own_wallet(journal):
+    payer, chain, _ = make_payer()
+    chain.fees = 0
+    info = payer.wallet_info()
+    assert info["address"] == AGENT and info["balance_for_network_fees_usdc"] == "0"
+    assert info["is_the_contracts_agent"] == "yes" and info["contract_paused"] == "no"
+    chain.agent, chain.paused = to_checksum_address("0x" + "ee" * 20), True
+    info = payer.wallet_info()
+    assert info["is_the_contracts_agent"].startswith("no") and info["contract_paused"] == "yes"
+
+
+def test_a_refused_payment_says_the_real_reason_every_time(journal):
+    payer, chain, circle = make_payer()
+    chain.revert = "PayeeNotApproved"
+    for _ in range(2):  # the second time the journal already has it: the reason still comes back
+        with pytest.raises(PaymentRefused, match="the contract would refuse it: PayeeNotApproved"):
+            payer.pay(decision(), journal)
+    chain.revert = None
+    payer.pay(decision(), journal)
+    with pytest.raises(PaymentRefused, match="already paid or sent"):
+        payer.pay(decision(), journal)
+    assert len(circle.sent) == 1
+
+
+def test_reconcile_follows_what_was_sent_and_pays_nothing_new(journal):
+    payer, _, circle = make_payer()
+    circle.final_state = "PENDING"  # sent, still on its way
+    sent = payer.pay(decision(), journal)
+    assert [e.status for e in sent] == [PaymentStatus.SUBMITTED]
+    circle.final_state = "COMPLETE"
+    settled = payer.reconcile([decision(invoice="PINV-2")], journal)
+    assert [e.status for e in settled.events] == [PaymentStatus.COMPLETE]
+    assert len(circle.sent) == 1  # PINV-2 is payable but only the agent pays
 
 
 # recording in the ERP

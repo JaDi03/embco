@@ -11,7 +11,7 @@ const SHORT = (w) => (w ? `${w.slice(0, 6)}...${w.slice(-4)}` : "");
 
 export const SECTIONS = [
   { key: "needs", title: "Needs you", hint: "The agent will not pay these until you act." },
-  { key: "scheduled", title: "Scheduled", hint: "The agent chose to pay these on a later date; it pays them on that day without asking." },
+  { key: "scheduled", title: "Scheduled", hint: "The agent chose to pay these on a later date; on that day it wakes up and pays them itself." },
   { key: "paying", title: "Being paid", hint: "The agent decided to pay them now, within your limits." },
   { key: "supplier", title: "Waiting for the supplier", hint: "The supplier has to confirm its wallet on its page." },
   { key: "held", title: "On hold: fix in ERPNext", hint: "Something in ERPNext does not add up. Fix it there; the agent looks again on its own." },

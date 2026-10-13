@@ -1,8 +1,9 @@
 # How it works
 
 embco runs one cycle every 15 minutes (or once, on demand). Each cycle reads the shop's
-purchase documents from ERPNext, checks every open invoice, decides, remembers the decision and,
-if payments are on, pays what was approved.
+purchase documents from ERPNext, checks every open invoice and remembers the result. When there
+is something to decide, the AI model is woken: it decides, pays what it chose to pay (if
+payments are on), sees what happened and acts on it.
 
 ## One cycle
 
@@ -30,7 +31,8 @@ finding with its evidence, so the reason on screen is the reason the rule used.
 |---|---|---|
 | Is the invoice allowed to be paid at all? | The rules | Fixed, testable, no model involved |
 | Is this supplier's wallet safe? | The wallet control, then the owner | A new wallet waits for the supplier's signature and the owner's approval |
-| What is paid now, and what waits for a date? | The AI model | It stages choices; the gate refuses anything the rules forbid |
+| What is paid now, and what waits for a date? | The AI model | It pays itself and reads the result; the gate refuses anything the rules forbid before it is sent |
+| A payment did not go out: why, and who fixes it? | The AI model | It looks up the reason with its tools and tells the owner what only they can fix |
 | Is the payment allowed on chain? | The shop contract | Limits, approved payee, once per invoice, pause |
 
 Nothing leaves the owner's wallet until the owner authorizes payments in the dashboard and makes

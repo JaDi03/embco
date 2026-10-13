@@ -14,12 +14,13 @@ from typing import Any
 from agent.agent import Brain
 from agent.guardrails.rules import Decision, PolicyConfig
 from agent.memory import Change, DecisionJournal
-from agent.models import AgentDecision, Autonomy, Session, Wake
+from agent.models import AgentDecision, Autonomy, Session, Wake, payment_seen_key
 from agent.prompt import briefing, chat_briefing
 from agent.reflexes.funds import funds_wake, money_wake
 from agent.reflexes.wake import backing_off, pending_alarms, recent_notes, wakes_for
 from agent.tools import Toolbox
 from services.erp import LedgerAdapter
+from services.payments import PaymentEvent
 
 log = logging.getLogger("agent")
 
@@ -48,6 +49,7 @@ class Thought:
     session: Session | None = None  # the session of this cycle, if the agent was woken
     skipped: str = ""  # why there was a reason to wake but no session
     last: Session | None = None  # the most recent session, this one or an earlier one
+    payments: tuple[PaymentEvent, ...] = ()  # what the agent's payments did in the session
 
 
 def think(
@@ -63,9 +65,11 @@ def think(
     extra: Sequence[Wake] = (),
     messages: Sequence[str] = (),
     conversation: Sequence[Mapping[str, Any]] = (),
+    payer: Any = None,
 ) -> Thought:
     """`messages` are what the owner wrote since the agent's last reply; `conversation` the
-    recent exchange, for context."""
+    recent exchange, for context. With a `payer` the agent pays during its session and sees
+    what happened; without one its payment choices are only recorded."""
     sessions = journal.sessions()
     standing = journal.latest_agent_decisions()
     fired = {w.key for s in sessions if s.finished for w in s.wakes if w.key}
@@ -95,7 +99,8 @@ def think(
                       wallet_notice=setup.wallet_notice,
                       emails_today=emails_today(sessions, setup.zone, now),
                       past_notes=tuple(recent_notes(sessions)),
-                      messages=tuple(messages))
+                      messages=tuple(messages), payer=payer,
+                      can_pay=setup.autonomy is Autonomy.ACT)
     text = briefing(toolbox, wakes, pending_alarms(sessions, now), recent_notes(sessions),
                     conversation)
     try:
@@ -114,13 +119,14 @@ def think(
         replies=tuple(toolbox.replies) if finished else (),
         emails=tuple(toolbox.emailed),
         wallet_notices=tuple(toolbox.notified_wallets),
+        seen_payments=tuple(payment_seen_key(e) for e in toolbox.payments),
         **({"usage": usage} if usage else {}),
     )
     journal.record_session(session)
     if not finished:
         log.warning("agent session did not finish: %s", error)
     return Thought(agent={**standing, **{d.invoice: d for d in session.decisions}},
-                   session=session, last=session)
+                   session=session, last=session, payments=tuple(toolbox.payments))
 
 
 def converse(
@@ -134,10 +140,11 @@ def converse(
     now: datetime,
     messages: Sequence[str],
     conversation: Sequence[Mapping[str, Any]] = (),
+    payer: Any = None,
 ) -> Thought:
     """Answer the owner between two checks, on the decisions of the last check: no new look at
-    the whole ERP. The agent reads only what the question needs, with its tools. Whatever it
-    chooses on an invoice is applied, and paid if so, by the next full check."""
+    the whole ERP. The agent reads only what the question needs, with its tools, and acts on
+    what the owner asks: a payment it makes here goes out now."""
     sessions = journal.sessions()
     standing = journal.latest_agent_decisions()
     last = sessions[-1] if sessions else None
@@ -156,7 +163,8 @@ def converse(
                       wallet_notice=setup.wallet_notice,
                       emails_today=emails_today(sessions, setup.zone, now),
                       past_notes=tuple(recent_notes(sessions)),
-                      messages=tuple(messages), require_all=False)
+                      messages=tuple(messages), require_all=False, payer=payer,
+                      can_pay=setup.autonomy is Autonomy.ACT)
     text = chat_briefing(toolbox, pending_alarms(sessions, now), recent_notes(sessions),
                          conversation)
     try:
@@ -175,11 +183,12 @@ def converse(
         replies=tuple(toolbox.replies) if finished else (),
         emails=tuple(toolbox.emailed),
         wallet_notices=tuple(toolbox.notified_wallets),
+        seen_payments=tuple(payment_seen_key(e) for e in toolbox.payments),
         **({"usage": usage} if usage else {}),
     )
     journal.record_session(session)
     return Thought(agent={**standing, **{d.invoice: d for d in session.decisions}},
-                   session=session, last=session)
+                   session=session, last=session, payments=tuple(toolbox.payments))
 
 
 def emails_today(sessions: Sequence[Session], zone: tzinfo, now: datetime) -> int:
