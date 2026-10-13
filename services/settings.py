@@ -18,7 +18,7 @@ from agent.agent import DEFAULT_MODEL as BRAIN_MODEL
 from agent.explain import DEFAULT_MODEL
 from agent.guardrails.rules import PolicyConfig
 from agent.models import Autonomy
-from agent.think import DAILY_TOKENS
+from agent.think import DAILY_BUDGET, DAILY_TOKENS
 from services.erp.erpnext.adapter import PROTECTED_PAYMENT_FIELDS
 
 PREFIX = "EMBCO_"
@@ -78,6 +78,7 @@ class Settings:
     autonomy: Autonomy = Autonomy.ACT
     utc_offset: timedelta = timedelta(0)  # the shop's local time, for rounds and dates
     round_hour: int = 8
+    brain_daily_budget: Decimal = DAILY_BUDGET  # USD a day for the model, shop time
     brain_daily_tokens: int = DAILY_TOKENS
     supplier_site: str = supplier_site(DEFAULT_PUBLIC_URL)  # typed by suppliers, no https://
 
@@ -129,6 +130,8 @@ class Settings:
                                       tuple(a.value for a in Autonomy))),
             utc_offset=_utc_offset(get("UTC_OFFSET")),
             round_hour=_whole("ROUND_HOUR", get("ROUND_HOUR"), 8, 0, 23),
+            brain_daily_budget=_amount("BRAIN_DAILY_BUDGET",
+                                       get("BRAIN_DAILY_BUDGET") or str(DAILY_BUDGET)),
             brain_daily_tokens=_whole("BRAIN_DAILY_TOKENS", get("BRAIN_DAILY_TOKENS"),
                                       DAILY_TOKENS, 1, 100_000_000),
             supplier_site=supplier_site(get("PUBLIC_URL") or DEFAULT_PUBLIC_URL),

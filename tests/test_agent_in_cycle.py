@@ -203,6 +203,63 @@ def test_a_choice_to_pay_that_never_went_out_wakes_the_agent_once_it_can_pay(jou
     assert brain.sessions == 2  # paid: nothing more to wake it for
 
 
+class Spends:
+    """Decides on hold and reports what the session cost in tokens, as Claude Haiku 5.5."""
+
+    def __init__(self, usage, model="claude-haiku-5-5"):
+        self.usage, self.model, self.sessions = usage, model, 0
+
+    def run(self, toolbox, briefing):
+        self.sessions += 1
+        for invoice in toolbox.undecided():
+            toolbox.call("hold", {"invoice": invoice, "reason": "waiting"})
+        toolbox.call("finish", {"summary": "Done."})
+        return SessionRun(finished=True, steps=1, usage=self.usage)
+
+
+def woken_twice(journal, brain):  # noqa: F811
+    from agent.reflexes.wake import HEARTBEAT
+
+    payer, _, _ = make_payer(matching_ledger())
+    first = cycle(journal, payer, brain, NOW)
+    second = cycle(journal, payer, brain, NOW + HEARTBEAT)  # the heartbeat would wake it
+    return first, second
+
+
+def test_the_daily_budget_is_in_dollars_and_cache_reads_do_not_eat_it(journal):  # noqa: F811
+    cheap = Spends(Usage(cache_read_tokens=3_000_000))  # 3M cached tokens: $0.03
+    _, second = woken_twice(journal, cheap)
+    assert cheap.sessions == 2 and second.thought.skipped == ""
+
+
+def test_past_one_dollar_a_day_the_agent_is_not_woken(journal):  # noqa: F811
+    costly = Spends(Usage(output_tokens=2_100_000))  # $1.05 of output
+    _, second = woken_twice(journal, costly)
+    assert costly.sessions == 1
+    assert second.thought.skipped.startswith("the agent's daily budget is used up ($1.05 of $1")
+
+
+def test_a_model_without_a_price_counts_by_tokens(journal):  # noqa: F811
+    unknown = Spends(Usage(input_tokens=2_000_000), model="some-other-model")
+    _, second = woken_twice(journal, unknown)
+    assert unknown.sessions == 1 and "budget is used up" in second.thought.skipped
+
+
+def test_the_owner_is_told_once_why_the_agent_was_not_woken(tmp_path):
+    from agent.think import Thought
+    from services.shops import chat
+    from services.shops.agent import not_woken
+
+    out = Thought(agent={}, skipped="the agent's daily budget is used up ($1.05 of $1)")
+    first = not_woken(tmp_path, out, owner_waiting=False, at=NOW)
+    assert "not woken" in first[0]["text"] and "nothing new is paid" in first[0]["text"]
+    chat.append_chat(tmp_path, first)
+    assert not_woken(tmp_path, out, owner_waiting=True, at=NOW) == []  # said already
+    failed = Thought(agent={}, skipped="the last session failed; trying again soon")
+    assert not_woken(tmp_path, failed, owner_waiting=False, at=NOW) == []  # only if waiting
+    assert not_woken(tmp_path, failed, owner_waiting=True, at=NOW)
+
+
 def test_the_agent_is_not_woken_again_when_nothing_happened(journal):  # noqa: F811
     payer, _, _ = make_payer(matching_ledger())
     brain = OneChoiceBrain("hold")
