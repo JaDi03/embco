@@ -25,12 +25,24 @@ def test_a_wallet_change_holds_the_payment_with_a_reason():
     assert any("wallet changed" in reason for reason in decision.reasons)
 
 
-def test_a_price_spike_asks_the_owner():
+def test_a_price_spike_is_for_the_agent_to_weigh():
     ledger = FakeLedger()
     ledger.orders["PO-1"] = ledger.orders["PO-1"].model_copy(update={"lines": (
         ledger.orders["PO-1"].lines[0].model_copy(update={"rate": Decimal(135)}),)})
     ledger.pending = [make_invoice(rate="135")]
-    assert decide(ledger).action is Action.ASK
+    decision = decide(ledger)
+    assert decision.action is Action.PAY
+    assert decision.reasons == ("to weigh: COLA: rate 135 is 35% above the habitual 100",)
+
+
+def test_a_missing_receipt_no_longer_stops_the_invoice_but_a_duplicate_does():
+    ledger = FakeLedger()
+    bare = make_invoice().lines[0].model_copy(update={"purchase_receipt": None})
+    ledger.pending = [make_invoice(lines=(bare,))]
+    assert decide(ledger).action is Action.PAY
+    ledger.pending = [make_invoice(bill_no="H-0")]  # the bill number of the paid PINV-0
+    ledger.history[0] = ledger.history[0].model_copy(update={"posting_date": date(2026, 9, 1)})
+    assert decide(ledger).action is Action.HOLD
 
 
 def test_hold_wins_over_ask():

@@ -251,6 +251,10 @@ input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-col
 .agent-says { display: grid; gap: 2px; border-left: 2px solid var(--accent); padding: 2px 0 2px 10px; }
 .agent-says .who { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; color: var(--accent-ink); }
 .agent-says .rec { color: var(--muted); font-size: 0.85rem; }
+.weighed { display: grid; gap: 2px; border-left: 2px solid var(--line); padding: 2px 0 2px 10px; }
+.weighed .who { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; color: var(--muted); }
+.weighed ul { margin: 0; padding-left: 18px; font-size: 0.86rem; }
+.reply .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
 /* ---- the owner console: one screen, invoices | the agent's activity | the chat ---- */
 body:has(#view-shop:not([hidden])) .container { max-width: none; padding: 0; display: flex; flex-direction: column; min-height: 0; }
@@ -362,6 +366,10 @@ body:has(#view-shop:not([hidden])) .notice { margin: 8px 16px 0; }
 .session .item.held .ic { color: var(--danger); }
 .session .item.paid .ic { color: var(--success); }
 .session .item.note .ic { color: var(--muted); }
+.session .item .choice { font-size: 0.78rem; font-weight: 700; }
+.session .item.held .choice { color: var(--danger); }
+.session .item.paid .choice { color: var(--success); }
+.session .item.ask .choice { color: var(--accent-ink); }
 .session .said { border-top: 1px solid var(--accent-line); padding-top: 6px; color: var(--text); }
 
 /* the chat beside it */

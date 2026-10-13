@@ -3,6 +3,7 @@
 A scripted brain stands in for Claude; everything after it is the code that runs in the service.
 """
 
+import json
 from datetime import timedelta, timezone
 
 from agent.agent import SessionRun
@@ -258,6 +259,48 @@ def test_the_owner_is_told_once_why_the_agent_was_not_woken(tmp_path):
     failed = Thought(agent={}, skipped="the last session failed; trying again soon")
     assert not_woken(tmp_path, failed, owner_waiting=False, at=NOW) == []  # only if waiting
     assert not_woken(tmp_path, failed, owner_waiting=True, at=NOW)
+
+
+class Reads:
+    """Keeps every briefing, holds what is undecided and finishes with a summary."""
+
+    model = "scripted"
+
+    def __init__(self):
+        self.briefings = []
+
+    def run(self, toolbox, briefing):
+        self.briefings.append(json.loads(briefing.split("\n\n", 1)[1]))
+        for invoice in toolbox.undecided():
+            toolbox.call("hold", {"invoice": invoice, "reason": "asking about the receipt"})
+        toolbox.call("finish", {"summary": f"Summary {len(self.briefings)}."})
+        return SessionRun(finished=True, steps=1, usage=Usage())
+
+
+def test_the_agent_sees_what_stops_an_invoice_apart_from_what_to_weigh(journal):  # noqa: F811
+    from support import make_invoice
+
+    ledger = matching_ledger()
+    bare = make_invoice(currency="USD").lines[0].model_copy(update={"purchase_receipt": None})
+    ledger.pending = [make_invoice(currency="USD", lines=(bare,))]
+    payer, _, _ = make_payer(ledger)
+    brain = Reads()
+    cycle(journal, payer, brain, NOW)
+    [row] = brain.briefings[0]["open_invoices"]
+    assert row["checks_say"] == "PAY" and row["stops"] == []
+    assert row["to_weigh"] == ["COLA: not linked to an order and a receipt"]
+
+
+def test_the_agent_is_told_what_it_already_said_to_the_owner(journal):  # noqa: F811
+    from agent.reflexes.wake import HEARTBEAT
+
+    payer, _, _ = make_payer(matching_ledger())
+    brain = Reads()
+    cycle(journal, payer, brain, NOW)
+    cycle(journal, payer, brain, NOW + HEARTBEAT)
+    assert brain.briefings[0]["already_told_the_owner"] == []
+    [told] = brain.briefings[1]["already_told_the_owner"]
+    assert told["summary"] == "Summary 1."
 
 
 def test_the_agent_is_not_woken_again_when_nothing_happened(journal):  # noqa: F811

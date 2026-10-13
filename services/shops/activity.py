@@ -18,7 +18,6 @@ from agent.cost import estimate, shown
 from agent.guardrails.controls.base import fmt
 from agent.guardrails.rules import Action, PolicyConfig
 from agent.memory import ChangeKind
-from agent.models import Choice
 from agent.reflexes.cycle import CycleReport
 from services.payments import PaymentStatus
 
@@ -32,7 +31,14 @@ AGENT, REFLEX = "agent", "reflex"  # what the agent decided; what woke it
 YOU = "you"  # what the owner did from the dashboard
 SHOWN_WAKES = 3
 
-_ACTION = {Action.PAY: "the checks pass", Action.HOLD: "on hold", Action.ASK: "needs you"}
+_ACTION = {Action.PAY: "nothing stops it", Action.HOLD: "on hold", Action.ASK: "needs you"}
+
+
+def _why(action: Action, reasons) -> str:
+    """The first reason, for a stop or for something the agent has to weigh."""
+    if not reasons or (action is Action.PAY and not reasons[0].startswith("to weigh")):
+        return ""
+    return f": {reasons[0]}" if action is not Action.PAY else f"; {reasons[0]}"
 
 
 def _short(wallet: str) -> str:
@@ -131,9 +137,10 @@ def session_events(session) -> list[dict[str, Any]]:
         events.append(_event(at, ERROR, f"The agent's session did not finish: {session.error}. "
                                         "Nothing new is paid; it tries again soon."))
         return events
-    for d in session.decisions:
-        events.append(_event(at, AGENT, f"{d.invoice}: {_CHOICE[d.choice](d)} {d.reason}",
-                             invoice=d.invoice, choice=d.choice.value))
+    for d in session.decisions:  # the agent's own words; the page shows the choice apart
+        events.append(_event(at, AGENT, f"{d.invoice}: {d.reason}", invoice=d.invoice,
+                             choice=d.choice.value,
+                             pay_on=d.pay_on.isoformat() if d.pay_on else None))
     events.extend(_event(at, AGENT, f"Will look again on {a.at:%Y-%m-%d %H:%M}: {a.why}")
                   for a in session.alarms)
     events.extend(_event(at, AGENT, f"To you: {reply}") for reply in session.replies)
@@ -146,14 +153,6 @@ def session_events(session) -> list[dict[str, Any]]:
         events.append(_event(at, AGENT, session.summary, cost=cost,
                              tokens=session.usage.total, steps=session.steps))
     return events
-
-
-_CHOICE = {
-    Choice.PAY_NOW: lambda d: "paying now.",
-    Choice.SCHEDULE: lambda d: f"will pay on {d.pay_on}.",
-    Choice.HOLD: lambda d: "holding it.",
-    Choice.ASK: lambda d: "asking you.",
-}
 
 
 def payment_events(at: datetime, payments) -> list[dict[str, Any]]:
@@ -182,7 +181,7 @@ def cycle_events(report: CycleReport, interval_minutes: int) -> list[dict[str, A
     events = []
     for change in report.changes:
         d = change.decision
-        why = f": {d.reasons[0]}" if d.reasons and d.action is not Action.PAY else ""
+        why = _why(d.action, d.reasons)
         if change.kind is ChangeKind.NEW:
             events.append(_event(at, NEW, f"New invoice {d.invoice} from {d.supplier}, "
                                           f"{fmt(d.amount)} USDC: {_ACTION[d.action]}{why}.",
@@ -287,7 +286,7 @@ def history_events(entries) -> list[dict[str, Any]]:
         if kind == "DECISION":
             action = Action(body["action"])
             reasons = body.get("reasons") or []
-            why = f": {reasons[0]}" if reasons and action is not Action.PAY else ""
+            why = _why(action, reasons)
             if invoice in seen:
                 events.append(_event(at, CHANGED, f"{invoice} from {body['supplier']} is now "
                                                   f"{_ACTION[action]}{why}.",

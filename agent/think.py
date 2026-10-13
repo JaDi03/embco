@@ -16,7 +16,7 @@ from agent.cost import estimate, shown
 from agent.guardrails.rules import Decision, PolicyConfig
 from agent.memory import Change, DecisionJournal
 from agent.models import AgentDecision, Autonomy, Session, Wake, payment_seen_key
-from agent.prompt import briefing, chat_briefing
+from agent.prompt import already_told, briefing, chat_briefing
 from agent.reflexes.funds import funds_wake, money_wake
 from agent.reflexes.wake import backing_off, pending_alarms, recent_notes, wakes_for
 from agent.tools import Toolbox
@@ -120,7 +120,7 @@ def think(
                       messages=tuple(messages), payer=payer,
                       can_pay=setup.autonomy is Autonomy.ACT)
     text = briefing(toolbox, wakes, pending_alarms(sessions, now), recent_notes(sessions),
-                    conversation)
+                    conversation, already_told(sessions, setup.zone, now))
     try:
         run = setup.brain.run(toolbox, text)
         finished, error, steps, usage = run.finished, run.error, run.steps, run.usage
@@ -181,7 +181,7 @@ def converse(
                       messages=tuple(messages), require_all=False, payer=payer,
                       can_pay=setup.autonomy is Autonomy.ACT)
     text = chat_briefing(toolbox, pending_alarms(sessions, now), recent_notes(sessions),
-                         conversation)
+                         conversation, already_told(sessions, setup.zone, now))
     try:
         run = brain.run(toolbox, text)
         finished, error, steps, usage = run.finished, run.error, run.steps, run.usage

@@ -353,9 +353,11 @@ function sessionCard(s) {
     el("span", { className: "hint", textContent: s.woke.replace(/^Woke the agent\.\s*/, "Woke because: ") }));
   for (const e of s.items) {
     const kind = CHOICE_CLASS[e.choice] ?? "note";
+    const label = activity.choiceLabel(e);
+    const words = el("span", {}, ...(label ? [el("b", { className: "choice", textContent: label }), " "] : []), e.text);
     card.append(el("div", { className: `item ${kind}` },
       el("span", { className: "ic", textContent: CHOICE_ICON[kind], ariaHidden: "true" }),
-      el("span", { textContent: e.text })));
+      words));
   }
   if (s.failed) card.append(el("div", { className: "item held" }, el("span", { className: "ic", textContent: "!" }), el("span", { textContent: s.failed })));
   if (s.said) card.append(el("span", { className: "said", textContent: `"${s.said}"` }));
@@ -537,8 +539,36 @@ function taskCard(task, context) {
       return li;
     })));
   }
+  if (task.weighed.length) {
+    card.append(el("div", { className: "weighed" },
+      el("span", { className: "who", textContent: "WHAT THE AGENT WEIGHS" }),
+      el("ul", {}, ...task.weighed.map((text) => el("li", { textContent: text })))));
+  }
+  if (task.reply) card.append(replyBox(task.reply));
   if (task.decide) card.append(decideBox(task));
   return card;
+}
+
+/** Quick answers to the agent's question: each one is a message to the agent in the chat. */
+function replyBox(reply) {
+  const row = el("div", { className: "row" });
+  for (const option of reply.options) {
+    const button = el("button", { className: "btn btn-ghost", type: "button", textContent: option.label });
+    button.addEventListener("click", async () => {
+      for (const b of row.querySelectorAll("button")) b.disabled = true;
+      try {
+        await chat.sendMessage(session.shop, option.text);
+        notify("Sent to the agent. Its answer appears in the chat.", "success");
+        pollChat();
+      } catch (error) {
+        notify(describeError(error), "error");
+        for (const b of row.querySelectorAll("button")) b.disabled = false;
+      }
+    });
+    row.append(button);
+  }
+  row.append(el("span", { className: "hint", textContent: " or answer in the chat." }));
+  return el("div", { className: "reply" }, row);
 }
 
 function stepActions(step, decision, context) {

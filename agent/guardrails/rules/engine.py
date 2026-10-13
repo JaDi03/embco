@@ -1,6 +1,7 @@
 """Run every control on an invoice and combine the findings with a fixed rule.
 
-The rule is deterministic: any HOLD means HOLD, otherwise any ASK means ASK, otherwise PAY.
+The rule is deterministic: any HOLD means HOLD, otherwise any ASK means ASK, otherwise PAY. A
+NOTE changes nothing here: it is evidence the agent weighs when it decides what to do.
 """
 
 from agent.guardrails.controls import (
@@ -37,8 +38,10 @@ def combine(findings: list[Finding]) -> tuple[Action, tuple[str, ...]]:
     problems = [f for f in findings if f.outcome is not Outcome.PASS]
     if any(f.outcome is Outcome.HOLD for f in problems):
         return Action.HOLD, tuple(f.reason for f in problems)
-    if problems:
+    if any(f.outcome is Outcome.ASK for f in problems):
         return Action.ASK, tuple(f.reason for f in problems)
+    if problems:
+        return Action.PAY, tuple(f"to weigh: {f.reason}" for f in problems)
     return Action.PAY, (f"all {len(findings)} controls passed",)
 
 

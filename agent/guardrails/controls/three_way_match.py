@@ -1,8 +1,11 @@
-"""Compare what was invoiced with what was ordered and what actually arrived."""
+"""Compare what was invoiced with what was ordered and what actually arrived.
+
+A mismatch is evidence for the agent, not a stop: in a small shop a receipt is often not
+recorded. The agent weighs it, and asks the owner when it cannot tell what arrived."""
 
 from decimal import Decimal
 
-from agent.guardrails.controls.base import Finding, fmt, hold, passed
+from agent.guardrails.controls.base import Finding, fmt, note, passed
 from agent.guardrails.controls.context import Context
 from services.erp.models import DocumentLine, PurchaseOrder, PurchaseReceipt
 
@@ -22,7 +25,7 @@ class ThreeWayMatch:
     def check(self, ctx: Context) -> Finding:
         problems = [p for line in ctx.invoice.lines for p in self._problems(line, ctx)]
         if problems:
-            return hold(self.name, "; ".join(problems))
+            return note(self.name, "; ".join(problems))
         return passed(self.name, "order, receipt and invoice agree")
 
     def _problems(self, line: DocumentLine, ctx: Context) -> list[str]:

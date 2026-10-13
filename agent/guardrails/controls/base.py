@@ -10,8 +10,9 @@ from agent.guardrails.controls.context import Context
 
 class Outcome(StrEnum):
     PASS = "PASS"  # noqa: S105 (an outcome label, not a credential)
-    HOLD = "HOLD"  # something is wrong; do not pay
-    ASK = "ASK"  # may be fine, a person must decide
+    HOLD = "HOLD"  # cannot be paid: no proven wallet, or a duplicate
+    ASK = "ASK"  # the owner must answer first (a first payment to a new wallet)
+    NOTE = "NOTE"  # worth weighing: the agent decides what to do about it
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,10 @@ def hold(control: str, reason: str) -> Finding:
 
 def ask(control: str, reason: str) -> Finding:
     return Finding(control, Outcome.ASK, reason)
+
+
+def note(control: str, reason: str) -> Finding:
+    return Finding(control, Outcome.NOTE, reason)
 
 
 def fmt(value: Decimal) -> str:

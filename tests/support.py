@@ -81,6 +81,22 @@ class FakeLedger:
         return getattr(self, "marks", {}).get(invoice)
 
 
+def asking_ledger(journal, at=None) -> FakeLedger:
+    """The one question the checks still put to the owner: the supplier moved to WALLET_B, never
+    paid before, and proved it by signing. Everything else about the invoice is fine."""
+    from datetime import UTC, datetime
+
+    from agent.guardrails.controls import WalletProof
+
+    ledger = FakeLedger()
+    ledger.supplier = Supplier(name="S", wallet_address=WALLET_B)
+    if journal.latest_wallet_proof("S") is None:
+        journal.record_wallet_proof(WalletProof(
+            supplier="S", wallet=WALLET_B, nonce="n", signature="0x",
+            signed_at=at or datetime(2026, 10, 1, tzinfo=UTC)))
+    return ledger
+
+
 def context_for(ledger: FakeLedger, invoice: PurchaseInvoice | None = None) -> Context:
     return ContextBuilder(ledger).build(invoice or ledger.pending[0])
 

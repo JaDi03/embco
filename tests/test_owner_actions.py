@@ -22,11 +22,12 @@ from services.shops.owner_view import (
     WALLET_MISSING,
     decision_view,
 )
-from support import WALLET_B, FakeLedger, make_invoice
+from support import WALLET_B, FakeLedger, asking_ledger, make_invoice
 from test_hub import AGENT_ON_CONTRACT, SHOP, auth, clock, owner, sign  # noqa: F401
 
 MONDAY = datetime(2026, 10, 12, 9, 0, tzinfo=UTC)
 LOW_LIMIT = PolicyConfig(max_per_payment=Decimal(500), weekly_budget=Decimal(2500))
+HIGH_LIMIT = PolicyConfig(max_per_payment=Decimal(5000), weekly_budget=Decimal(5000))
 
 
 @pytest.fixture
@@ -48,10 +49,12 @@ def steps(summary):
 # ---- what the owner's page is told
 
 
-def test_an_invoice_over_the_limit_asks_with_a_limit_step_and_the_limits(journal):
+def test_an_invoice_over_the_limit_is_noted_for_the_agent_with_a_limit_step(journal):
     summary = decide(FakeLedger(), journal)  # 1000 against a limit of 500
     [d] = summary["decisions"]
-    assert d["action"] == "ASK" and steps(summary) == {OVER_LIMIT}
+    assert d["action"] == "PAY" and steps(summary) == {OVER_LIMIT}
+    assert d["findings"][0]["outcome"] == "NOTE"
+    assert d["reasons"][0].startswith("to weigh: amount 1000")
     assert len(d["fingerprint"]) == 64
     assert summary["limits"] == {"max_per_payment": "500", "weekly_cap": "2500"}
 
@@ -97,30 +100,34 @@ def test_the_page_sees_where_the_payment_is(journal):
 
 
 def test_an_approval_for_the_question_shown_lets_the_agent_pay(journal, tmp_path):
-    [d] = decide(FakeLedger(), journal)["decisions"]
+    [d] = decide(asking_ledger(journal), journal, policy=HIGH_LIMIT)["decisions"]
+    assert d["action"] == "ASK"
     drop_answer(tmp_path, "PINV-1", Verdict.APPROVE, d["fingerprint"], "owner 0xabc", "", MONDAY)
     results = take_answers(tmp_path, journal, at=MONDAY)
     assert results["PINV-1"]["result"] == "ACCEPTED"
     assert list((tmp_path / INBOX / ANSWERS).iterdir()) == []
-    [after] = decide(FakeLedger(), journal, at=MONDAY + timedelta(minutes=15))["decisions"]
+    [after] = decide(asking_ledger(journal), journal, policy=HIGH_LIMIT,
+                     at=MONDAY + timedelta(minutes=15))["decisions"]
     assert after["action"] == "PAY" and after["reasons"][0].startswith("approved by owner 0xabc")
 
 
 def test_an_answer_to_a_question_that_changed_is_refused(journal, tmp_path):
-    decide(FakeLedger(), journal)
+    decide(asking_ledger(journal), journal, policy=HIGH_LIMIT)
     drop_answer(tmp_path, "PINV-1", Verdict.APPROVE, "0" * 64, "owner 0xabc", "", MONDAY)
     results = take_answers(tmp_path, journal, at=MONDAY)
     assert results["PINV-1"]["result"] == "REJECTED" and "changed" in results["PINV-1"]["reason"]
-    [after] = decide(FakeLedger(), journal, at=MONDAY + timedelta(minutes=15))["decisions"]
+    [after] = decide(asking_ledger(journal), journal, policy=HIGH_LIMIT,
+                     at=MONDAY + timedelta(minutes=15))["decisions"]
     assert after["action"] == "ASK"
 
 
 def test_a_rejection_holds_the_invoice_with_the_owners_note(journal, tmp_path):
-    [d] = decide(FakeLedger(), journal)["decisions"]
+    [d] = decide(asking_ledger(journal), journal, policy=HIGH_LIMIT)["decisions"]
     drop_answer(tmp_path, "PINV-1", Verdict.REJECT, d["fingerprint"], "owner 0xabc",
                 "supplier did not ask for this", MONDAY)
     take_answers(tmp_path, journal, at=MONDAY)
-    [after] = decide(FakeLedger(), journal, at=MONDAY + timedelta(minutes=15))["decisions"]
+    [after] = decide(asking_ledger(journal), journal, policy=HIGH_LIMIT,
+                     at=MONDAY + timedelta(minutes=15))["decisions"]
     assert after["action"] == "HOLD" and "supplier did not ask for this" in after["reasons"][0]
 
 
@@ -144,7 +151,7 @@ def hub(tmp_path, auth, journal):  # noqa: F811
     store.save(ShopConfig(shop=SHOP, erp_url="https://shop.frappe.cloud", company="TEST Shop",
                           max_per_payment="500", weekly_budget="2500"),
                ErpCredentials(api_key=secrets.token_hex(8), api_secret=secrets.token_urlsafe(24)))
-    store.write_last_run(SHOP, decide(FakeLedger(), journal))
+    store.write_last_run(SHOP, decide(asking_ledger(journal), journal))
     units = Units()
     app = create_app(store=store, auth=auth, units=units,
                      limits_of=lambda s: ShopLimits(Decimal(500), Decimal(2500), AGENT_ON_CONTRACT))

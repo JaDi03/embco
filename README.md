@@ -26,10 +26,10 @@ and acts on what happened. A smart contract sets the limits it cannot cross.
 
 ## What it does
 
-- **Checks** every invoice against its order and receipt, and looks for duplicates, price jumps
-  and unsigned supplier wallets.
-- **Decides**, with an AI model: pay now, pay on a date, hold, or ask the owner, each with a
-  written reason, among the invoices the checks allow.
+- **Checks** every invoice against its order and receipt, its price history and the contract's
+  limits. Only an unproven supplier wallet or a duplicate bill stops it outright.
+- **Decides**, with an AI model that weighs what the checks found: pay now, pay on a date,
+  hold, or ask the owner, each with a written reason.
 - **Pays** itself in USDC, through a shop contract on Arc that holds the owner's limits, then
   reads the result: the transaction, or the contract's or Circle's own error. When something
   stops a payment, it looks up why and tells the owner what only they can fix. Every payment is

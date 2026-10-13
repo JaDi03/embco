@@ -10,9 +10,9 @@ def with_rate(rate: str) -> FakeLedger:
     return ledger
 
 
-def test_a_price_far_above_the_habitual_one_needs_the_owner():
+def test_a_price_far_above_the_habitual_one_is_noted_for_the_agent():
     finding = PriceAnomaly().check(context_for(with_rate("135")))
-    assert finding.outcome is Outcome.ASK
+    assert finding.outcome is Outcome.NOTE
     assert "35% above the habitual 100" in finding.reason
 
 
@@ -32,9 +32,9 @@ def test_unpaid_invoices_do_not_count_as_history():
     assert PriceAnomaly().check(context_for(ledger)).outcome is Outcome.PASS
 
 
-def test_amount_above_the_limit_needs_the_owner():
+def test_amount_above_the_limit_is_noted_for_the_agent():
     finding = PaymentLimit(Decimal(500)).check(context_for(FakeLedger()))
-    assert finding.outcome is Outcome.ASK
+    assert finding.outcome is Outcome.NOTE
     assert "above the per-payment limit of 500" in finding.reason
 
 

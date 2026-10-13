@@ -1,9 +1,10 @@
-"""Flag a price well above what this supplier habitually charged for the same item."""
+"""Flag a price well above what this supplier habitually charged for the same item: evidence the
+agent weighs (with the price history), not a stop."""
 
 from decimal import Decimal
 from statistics import median
 
-from agent.guardrails.controls.base import Finding, ask, fmt, passed
+from agent.guardrails.controls.base import Finding, fmt, note, passed
 from agent.guardrails.controls.context import Context
 from services.erp.models import DocumentLine
 
@@ -17,7 +18,7 @@ class PriceAnomaly:
     def check(self, ctx: Context) -> Finding:
         flagged = [m for line in ctx.invoice.lines if (m := self._message(line, ctx))]
         if flagged:
-            return ask(self.name, "; ".join(flagged))
+            return note(self.name, "; ".join(flagged))
         return passed(self.name, "prices are in line with past purchases")
 
     def _message(self, line: DocumentLine, ctx: Context) -> str | None:

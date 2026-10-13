@@ -10,11 +10,10 @@ from agent.memory import SqliteJournal
 from agent.reflexes.cycle import run_cycle
 from services.erp import ErpnextAdapter
 from services.erp.models import OwnerMark
-from support import FakeLedger
+from support import FakeLedger, asking_ledger, make_invoice
 
 OWNER = "owner@shop.test"
-# the default invoice (1000) is above this limit: the agent asks the owner
-POLICY = PolicyConfig(max_per_payment=Decimal(500), weekly_budget=Decimal(5000))
+POLICY = PolicyConfig(max_per_payment=Decimal(5000), weekly_budget=Decimal(5000))
 NOW = datetime(2026, 10, 12, 9, 0, tzinfo=UTC)
 
 
@@ -35,7 +34,8 @@ def cycle(ledger, journal, minutes=0):
 
 
 def asked_once(journal) -> FakeLedger:
-    ledger = FakeLedger()
+    """The supplier's new wallet is proven: the owner is asked about the first payment."""
+    ledger = asking_ledger(journal)
     assert [d.action for d in cycle(ledger, journal).decisions] == [Action.ASK]
     return ledger
 
@@ -67,7 +67,7 @@ def test_a_mark_by_someone_else_or_unclear_answers_nothing(journal, bad):
 
 
 def test_a_mark_needs_a_question_the_agent_already_showed(journal):
-    ledger = FakeLedger()
+    ledger = asking_ledger(journal)
     ledger.marks = {"PINV-1": mark()}
     assert [d.action for d in cycle(ledger, journal).decisions] == [Action.ASK]
 
@@ -83,19 +83,13 @@ def test_one_mark_answers_one_question(journal):
     ledger = asked_once(journal)
     ledger.marks = {"PINV-1": mark("Reject")}
     cycle(ledger, journal, 15)
-    # the question changes (a lower limit is a new question): the old mark does not answer it
-    tighter = PolicyConfig(max_per_payment=Decimal(400), weekly_budget=Decimal(5000))
-    report = run_cycle(ledger, journal, tighter, "TEST Shop", at=NOW + timedelta(minutes=30),
-                       owners=(OWNER,))
-    assert [d.action for d in report.decisions] == [Action.ASK]
+    # the question changes (the amount due changed): the old mark does not answer it
+    ledger.pending = [make_invoice(outstanding="900")]
+    assert [d.action for d in cycle(ledger, journal, 30).decisions] == [Action.ASK]
     # the old Reject is still on the invoice: it does not hold the new question
-    report = run_cycle(ledger, journal, tighter, "TEST Shop", at=NOW + timedelta(minutes=40),
-                       owners=(OWNER,))
-    assert [d.action for d in report.decisions] == [Action.ASK]
+    assert [d.action for d in cycle(ledger, journal, 40).decisions] == [Action.ASK]
     ledger.marks = {"PINV-1": mark("Approve", change="v-2")}  # the owner writes it again
-    report = run_cycle(ledger, journal, tighter, "TEST Shop", at=NOW + timedelta(minutes=45),
-                       owners=(OWNER,))
-    assert [d.action for d in report.decisions] == [Action.PAY]
+    assert [d.action for d in cycle(ledger, journal, 45).decisions] == [Action.PAY]
 
 
 def adapter_for(doc, versions):

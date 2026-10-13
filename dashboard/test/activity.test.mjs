@@ -83,6 +83,14 @@ test("each time Claude was woken is one session with its decisions, words and co
   assert.equal(checks.length, 2);
 });
 
+test("the agent's choice is a label next to its own words", () => {
+  assert.equal(activity.choiceLabel({ choice: "PAY_NOW" }), "Pay now");
+  assert.equal(activity.choiceLabel({ choice: "SCHEDULE", pay_on: "2026-10-15" }), "Pay on 2026-10-15");
+  assert.equal(activity.choiceLabel({ choice: "HOLD" }), "Hold");
+  assert.equal(activity.choiceLabel({ choice: "ASK" }), "Asks you");
+  assert.equal(activity.choiceLabel({ kind: "agent" }), "");
+});
+
 test("a session that failed says so instead of decisions", () => {
   const at = "2026-10-09T20:00:55+00:00";
   const [s] = activity.timeline([

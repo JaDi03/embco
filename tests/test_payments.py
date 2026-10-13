@@ -598,6 +598,26 @@ def test_the_wallet_counts_from_when_the_agent_first_saw_it(journal):
     assert journal.wallet_noticed_at("T", WALLET_B) is None
 
 
+def test_the_northern_case_a_missing_receipt_no_longer_keeps_the_agent_out(journal):
+    """New wallet signed by the supplier, approved by the owner, and the flour has no receipt:
+    the wallet question is answered, the receipt is left for the agent to weigh, and the change
+    wakes it."""
+    ledger = new_wallet_ledger(journal)
+    bare = make_invoice(currency="USD").lines[0].model_copy(update={"purchase_receipt": None})
+    ledger.pending = [make_invoice(currency="USD", lines=(bare,))]
+    payer, chain, _ = make_payer(ledger)
+    chain.unapproved.add(WALLET_B.lower())
+    first = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer, **DECIDES)
+    assert [d.action for d in first.decisions] == [Action.ASK]
+    chain.approve(WALLET_B, NOW + timedelta(minutes=5))
+    second = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW + timedelta(minutes=15),
+                       payments=payer, **DECIDES)
+    [d] = second.decisions
+    assert d.action is Action.PAY
+    assert [f.outcome for f in d.findings if f.control == "three_way_match"] == [Outcome.NOTE]
+    assert "changed" in [w.kind for w in second.thought.session.wakes]
+
+
 def test_an_approval_before_the_supplier_signs_also_answers(journal):
     ledger = new_wallet_ledger(journal, signed=False)
     payer, chain, circle = make_payer(ledger)
