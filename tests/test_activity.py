@@ -139,6 +139,18 @@ def test_a_check_with_other_counts_starts_a_new_line(tmp_path):
     assert "since" not in events[-1]
 
 
+def test_answers_are_marked_as_sent_to_telegram_once_a_chat_is_linked(tmp_path):
+    import json
+
+    from services.shops.agent import on_telegram
+    from services.telegram import links
+
+    reply = [{"from": "agent", "text": "Paid."}]
+    assert on_telegram(tmp_path, reply) == reply
+    (tmp_path / links.LINK_FILE).write_text(json.dumps({"chat_id": 7}), encoding="utf-8")
+    assert on_telegram(tmp_path, reply) == [{"from": "agent", "text": "Paid.", "telegram": True}]
+
+
 def test_only_the_newest_events_are_kept(tmp_path, monkeypatch):
     monkeypatch.setattr(activity, "MAX_EVENTS", 3)
     for _ in range(5):
