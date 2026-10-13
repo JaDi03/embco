@@ -374,6 +374,12 @@ body:has(#view-shop:not([hidden])) .notice { margin: 8px 16px 0; }
 .bubble.system { justify-self: start; background: var(--warn-soft); color: var(--warn-ink); }
 .bubble .meta { display: block; margin-top: 4px; font: 0.7rem var(--mono); color: var(--muted); }
 .bubble.me .meta { color: inherit; opacity: 0.8; }
+.bubble a { font-family: var(--mono); font-size: 0.85em; }
+.bubble.me a { color: inherit; text-decoration: underline; }
+.memo-tag {
+  font-size: 0.7rem; font-weight: 600; padding: 1px 7px; border-radius: 999px; cursor: help;
+  border: 1px solid var(--line); color: var(--accent-ink); white-space: nowrap;
+}
 .chat-status { flex: none; margin: 0; padding: 0 16px; }
 .chat-status:empty { display: none; }
 .chat-form { flex: none; display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); background: var(--surface); }

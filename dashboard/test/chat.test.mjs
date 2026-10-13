@@ -27,6 +27,16 @@ test("what came from Telegram, and what went there, says so", () => {
   assert.equal(chat.bubbleOf({ from: "system", text: "x", telegram: true }).meta, "SERVICE · sent to Telegram");
 });
 
+test("transaction hashes and addresses in a message become links, the rest stays text", () => {
+  const tx = "0x" + "fc".repeat(32);
+  const wallet = "0x" + "ab".repeat(20);
+  assert.deepEqual(chat.linkParts(`Paid, transaction ${tx}, to ${wallet}.`), [
+    { text: "Paid, transaction " }, { tx }, { text: ", to " }, { address: wallet }, { text: "." },
+  ]);
+  assert.deepEqual(chat.linkParts("Nothing is due."), [{ text: "Nothing is due." }]);
+  assert.deepEqual(chat.linkParts("0x" + "1".repeat(50)), [{ text: "0x" + "1".repeat(50) }]);  // neither
+});
+
 test("sending posts the text to this shop, with the session cookie", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {
