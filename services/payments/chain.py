@@ -11,6 +11,9 @@ from eth_abi import decode, encode
 from eth_utils import keccak, to_checksum_address
 
 WEEK_SECONDS = 7 * 24 * 3600
+SHOP_LOGS_FROM = 66943142  # the ShopPayablesFactory deployment on Arc testnet: no shop is older
+LOG_CHUNK_BLOCKS = 99_999  # the most blocks the Canteen node returns logs for in one call
+_PAYEE_SET = "0x" + keccak(text="PayeeSet(address,bool)").hex()
 
 
 class ChainError(Exception):
@@ -105,6 +108,37 @@ class ArcRpc:
         (approved,) = decode(["bool"], self._view(shop, "approvedPayee(address)", ["address"],
                                                   [to_checksum_address(payee)]))
         return approved
+
+    def payee_approved_since(self, shop: str, payee: str, since: datetime,
+                             first_block: int = SHOP_LOGS_FROM) -> datetime | None:
+        """When the owner approved this payee in the shop contract, if that approval is its
+        latest PayeeSet event and was made after `since`; otherwise None. Reads the contract's
+        events newest range first and stops at ranges older than `since`."""
+        topic = "0x" + "00" * 12 + to_checksum_address(payee)[2:].lower()
+        try:
+            end = int(self._rpc("eth_blockNumber", []), 16)
+            while end >= first_block:
+                start = max(first_block, end - LOG_CHUNK_BLOCKS + 1)
+                logs = self._rpc("eth_getLogs", [{
+                    "address": to_checksum_address(shop), "topics": [_PAYEE_SET, topic],
+                    "fromBlock": hex(start), "toBlock": hex(end)}])
+                if logs:
+                    last = max(logs, key=lambda e: (int(e["blockNumber"], 16),
+                                                    int(e["logIndex"], 16)))
+                    if int(last["data"], 16) != 1:
+                        return None  # the latest decision on this payee removed it
+                    at = self._block_time(last["blockNumber"])
+                    return at if at > since else None
+                if self._block_time(hex(start)) <= since:
+                    return None  # nothing set since `since`
+                end = start - 1
+        except (KeyError, TypeError, ValueError) as error:
+            raise ChainError(f"Arc node returned unexpected logs: {type(error).__name__}") from None
+        return None
+
+    def _block_time(self, block: str) -> datetime:
+        return datetime.fromtimestamp(int(self._rpc("eth_getBlockByNumber",
+                                                    [block, False])["timestamp"], 16), UTC)
 
     def remaining_this_week(self, shop: str) -> int:
         (units,) = decode(["uint256"], self._view(shop, "remainingThisWeek()", [], []))

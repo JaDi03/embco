@@ -98,6 +98,8 @@ class PaymentBook(Protocol):
 
     def latest_payment(self, invoice: str) -> PaymentEvent | None: ...
 
+    def wallet_noticed_at(self, supplier: str, wallet: str) -> datetime | None: ...
+
     def payment_attempts(self, invoice: str) -> int: ...
 
     def pending_payments(self) -> list[PaymentEvent]: ...
@@ -192,27 +194,30 @@ class Payer:
     ) -> list[OwnerAnswer]:
         """Wallet questions the owner answered by approving the wallet in the contract.
 
-        Only for a wallet the agent listed as waiting (so the approval came after the question),
-        that is still the one on file. A wallet approved before the question was asked answers
-        nothing: the owner answers that question directly.
+        The approval counts only when it was made after the agent first saw this wallet on the
+        supplier (its first signature challenge for it), whether before or after the supplier
+        signed. An approval made earlier, for example of an address that was another
+        supplier's, answers nothing: the owner is asked once.
         """
         answers = []
         for decision in decisions:
             if not asks_only_about_wallet(decision):
                 continue
-            last = book.latest_payment(decision.invoice)
-            if (not last or last.status is not PaymentStatus.BLOCKED
-                    or last.reason != answer_by_approval_reason(last.payee)):
-                continue
             wallet = self.ledger.get_supplier(decision.supplier).wallet_address or ""
-            if not is_evm_address(wallet) or to_checksum_address(wallet) != last.payee:
+            if not is_evm_address(wallet):
                 continue
-            if not self.chain.is_approved(self.shop, last.payee):
+            payee = to_checksum_address(wallet)
+            noticed = book.wallet_noticed_at(decision.supplier, wallet)
+            if noticed is None or not self.chain.is_approved(self.shop, payee):
+                continue
+            approved = self.chain.payee_approved_since(self.shop, payee, noticed)
+            if approved is None:
                 continue
             answers.append(OwnerAnswer(
                 invoice=decision.invoice, fingerprint=fingerprint(decision),
                 verdict=Verdict.APPROVE, answered_by=CHAIN_APPROVER, answered_at=self.clock(),
-                note=f"wallet {last.payee} approved in the shop contract",
+                note=f"wallet {payee} approved in the shop contract on "
+                     f"{approved:%Y-%m-%d %H:%M} UTC",
             ))
         return answers
 
@@ -224,7 +229,7 @@ class Payer:
             return []
         payee = to_checksum_address(wallet)
         if self.chain.is_approved(self.shop, payee):
-            return []  # approved before the question: the owner answers it directly
+            return []  # approved already: answers_from_chain says whether that answers it
         pending.append(PendingApproval(wallet=payee, invoice=decision.invoice,
                                        amount=decision.amount))
         reason = answer_by_approval_reason(payee)

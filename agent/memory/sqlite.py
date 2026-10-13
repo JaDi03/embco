@@ -128,6 +128,16 @@ class SqliteJournal:
             expires_at=datetime.fromisoformat(body["expires_at"]),
         )
 
+    def wallet_noticed_at(self, supplier: str, wallet: str) -> datetime | None:
+        """When the agent first asked the supplier to prove this wallet, since it last asked
+        about another one: on the agent's own clock, at most one check after the ERP change."""
+        noticed = None
+        for at, body in self._db.execute(schema.ALL_FOR_SUPPLIER, ("CHALLENGE", supplier)):
+            if str(json.loads(body).get("wallet", "")).lower() != wallet.lower():
+                break
+            noticed = datetime.fromisoformat(at)
+        return noticed
+
     def record_wallet_proof(self, proof: WalletProof) -> None:
         body = {
             "supplier": proof.supplier,

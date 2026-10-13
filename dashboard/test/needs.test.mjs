@@ -52,6 +52,17 @@ test("a wallet not approved in the contract gets its approve button", () => {
   assert.equal(task.decide.state, "locked");
 });
 
+test("when the wallet is the only question, its approval says it is also the answer", () => {
+  const facts = { wallet: WALLET, approved: false, maxPerPayment: USDC(400), weeklyCap: USDC(2000) };
+  const only = decision("ASK", [["first_payment"]]);
+  only.findings[0].control = "payee_wallet";
+  const text = (d) => needs.taskFor(d, facts).steps.find((s) => s.key === "approved").text;
+  assert.match(text(only), /also your answer/);
+  const more = decision("ASK", [["first_payment"], ["other"]]);
+  more.findings[0].control = "payee_wallet";
+  assert.doesNotMatch(text(more), /also your answer/);
+});
+
 test("an answer already sent is shown as sent, and a refused one says why", () => {
   const facts = { wallet: WALLET, approved: true, maxPerPayment: USDC(400), weeklyCap: USDC(2000) };
   assert.equal(needs.taskFor(decision("ASK", [["first_payment"]]), facts, { waiting: true }).decide.state, "sent");

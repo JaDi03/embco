@@ -62,10 +62,14 @@ export function taskFor(decision, facts = {}, { waiting = false, answer = null }
 
   // 3. The wallet approved in the contract (the contract refuses any other)
   const walletKnown = Boolean(wallet) && !found.has("wallet_missing") && !found.has("wallet_problem");
+  const asking = (decision.findings ?? []).filter((f) => f.outcome === "ASK");
+  const onlyTheWallet = asking.length > 0 && asking.every((f) => f.control === "payee_wallet");
   if (walletKnown) {
     steps.push(facts.approved
       ? { key: "approved", state: "done", text: "Wallet approved in your contract." }
-      : { key: "approved", state: "todo", text: "Approve this wallet in your contract: the contract pays only wallets you approved.", action: { type: "approve_wallet", wallet } });
+      : { key: "approved", state: "todo", text: onlyTheWallet
+        ? "Approve this wallet in your contract: the contract pays only wallets you approved, and this approval is also your answer to the question below."
+        : "Approve this wallet in your contract: the contract pays only wallets you approved.", action: { type: "approve_wallet", wallet } });
   }
 
   // 4. The per-payment limit, offered once nothing in ERPNext is left to fix

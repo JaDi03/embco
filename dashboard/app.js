@@ -730,7 +730,8 @@ async function renderApprovals(isOwner) {
         textContent: "Approve",
       });
       approve.addEventListener("click", () =>
-        act(approve, "Approve supplier", (shop) => shop.setPayee(address, true)),
+        act(approve, "Approve supplier", (shop) => shop.setPayee(address, true))
+          .then((ok) => ok && checkAndWait()),  // the approval may answer a question: check now
       );
       li.append(detail, approve);
       return li;
@@ -1147,7 +1148,11 @@ function wireActions() {
       notify(describeError(error), "error");
       return;
     }
-    act(button, "Approve supplier", (shop) => shop.setPayee(supplier, true)).then((ok) => ok && form.reset());
+    act(button, "Approve supplier", (shop) => shop.setPayee(supplier, true)).then((ok) => {
+      if (!ok) return;
+      form.reset();
+      checkAndWait();  // the approval may answer a question: check now
+    });
   });
 }
 

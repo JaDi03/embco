@@ -55,6 +55,11 @@ SELECT at, body FROM entries
 WHERE kind = ? AND json_extract(body, '$.supplier') = ? ORDER BY id DESC LIMIT 1
 """
 
+ALL_FOR_SUPPLIER = """
+SELECT at, body FROM entries
+WHERE kind = ? AND json_extract(body, '$.supplier') = ? ORDER BY id DESC
+"""
+
 PAYMENT_ATTEMPTS = """
 SELECT COUNT(*) FROM entries
 WHERE invoice = ? AND kind = 'PAYMENT' AND json_extract(body, '$.status') = 'SUBMITTED'
