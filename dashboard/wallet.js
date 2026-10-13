@@ -1,92 +1,115 @@
-// MetaMask connection and the Arc Testnet network, through the wallet's EIP-1193 provider.
+// The wallet connection, the EIP-6963 way: installed wallets announce themselves (mipd store), the
+// person picks one, and the page remembers it to reconnect on the next visit, as wagmi does. Every
+// call then goes to that wallet's EIP-1193 provider.
 
+import { createStore } from "./vendor/mipd-0.0.7/index.js";
 import { ethers } from "./vendor/ethers-6.17.0.min.js";
 import { ARC_TESTNET, rpcUrl } from "./config.js";
 
-const ANSWER_MS = 10_000;
-const NO_ANSWER = "Your wallet did not answer. Open MetaMask, unlock it, and reload this page.";
+const REMEMBER = "embco-wallet";  // the rdns of the wallet last connected
+const store = createStore();
+let chosen = null;  // the EIP-6963 provider detail in use
+let watcher = null;
 
-/**
- * MetaMask when it announced itself, else the first wallet that did, else window.ethereum.
- * Another wallet (Rabby, for one) can take window.ethereum and pretend to be MetaMask.
- */
-export function pickWallet(announced, injected) {
-  const metamask = announced.find((w) => w.info?.rdns === "io.metamask");
-  return (metamask ?? announced[0])?.provider ?? injected ?? null;
+/** The wallets in this browser. A wallet without EIP-6963 is still found on window.ethereum. */
+export function wallets() {
+  const announced = store.getProviders();
+  if (announced.length || typeof window.ethereum === "undefined") return announced;
+  return [{ info: { uuid: "window.ethereum", name: "Browser wallet", rdns: "window.ethereum", icon: "" },
+    provider: window.ethereum }];
 }
 
-/** The installed wallets announce themselves when asked (EIP-6963). */
-async function findWallet() {
-  const announced = [];
-  const listen = (event) => announced.push(event.detail);
-  window.addEventListener("eip6963:announceProvider", listen);
-  window.dispatchEvent(new Event("eip6963:requestProvider"));
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  window.removeEventListener("eip6963:announceProvider", listen);
-  return pickWallet(announced, window.ethereum);
+/** Called again when a wallet announces itself after the page started. */
+export function onWallets(listener) {
+  return store.subscribe(listener);
 }
 
-let found = null;
-const eip1193 = () => (found ??= findWallet());
-
-/** A wallet that never answers would leave the page empty; this ends the wait with a message. */
-function answered(promise) {
-  let timer;
-  const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(NO_ANSWER)), ANSWER_MS); });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
-
-export async function hasWallet() {
-  return (await eip1193()) !== null;
-}
-
-export async function browserProvider() {
-  return new ethers.BrowserProvider(await eip1193());
-}
-
-export async function connect() {
-  const provider = await browserProvider();
-  await provider.send("eth_requestAccounts", []);
-  return provider;
-}
-
-/** The connected account without asking the user, or null. */
-export async function currentAccount() {
-  const wallet = await eip1193();
-  if (!wallet) return null;
-  const accounts = await answered(wallet.request({ method: "eth_accounts" }));
-  return accounts[0] ? ethers.getAddress(accounts[0]) : null;
-}
-
-/** Remove this site from MetaMask's connected sites. False when the wallet cannot do it. */
-export async function disconnect() {
-  const wallet = await eip1193();
-  if (!wallet) return true;
+function remembered() {
   try {
-    await wallet.request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] });
-    return true;
+    return localStorage.getItem(REMEMBER);
   } catch {
-    return false;
+    return null;  // no storage (private window): connect again on each visit
   }
 }
 
-export async function onArc(provider) {
-  const network = await answered(provider.getNetwork());
+function remember(rdns) {
+  try {
+    if (rdns) localStorage.setItem(REMEMBER, rdns);
+    else localStorage.removeItem(REMEMBER);
+  } catch {
+    // the choice lasts for this visit only
+  }
+}
+
+/** The wallet this page connected to before, if it is still installed. */
+export function rememberedWallet() {
+  const rdns = remembered();
+  return rdns ? wallets().find((w) => w.info.rdns === rdns) ?? null : null;
+}
+
+function use(detail) {
+  if (chosen?.provider !== detail?.provider && watcher) {
+    chosen?.provider.removeListener?.("accountsChanged", watcher);
+    chosen?.provider.removeListener?.("chainChanged", watcher);
+    detail?.provider.on?.("accountsChanged", watcher);
+    detail?.provider.on?.("chainChanged", watcher);
+  }
+  chosen = detail;
+}
+
+/** The connected account without asking the person, or null. */
+export async function reconnect() {
+  const detail = chosen ?? rememberedWallet();
+  if (!detail) return null;
+  const [account] = await detail.provider.request({ method: "eth_accounts" });
+  if (!account) {
+    use(null);
+    remember(null);
+    return null;
+  }
+  use(detail);
+  return ethers.getAddress(account);
+}
+
+/** Ask the chosen wallet to connect this page. */
+export async function connect(detail) {
+  const [account] = await detail.provider.request({ method: "eth_requestAccounts" });
+  use(detail);
+  remember(detail.info.rdns);
+  return ethers.getAddress(account);
+}
+
+/** Forget the wallet here, and ask it to forget this page. Wallets that cannot still stay forgotten here. */
+export async function disconnect() {
+  const detail = chosen;
+  use(null);
+  remember(null);
+  await detail?.provider.request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] })
+    .catch(() => null);
+}
+
+export function provider() {
+  if (!chosen) throw new Error("Connect your wallet first.");
+  return new ethers.BrowserProvider(chosen.provider);
+}
+
+export async function onArc() {
+  const network = await provider().getNetwork();
   return network.chainId === ARC_TESTNET.chainId;
 }
 
-/** Switch MetaMask to Arc Testnet, adding the network first if MetaMask does not know it. */
+/** Switch the wallet to Arc Testnet, adding the network first if the wallet does not know it. */
 export async function switchToArc() {
-  const wallet = await eip1193();
+  if (!chosen) throw new Error("Connect your wallet first.");
   try {
-    await wallet.request({
+    await chosen.provider.request({
       method: "wallet_switchEthereumChain",
       params: [{ chainId: ARC_TESTNET.chainIdHex }],
     });
   } catch (error) {
     const unknownChain = error.code === 4902 || error?.data?.originalError?.code === 4902;
     if (!unknownChain) throw error;
-    await wallet.request({
+    await chosen.provider.request({
       method: "wallet_addEthereumChain",
       params: [
         {
@@ -101,10 +124,9 @@ export async function switchToArc() {
   }
 }
 
-/** Re-render when the user changes account or network in MetaMask. */
-export async function onWalletChange(callback) {
-  const wallet = await eip1193();
-  if (!wallet) return;
-  wallet.on("accountsChanged", callback);
-  wallet.on("chainChanged", callback);
+/** Called when the person changes account or network in the connected wallet. */
+export function onWalletChange(callback) {
+  watcher = callback;
+  chosen?.provider.on?.("accountsChanged", callback);
+  chosen?.provider.on?.("chainChanged", callback);
 }
