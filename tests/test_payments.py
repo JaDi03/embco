@@ -4,11 +4,12 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+import httpx
 import pytest
 from eth_abi import decode, encode
 from eth_utils import keccak, to_checksum_address
 
-from agent.guardrails.controls import WalletProof
+from agent.guardrails.controls import WalletChallenge, WalletProof
 from agent.guardrails.controls.base import Finding, Outcome
 from agent.guardrails.rules import Action, Decision, PaymentPlan, PolicyConfig
 from agent.memory import SqliteJournal
@@ -24,7 +25,7 @@ from services.payments import (
     PaymentStatus,
     Reverted,
 )
-from services.payments.chain import revert_reason
+from services.payments.chain import ArcRpc, revert_reason
 from services.payments.encoding import (
     MEMO_CONTRACT,
     EncodingError,
@@ -57,7 +58,12 @@ class FakeChain:
         self.remaining = usdc_units(Decimal("2000"))
         self.revert: str | None = None
         self.unapproved: set[str] = set()
+        self.approved_at: dict[str, datetime] = {}  # when each payee was approved; else long ago
         self.simulated: list[tuple[str, bytes, str | None]] = []
+
+    def approve(self, payee, at):
+        self.unapproved.discard(payee.lower())
+        self.approved_at[payee.lower()] = at
 
     def agent_of(self, shop):
         return self.agent
@@ -67,6 +73,10 @@ class FakeChain:
 
     def is_approved(self, shop, payee):
         return payee.lower() not in self.unapproved
+
+    def payee_approved_since(self, shop, payee, since):
+        at = self.approved_at.get(payee.lower())
+        return at if self.is_approved(shop, payee) and at and at > since else None
 
     def remaining_this_week(self, shop):
         return self.remaining
@@ -158,6 +168,52 @@ def test_revert_reason_unwraps_memo_and_names_the_shop_error():
     message = keccak(text="Error(string)")[:4] + encode(["string"], ["allowance exceeded"])
     assert revert_reason(message) == "allowance exceeded"
     assert revert_reason(b"") == "reverted without a reason"
+
+
+def payee_node(events, latest=250_000):
+    """An Arc node with PayeeSet events {block: approved}; block N was made at second N."""
+    ranges = []
+
+    def handle(request):
+        body = json.loads(request.content)
+        method, params = body["method"], body["params"]
+        if method == "eth_blockNumber":
+            result = hex(latest)
+        elif method == "eth_getBlockByNumber":
+            result = {"timestamp": params[0]}
+        else:
+            start, end = int(params[0]["fromBlock"], 16), int(params[0]["toBlock"], 16)
+            ranges.append((start, end))
+            result = [{"blockNumber": hex(b), "logIndex": "0x0", "data": "0x" + f"{int(a):064x}"}
+                      for b, a in events.items() if start <= b <= end]
+        return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "result": result})
+
+    client = httpx.Client(transport=httpx.MockTransport(handle))
+    return ArcRpc("https://node.example/rpc", client=client), ranges
+
+
+def at_second(n):
+    return datetime.fromtimestamp(n, UTC)
+
+
+def test_the_latest_approval_is_found_newest_range_first():
+    rpc, ranges = payee_node({120_000: True, 140_000: True})
+    found = rpc.payee_approved_since(SHOP, WALLET_A, at_second(100), first_block=1)
+    assert found == at_second(140_000)
+    assert ranges == [(150_002, 250_000), (50_003, 150_001)]
+
+
+def test_an_old_or_removed_approval_is_not_one():
+    rpc, ranges = payee_node({120_000: True})
+    assert rpc.payee_approved_since(SHOP, WALLET_A, at_second(130_000), first_block=1) is None
+    rpc, _ = payee_node({120_000: True, 140_000: False})
+    assert rpc.payee_approved_since(SHOP, WALLET_A, at_second(100), first_block=1) is None
+
+
+def test_ranges_older_than_since_are_not_read():
+    rpc, ranges = payee_node({})
+    assert rpc.payee_approved_since(SHOP, WALLET_A, at_second(200_000), first_block=1) is None
+    assert ranges == [(150_002, 250_000)]
 
 
 def test_idempotency_key_is_a_stable_uuid4_that_changes_with_the_attempt():
@@ -449,12 +505,22 @@ def test_the_report_tells_the_owner_which_wallet_to_approve(journal):
 # one approval for a new wallet: the owner's signature in the contract answers the question
 
 
-def new_wallet_ledger(journal) -> FakeLedger:
+SEEN = NOW - timedelta(hours=1)  # the agent saw WALLET_B and asked the supplier to sign
+
+
+def challenge(supplier, wallet, at):
+    return WalletChallenge(supplier=supplier, wallet=wallet, payer="TEST Shop",
+                           nonce=at.isoformat(), issued_at=at, expires_at=at + timedelta(days=7))
+
+
+def new_wallet_ledger(journal, signed=True) -> FakeLedger:
     """The supplier moved to WALLET_B and proved it controls it: the agent asks the owner."""
     ledger = matching_ledger()
     ledger.supplier = Supplier(name="S", wallet_address=WALLET_B)
-    journal.record_wallet_proof(WalletProof(supplier="S", wallet=WALLET_B, nonce="n",
-                                            signature="0x", signed_at=NOW))
+    journal.record_wallet_challenge(challenge("S", WALLET_B, SEEN))
+    if signed:
+        journal.record_wallet_proof(WalletProof(supplier="S", wallet=WALLET_B, nonce="n",
+                                                signature="0x", signed_at=NOW))
     return ledger
 
 
@@ -467,7 +533,7 @@ def test_a_new_wallet_is_listed_and_its_approval_answers_the_question(journal, t
     assert [d.action for d in first.decisions] == [Action.ASK]
     assert [p.wallet for p in first.settlement.needs_approval] == [to_checksum_address(WALLET_B)]
     assert circle.sent == []
-    chain.unapproved.clear()  # the owner signed setPayee in the dashboard, nothing else
+    chain.approve(WALLET_B, NOW + timedelta(minutes=5))  # the owner signed setPayee, nothing else
     second = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW + timedelta(minutes=15),
                        payments=payer, **DECIDES)
     [paid] = second.decisions
@@ -476,9 +542,43 @@ def test_a_new_wallet_is_listed_and_its_approval_answers_the_question(journal, t
     assert journal.latest_answer("PINV-1").answered_by == CHAIN_APPROVER
 
 
-def test_a_wallet_approved_before_the_question_does_not_answer_it(journal):
+def test_the_wallet_counts_from_when_the_agent_first_saw_it(journal):
+    journal.record_wallet_challenge(challenge("S", WALLET_A, SEEN - timedelta(days=20)))
+    journal.record_wallet_challenge(challenge("S", WALLET_B, SEEN))
+    journal.record_wallet_challenge(challenge("S", WALLET_B, SEEN + timedelta(days=7)))  # renewed
+    assert journal.wallet_noticed_at("S", WALLET_B.upper().replace("0X", "0x")) == SEEN
+    assert journal.wallet_noticed_at("S", WALLET_A) is None  # not the wallet asked about last
+    assert journal.wallet_noticed_at("T", WALLET_B) is None
+
+
+def test_an_approval_before_the_supplier_signs_also_answers(journal):
+    ledger = new_wallet_ledger(journal, signed=False)
+    payer, chain, circle = make_payer(ledger)
+    chain.approve(WALLET_B, SEEN + timedelta(minutes=10))  # approved while waiting for the supplier
+    held = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer, **DECIDES)
+    assert [d.action for d in held.decisions] == [Action.HOLD] and circle.sent == []
+    journal.record_wallet_proof(WalletProof(supplier="S", wallet=WALLET_B, nonce="n",
+                                            signature="0x", signed_at=NOW + timedelta(minutes=5)))
+    report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW + timedelta(minutes=15),
+                       payments=payer, **DECIDES)
+    assert [d.action for d in report.decisions] == [Action.PAY] and len(circle.sent) == 1
+
+
+def test_the_answer_wakes_the_agent(journal):
     ledger = new_wallet_ledger(journal)
-    payer, _, circle = make_payer(ledger)  # WALLET_B already approved in the contract
+    payer, chain, _ = make_payer(ledger)
+    chain.unapproved.add(WALLET_B.lower())
+    run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer, **DECIDES)
+    chain.approve(WALLET_B, NOW + timedelta(minutes=5))
+    report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW + timedelta(minutes=15),
+                       payments=payer, **DECIDES)
+    assert "changed" in [w.kind for w in report.thought.session.wakes]
+
+
+def test_a_wallet_approved_before_the_agent_saw_it_does_not_answer(journal):
+    ledger = new_wallet_ledger(journal)
+    payer, chain, circle = make_payer(ledger)
+    chain.approve(WALLET_B, SEEN - timedelta(days=3))  # approved earlier, for something else
     for minutes in (0, 15):
         report = run_cycle(ledger, journal, POLICY, "TEST Shop",
                            at=NOW + timedelta(minutes=minutes), payments=payer, **DECIDES)
@@ -492,10 +592,12 @@ def test_a_wallet_changed_after_listing_is_not_answered_by_the_old_approval(jour
     payer, chain, circle = make_payer(ledger)
     chain.unapproved.add(WALLET_B.lower())
     run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW, payments=payer, **DECIDES)
+    chain.approve(WALLET_B, NOW + timedelta(minutes=5))
+    chain.approve(WALLET_C, NOW + timedelta(minutes=5))  # before the agent saw C on S
     ledger.supplier = Supplier(name="S", wallet_address=WALLET_C)
+    journal.record_wallet_challenge(challenge("S", WALLET_C, NOW + timedelta(minutes=10)))
     journal.record_wallet_proof(WalletProof(supplier="S", wallet=WALLET_C, nonce="m",
-                                            signature="0x", signed_at=NOW))
-    chain.unapproved.clear()  # WALLET_B approved, WALLET_C too, but nobody was asked about C
+                                            signature="0x", signed_at=NOW + timedelta(minutes=12)))
     report = run_cycle(ledger, journal, POLICY, "TEST Shop", at=NOW + timedelta(minutes=15),
                        payments=payer, **DECIDES)
     assert [d.action for d in report.decisions] == [Action.ASK] and circle.sent == []
