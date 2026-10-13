@@ -6,9 +6,10 @@ Commands never go through the model:
   /pause  pause payments only: the contract is paused and the agent only observes; it still
           checks, decides and answers.
   /status the agent's state and what it is waiting for.
-Any other text is a message to the agent; its answers come back to the chat. The agent's
-questions about invoices come with two buttons (yes, pay it / no, hold it): a press is only a
-message to the agent, as if typed. What needs the owner's wallet stays in the dashboard.
+Any other text is a message to the agent; its answers come back to the chat. A question of the
+agent where only the owner's yes is missing comes with two buttons (yes, pay it / no, hold it):
+a press is only a message to the agent, as if typed. What needs the owner's wallet comes as a
+reminder to do it in the dashboard, without buttons.
 
 Only a private chat linked from the dashboard is heard: never a group, whose members could read
 the answers and stop the agent. Any other chat is told how to link and nothing else. A /link code
@@ -117,7 +118,7 @@ class Bot:
             for entry in fresh:
                 cost = f"\n({entry['cost']} est.)" if entry.get("cost") else ""
                 buttons = None
-                if entry.get("asks"):
+                if entry.get("asks") and entry.get("buttons"):
                     buttons = [(label, f"{shop}:{entry['seq']}:{answer}")
                                for label, answer in ANSWERS]
                 try:
@@ -212,11 +213,12 @@ class Bot:
             return
         asked = next((e for e in chat.read_chat(self.store.folder(shop), after=int(seq) - 1,
                                                 limit=chat.MAX_ENTRIES)
-                      if e.get("seq") == int(seq) and e.get("asks")), None)
+                      if e.get("seq") == int(seq) and e.get("asks") and e.get("buttons")), None)
         if asked is None or not self._still_asked(shop, asked["asks"]):
             reply = "This question is no longer open."
         else:
-            reply = self._to_agent(shop, answer_text(asked["invoice"], answer))
+            reply = self._to_agent(shop, answer_text(asked["invoice"], answer,
+                                                     asked.get("question", "")))
         self.api.answer_button(str(query.get("id")), reply)
         try:
             self.api.drop_buttons(chat_id, int(message.get("message_id", 0)))
@@ -227,7 +229,7 @@ class Bot:
 
     def _still_asked(self, shop: str, key: str) -> bool:
         """The agent still asks this question, as of its last check."""
-        invoice, _, print_ = key.partition(":")
+        invoice, print_ = key.split(":")[:2]
         for d in (self.store.last_run(shop) or {}).get("decisions", []):
             if d.get("invoice") == invoice:
                 agent = d.get("agent") or {}

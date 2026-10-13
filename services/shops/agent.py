@@ -218,7 +218,8 @@ def run_shop(
     read_limits = limits(settings)
     policy = {"now": settings.policy}
     notice = getattr(live, "email_wallet_notice", None)
-    brain = brain_setup(settings, room_of(payments), funds_of(payments),
+    room, funds = room_of(payments), funds_of(payments)
+    brain = brain_setup(settings, room, funds,
                         getattr(live, "email_supplier", None),
                         (lambda s: notice(s, settings.supplier_site)) if notice else None)
     if brain:
@@ -317,7 +318,9 @@ def run_shop(
             chat.append_chat(folder, on_telegram(folder, [
                 *chat_replies(report.thought.session if report.thought else None, bool(waiting)),
                 *not_woken(folder, report.thought, bool(waiting), report.at),
-                *(new_questions(folder, report.decisions, report.thought.agent, report.at)
+                *(new_questions(folder, report.decisions, report.thought.agent, report.at,
+                                policy=policy["now"], funds=funds, room=room,
+                                paused=store.payments_paused(shop))
                   if report.thought else [])]))
             last_check.update(decisions=list(report.decisions), done=set(report.already_paid),
                               at=time.monotonic())

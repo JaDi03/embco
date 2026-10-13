@@ -159,10 +159,20 @@ def asked(bot, choice="ASK"):
     bot.store.write_last_run(SHOP, {"decisions": [
         {"invoice": INVOICE, "fingerprint": PRINT, "agent": {"choice": choice}}]})
     linked(bot)
-    chat.append_chat(folder, [{"from": chat.AGENT, "text": "Did the flour arrive?",
-                               "asks": f"{INVOICE}:{PRINT}", "invoice": INVOICE}])
+    chat.append_chat(folder, [{"from": chat.AGENT, "text": "Pay 184 USDC?\nDid it arrive?",
+                               "asks": f"{INVOICE}:{PRINT}:yes", "invoice": INVOICE,
+                               "question": "Did it arrive?", "buttons": True}])
     bot.forward()
     return bot.api.buttons[-1][1]
+
+
+def test_a_reminder_to_use_the_dashboard_comes_without_buttons(bot):
+    linked(bot)
+    chat.append_chat(bot.store.folder(SHOP), [{
+        "from": chat.AGENT, "text": "needs you in the dashboard: raise the limit.",
+        "asks": f"{INVOICE}:{PRINT}:wallet", "invoice": INVOICE, "buttons": False}])
+    bot.forward()
+    assert bot.api.last(OWNER_CHAT).endswith("raise the limit.") and bot.api.buttons == []
 
 
 def press(chat_id, data, kind="private"):
@@ -177,7 +187,8 @@ def test_a_question_comes_with_buttons_and_a_press_is_a_message_to_the_agent(bot
     bot.handle(press(OWNER_CHAT, buttons[0][1]))
     taken = chat.take_messages(bot.store.folder(SHOP))
     assert [(m["text"], m["by"]) for m in taken] == [
-        ("About ACC-PINV-2026-00012: yes, go ahead and pay it.", "owner via Telegram")]
+        ("About ACC-PINV-2026-00012 (you asked: Did it arrive?): yes, go ahead and pay it.",
+         "owner via Telegram")]
     assert bot.api.dropped == [(OWNER_CHAT, 77)]
     assert bot.api.last(OWNER_CHAT).startswith("Yes, pay it: Your agent is reading it")
 

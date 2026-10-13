@@ -1,5 +1,6 @@
 """The owner talks to the agent: the message reaches it, it answers, and the answer comes back."""
 
+import secrets
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -73,6 +74,20 @@ def test_the_session_cannot_end_without_answering_the_owner(tmp_path):
         asked.call("reply_owner", {"text": "It has no goods receipt in ERPNext yet."})
         assert asked.call("finish", {"summary": "Done."}) == "session finished"
         assert asked.replies == ["It has no goods receipt in ERPNext yet."]
+
+
+def test_what_reaches_the_owner_is_short_and_without_hashes(tmp_path):
+    tx = "0x" + secrets.token_hex(32)
+    with SqliteJournal(tmp_path / "j.sqlite3") as journal:  # noqa: F811
+        asked = box(journal, ["Did you pay it?"])
+        with pytest.raises(ToolError, match="hashes"):
+            asked.call("reply_owner", {"text": f"Paid it, transaction {tx}."})
+        with pytest.raises(ToolError, match="too long"):
+            asked.call("reply_owner", {"text": "Paid it. " + "Also other news. " * 30})
+        with pytest.raises(ToolError, match="too long"):
+            asked.call("notify_owner", {"text": "Add USDC. " * 30})
+        asked.call("reply_owner", {"text": "I paid 184 USDC to Northern Grains (00012)."})
+        assert asked.replies == ["I paid 184 USDC to Northern Grains (00012)."]
 
 
 # ---- the whole way round, in the shop's process
