@@ -1,0 +1,17 @@
+# The embco.xyz landing page in landing/. Not part of the install: only the embco.xyz server
+# imports it, with a line in /etc/caddy/Caddyfile:  import /opt/embco/deploy/Caddyfile-landing
+embco.xyz {
+	encode zstd gzip
+	root * /opt/embco/landing
+	file_server
+	header {
+		# No HTTP/3 offer, as on the dashboard
+		-Alt-Svc
+		Content-Security-Policy "default-src 'none'; img-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Strict-Transport-Security "max-age=31536000"
+		Cache-Control "no-cache"
+	}
+}
