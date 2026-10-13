@@ -7,7 +7,7 @@ in `contracts/` (Solidity 0.8.37, Arc Foundry).
 
 | Contract | Address |
 |---|---|
-| `ShopPayablesFactory` | [`0x4d8efEc867e9F46c05E8359e81dEC6C7D13c95A8`](https://explorer.testnet.arc.io/address/0x4d8efEc867e9F46c05E8359e81dEC6C7D13c95A8) (source verified on [Sourcify](https://repo.sourcify.dev/5042002/0x4d8efEc867e9F46c05E8359e81dEC6C7D13c95A8)) |
+| `ShopPayablesFactory` | [`0x5D455dF984C85abe160E4585E0c1139ded5d2c3b`](https://explorer.testnet.arc.io/address/0x5D455dF984C85abe160E4585E0c1139ded5d2c3b) (source verified on [Sourcify](https://repo.sourcify.dev/5042002/0x5D455dF984C85abe160E4585E0c1139ded5d2c3b)) |
 | USDC (ERC-20 interface) | `0x3600000000000000000000000000000000000000` |
 | Memo (predeployed) | `0x5294E9927c3306DcBaDb03fe70b92e01cCede505` |
 | Agent wallet (Circle EOA) | [`0x2309ed4a43e3b1ab4222f6938538a6c88bd27dd8`](https://explorer.testnet.arc.io/address/0x2309ed4a43e3b1ab4222f6938538a6c88bd27dd8) |

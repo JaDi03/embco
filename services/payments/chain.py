@@ -26,9 +26,10 @@ class Reverted(ChainError):
 
 
 _ERRORS = [
-    "NotOwner()", "NotAuthorized()", "IsPaused()", "PayeeNotApproved(address)",
-    "AlreadyPaid(bytes32)", "OverPaymentLimit(uint256,uint256)", "OverWeeklyCap(uint256,uint256)",
-    "InvalidLimits()", "InvalidAddress()", "InvalidPayment()", "TransferFailed()",
+    "OwnableUnauthorizedAccount(address)", "NotAuthorized()", "EnforcedPause()", "ExpectedPause()",
+    "PayeeNotApproved(address)", "AlreadyPaid(bytes32)", "OverPaymentLimit(uint256,uint256)",
+    "OverWeeklyCap(uint256,uint256)", "InvalidLimits()", "InvalidAddress()", "InvalidPayment()",
+    "SafeERC20FailedOperation(address)", "OwnershipFixed()", "ReentrancyGuardReentrantCall()",
 ]
 _KNOWN = {keccak(text=sig)[:4]: sig.split("(")[0] for sig in _ERRORS}
 _MEMO_FAILED = keccak(text="MemoFailed(bytes)")[:4]

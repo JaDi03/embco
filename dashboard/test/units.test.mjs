@@ -34,7 +34,7 @@ test("contract and wallet errors read as plain sentences", () => {
   assert.equal(describeError({ code: "ACTION_REJECTED" }), "You cancelled the request in MetaMask.");
   assert.equal(describeError({ code: 4001 }), "You cancelled the request in MetaMask.");
   assert.equal(
-    describeError({ revert: { name: "NotOwner" } }),
+    describeError({ revert: { name: "OwnableUnauthorizedAccount" } }),
     "Only the owner of this shop contract can do that.",
   );
   assert.match(describeError({ revert: { name: "OverWeeklyCap" } }), /this week's cap/);

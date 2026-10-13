@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {IERC20} from "../src/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ShopPayables} from "../src/ShopPayables.sol";
 import {ShopPayablesFactory} from "../src/ShopPayablesFactory.sol";
 
@@ -14,7 +14,8 @@ interface IUSDC {
 
 /// @notice Runs against a fork of Arc Testnet with the real USDC, whose ERC-20 interface (6
 ///         decimals) and native gas balance (18 decimals) share one balance.
-///         Skipped unless ARC_TESTNET_RPC_URL is set.
+///         Skipped unless ARC_TESTNET_RPC_URL is set. Run it with `--network arc`, which gives the
+///         local EVM Arc's own precompiles (USDC asks one of them for its blocklist).
 contract ArcForkTest is Test {
     IUSDC constant USDC = IUSDC(0x3600000000000000000000000000000000000000);
 

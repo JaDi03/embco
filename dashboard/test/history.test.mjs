@@ -77,7 +77,7 @@ test("chain traffic goes to this site's /rpc proxy, never a node URL", () => {
 test("node history is read in ranges under 100,000 blocks", async () => {
   const ranges = [];
   const provider = {
-    getBlockNumber: async () => 65877241 + 250000,
+    getBlockNumber: async () => 66943142 + 250000,
     getLogs: async ({ fromBlock, toBlock }) => {
       ranges.push(toBlock - fromBlock + 1);
       return [];

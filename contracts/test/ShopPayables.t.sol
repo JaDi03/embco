@@ -2,10 +2,13 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {IERC20} from "../src/IERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ShopPayables} from "../src/ShopPayables.sol";
 import {ShopPayablesFactory} from "../src/ShopPayablesFactory.sol";
-import {MockUSDC} from "./MockUSDC.sol";
+import {MockUSDC, FalseUSDC} from "./MockUSDC.sol";
 
 contract ShopPayablesTest is Test {
     uint256 constant USDC = 1e6;
@@ -130,12 +133,13 @@ contract ShopPayablesTest is Test {
     }
 
     function test_only_the_owner_changes_limits_agent_and_suppliers() public {
+        bytes memory notOwner = abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, agent);
         vm.startPrank(agent);
-        vm.expectRevert(ShopPayables.NotOwner.selector);
+        vm.expectRevert(notOwner);
         shop.setLimits(1_000 * USDC, 5_000 * USDC);
-        vm.expectRevert(ShopPayables.NotOwner.selector);
+        vm.expectRevert(notOwner);
         shop.setAgent(stranger);
-        vm.expectRevert(ShopPayables.NotOwner.selector);
+        vm.expectRevert(notOwner);
         shop.setPayee(stranger, true);
         vm.stopPrank();
 
@@ -165,16 +169,30 @@ contract ShopPayablesTest is Test {
     function test_the_agent_can_pause_itself_but_only_the_owner_resumes() public {
         vm.prank(agent);
         shop.pause();
-        vm.expectRevert(ShopPayables.IsPaused.selector);
+        assertTrue(shop.paused());
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         agentPays(10 * USDC, "PINV-1");
 
         vm.prank(agent);
-        vm.expectRevert(ShopPayables.NotOwner.selector);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, agent));
         shop.unpause();
 
         vm.prank(owner);
         shop.unpause();
         agentPays(10 * USDC, "PINV-1");
+    }
+
+    function test_pulling_the_brake_twice_changes_nothing_and_resuming_needs_a_pause() public {
+        vm.prank(agent);
+        shop.pause();
+        vm.prank(owner);
+        shop.pause();
+        assertTrue(shop.paused());
+        vm.prank(owner);
+        shop.unpause();
+        vm.prank(owner);
+        vm.expectRevert(Pausable.ExpectedPause.selector);
+        shop.unpause();
     }
 
     function test_a_stranger_cannot_pause() public {
@@ -189,6 +207,33 @@ contract ShopPayablesTest is Test {
         vm.prank(owner);
         shop.pay(supplier, 10 * USDC, ref("PINV-1"));
         assertEq(usdc.balanceOf(supplier), 10 * USDC);
+    }
+
+    // Ownership
+
+    function test_the_ownership_cannot_be_transferred_or_renounced() public {
+        vm.startPrank(owner);
+        vm.expectRevert(ShopPayables.OwnershipFixed.selector);
+        shop.transferOwnership(stranger);
+        vm.expectRevert(ShopPayables.OwnershipFixed.selector);
+        shop.renounceOwnership();
+        vm.stopPrank();
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        shop.transferOwnership(stranger);
+        assertEq(shop.owner(), owner);
+    }
+
+    function test_a_token_that_answers_false_fails_the_payment() public {
+        FalseUSDC token = new FalseUSDC();
+        ShopPayablesFactory other = new ShopPayablesFactory(IERC20(address(token)));
+        vm.startPrank(owner);
+        ShopPayables falseShop = other.create(agent, MAX_PER_PAYMENT, WEEKLY_CAP);
+        falseShop.setPayee(supplier, true);
+        vm.stopPrank();
+        vm.prank(agent);
+        vm.expectRevert(abi.encodeWithSelector(SafeERC20.SafeERC20FailedOperation.selector, address(token)));
+        falseShop.pay(supplier, 10 * USDC, ref("PINV-1"));
     }
 
     // Fuzz: whatever the agent tries, a week never goes over the cap

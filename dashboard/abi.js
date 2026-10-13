@@ -25,9 +25,10 @@ export const SHOP_ABI = [
   "function pay(address payee, uint256 amount, bytes32 invoiceRef)",
   "event Paid(bytes32 indexed invoiceRef, address indexed payee, uint256 amount, address indexed by)",
   "event PayeeSet(address indexed payee, bool approved)",
-  "error NotOwner()",
+  "error OwnableUnauthorizedAccount(address account)",
   "error NotAuthorized()",
-  "error IsPaused()",
+  "error EnforcedPause()",
+  "error ExpectedPause()",
   "error PayeeNotApproved(address payee)",
   "error AlreadyPaid(bytes32 invoiceRef)",
   "error OverPaymentLimit(uint256 amount, uint256 maxPerPayment)",
@@ -35,7 +36,9 @@ export const SHOP_ABI = [
   "error InvalidLimits()",
   "error InvalidAddress()",
   "error InvalidPayment()",
-  "error TransferFailed()",
+  "error SafeERC20FailedOperation(address token)",
+  "error OwnershipFixed()",
+  "error ReentrancyGuardReentrantCall()",
 ];
 
 export const USDC_ABI = [

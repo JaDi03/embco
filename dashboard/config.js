@@ -12,9 +12,9 @@ export const ARC_TESTNET = {
 // USDC's ERC-20 interface on Arc (6 decimals, same balance as the native one).
 export const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 
-export const FACTORY_ADDRESS = "0x4d8efEc867e9F46c05E8359e81dEC6C7D13c95A8";
+export const FACTORY_ADDRESS = "0x5D455dF984C85abe160E4585E0c1139ded5d2c3b";
 
-export const FACTORY_DEPLOY_BLOCK = 65877241;
+export const FACTORY_DEPLOY_BLOCK = 66943142;
 
 // All chain traffic goes through the Canteen node via this site's /rpc proxy, which keeps the
 // node's token on the server. Never put a node URL with a token in this public page.
