@@ -110,19 +110,22 @@ export function taskFor(decision, facts = {}, { waiting = false, answer = null }
     };
   }
 
-  return { decision, steps, decide, weighed, reply: replyTo(decision), section: sectionOf(decision, steps), payment: paymentText(decision) };
+  const ready = steps.every((s) => s.state === "done");
+  return { decision, steps, decide, weighed, reply: ready ? replyTo(decision) : null, section: sectionOf(decision, steps), payment: paymentText(decision) };
 }
 
-/** When the agent asks the owner something, two quick answers it reads in the chat; the owner
- * can also write anything else there. */
+/** When the agent asks the owner something and only their yes is missing, two quick answers it
+ * reads in the chat (with the question, so it knows what the yes answers); the owner can also
+ * write anything else there. */
 export function replyTo(decision) {
   const agent = decision.agent;
   if (decision.action !== "PAY" || agent?.choice !== "ASK") return null;
+  const asked = agent.question ? ` (you asked: ${agent.question})` : "";
   return {
     question: agent.question || agent.reason,
     options: [
-      { label: "Yes, pay it", text: `About ${decision.invoice}: yes, go ahead and pay it.` },
-      { label: "No, hold it", text: `About ${decision.invoice}: no, hold it for now.` },
+      { label: "Yes, pay it", text: `About ${decision.invoice}${asked}: yes, go ahead and pay it.` },
+      { label: "No, hold it", text: `About ${decision.invoice}${asked}: no, hold it for now.` },
     ],
   };
 }

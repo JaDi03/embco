@@ -30,7 +30,10 @@ MAX_ALARMS = 5
 MAX_NOTES = 10
 MAX_NOTE_CHARS = 600
 MAX_ALARM_DAYS = 60
-MAX_REPLY_CHARS = 1500
+MAX_EMAIL_CHARS = 1500  # an email to a supplier
+MAX_REPLY_CHARS = 400  # an answer to the owner: one topic, a couple of sentences
+MAX_NOTICE_CHARS = 280  # a notice the owner did not ask for: one thing, shorter still
+HASHES = re.compile(r"0x[0-9a-fA-F]{40,}")  # full addresses and tx hashes: the dashboard has them
 SEARCH_LIMIT = 50
 MAX_NOTICES = 3
 MAX_EMAILS_PER_DAY = 3
@@ -337,7 +340,7 @@ class Toolbox:
             raise ToolError("the subject and the message must not be empty")
         _refuse_workarounds(text)
         try:
-            address = self.mailer(supplier, subject.strip()[:120], body.strip()[:MAX_REPLY_CHARS])
+            address = self.mailer(supplier, subject.strip()[:120], body.strip()[:MAX_EMAIL_CHARS])
         except LedgerError as error:
             raise ToolError(f"the email was not sent: {error}") from None
         self.emailed.append(supplier)
@@ -368,7 +371,8 @@ class Toolbox:
         if not text.strip():
             raise ToolError("the notice is empty")
         _refuse_workarounds(text)
-        self.replies.append(text.strip()[:MAX_REPLY_CHARS])
+        _keep_it_short(text, MAX_NOTICE_CHARS)
+        self.replies.append(text.strip())
         self.notices += 1
         return "the owner will see it on the dashboard and on their phone"
 
@@ -378,7 +382,8 @@ class Toolbox:
         if not text.strip():
             raise ToolError("the answer is empty")
         _refuse_workarounds(text)
-        self.replies.append(text.strip()[:MAX_REPLY_CHARS])
+        _keep_it_short(text, MAX_REPLY_CHARS)
+        self.replies.append(text.strip())
         return "sent to the owner"
 
     def _finish(self, summary: str) -> str:
@@ -482,6 +487,18 @@ def _refuse_workarounds(*texts: str) -> None:
         if found := WORKAROUNDS.search(text):
             raise ToolError(f"rewrite this without suggesting a way around a limit or a check "
                             f"(found: {found.group(0)!r}); an invoice over a limit waits")
+
+
+def _keep_it_short(text: str, limit: int) -> None:
+    """What reaches the owner's chat and phone is one topic in a few words: a longer text, or
+    one with a full address or transaction hash, goes back to the model to be rewritten."""
+    if HASHES.search(text):
+        raise ToolError("rewrite this without full addresses or transaction hashes; the "
+                        "dashboard links them")
+    if len(text.strip()) > limit:
+        raise ToolError(f"too long ({len(text.strip())} characters, at most {limit}): say only "
+                        "what this message is about, in one or two short sentences; other "
+                        "invoices and details are in the dashboard")
 
 
 _STATUS = {

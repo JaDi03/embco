@@ -64,8 +64,18 @@ test("when the agent asks, the owner gets two quick answers for the chat", () =>
   const reply = needs.replyTo(d);
   assert.equal(reply.question, "Did the 4 sacks arrive?");
   assert.deepEqual(reply.options.map((o) => o.label), ["Yes, pay it", "No, hold it"]);
-  assert.match(reply.options[0].text, /^About ACC-PINV-2026-00005: yes/);
+  assert.equal(reply.options[0].text, "About ACC-PINV-2026-00005 (you asked: Did the 4 sacks arrive?): yes, go ahead and pay it.");
   assert.equal(needs.replyTo(decision("PAY", [], { agent: { choice: "HOLD" } })), null);
+});
+
+test("the quick answers show only when nothing but the owner's yes is missing", () => {
+  const facts = { wallet: WALLET, approved: true, maxPerPayment: USDC(400), weeklyCap: USDC(2000) };
+  const asking = { agent: { choice: "ASK", question: "Did it arrive?" } };
+  assert.ok(needs.taskFor(decision("PAY", [], asking), facts).reply);
+  const over = needs.taskFor(decision("PAY", [], asking), { ...facts, maxPerPayment: USDC(10) });
+  assert.equal(over.reply, null);
+  const unapproved = needs.taskFor(decision("PAY", [], asking), { ...facts, approved: false });
+  assert.equal(unapproved.reply, null);
 });
 
 test("when the wallet is the only question, its approval says it is also the answer", () => {
