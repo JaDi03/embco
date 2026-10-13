@@ -28,12 +28,13 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Protocol
 
 from eth_utils import to_checksum_address
 
-from agent.guardrails.controls.base import Outcome
+from agent.guardrails.controls.base import Outcome, fmt
 from agent.guardrails.controls.payee_wallet import PayeeWallet, is_evm_address
 from agent.guardrails.rules import Action, Decision, OwnerAnswer, PaymentPlan, Verdict, fingerprint
 from services.circle import CircleClient, CircleError, CircleTransaction
@@ -43,6 +44,7 @@ from services.payments.approvals import write_approvals
 from services.payments.chain import ArcRpc, ChainError, Reverted
 from services.payments.encoding import (
     MEMO_CONTRACT,
+    USDC_DECIMALS,
     EncodingError,
     invoice_ref,
     memo_call,
@@ -54,6 +56,7 @@ from services.payments.models import PaymentEvent, PaymentStatus, PendingApprova
 log = logging.getLogger("services.payments")
 
 PAYABLE_CURRENCY = "USD"  # the shop contract pays USDC
+NATIVE_DECIMALS = 18  # Arc's native balance, which pays network fees in USDC
 IN_FLIGHT = (PaymentStatus.SUBMITTED, PaymentStatus.COMPLETE, PaymentStatus.RECORDED)
 FOREIGN_REF = ("the contract already has a payment with this invoice's reference that the agent "
                "did not send; check it on the explorer before paying")
@@ -89,6 +92,10 @@ def asks_only_about_wallet(decision: Decision) -> bool:
 
 class PaymentSetupError(Exception):
     """The agent cannot pay at all (wrong wallet, contract or node). Nothing is sent."""
+
+
+class PaymentRefused(Exception):
+    """Nothing was sent for this invoice; the message is the real reason, for the agent."""
 
 
 class PaymentBook(Protocol):
@@ -149,6 +156,88 @@ class Payer:
                 )
             self._agent = address
         return self._agent
+
+    def pay(self, decision: Decision, book: PaymentBook) -> list[PaymentEvent]:
+        """Pay one invoice now, because the agent chose to: what happened, in order (sent, its
+        final state, written in the ERP). Raises PaymentRefused with the real reason when
+        nothing was sent: a precondition, the contract's answer to the simulation, or Circle's
+        own error, word for word."""
+        try:
+            agent = self.agent_address()
+            last = book.latest_payment(decision.invoice)
+            if settled_or_sent(last, book):
+                raise PaymentRefused("the agent already paid or sent this invoice")
+            remaining = self.chain.remaining_this_week(self.shop)
+            outcome = self._pay(decision, book, agent, remaining, last, [])
+        except (PaymentSetupError, ChainError, CircleError, LedgerError) as error:
+            raise PaymentRefused(str(error)) from None
+        if outcome is None:
+            left = fmt(Decimal(remaining).scaleb(-USDC_DECIMALS))
+            raise PaymentRefused(f"the contract lets the agent pay only {left} USDC more this "
+                                 "week")
+        if not outcome or outcome[-1].status is PaymentStatus.BLOCKED:
+            now = book.latest_payment(decision.invoice)
+            raise PaymentRefused(now.reason if now and now.reason else "not sent")
+        events = list(outcome)
+        if events[-1].status is PaymentStatus.COMPLETE and events[-1].tx_hash:
+            events.extend(self._record(events[-1], book))
+        return events
+
+    def status(self, invoice: str, book: PaymentBook) -> list[PaymentEvent]:
+        """The latest state of the agent's payment of this invoice, looked up again when it is
+        still on its way (and written in the ERP once final). Empty when there is none."""
+        last = book.latest_payment(invoice)
+        if last is None:
+            return []
+        events = [last]
+        if last.status is PaymentStatus.SUBMITTED:
+            events = self._follow(last, book, wait=False) or [last]
+        if events[-1].status is PaymentStatus.COMPLETE and events[-1].tx_hash:
+            events.extend(self._record(events[-1], book))
+        return events
+
+    def wallet_info(self) -> dict[str, str]:
+        """The agent's own wallet: its address, its balance for network fees, whether the shop
+        contract has it as its agent and whether the contract is paused."""
+        address = to_checksum_address(self.circle.get_wallet(self.wallet_id).address)
+        fees = self.chain.fee_balance(address)
+        return {
+            "address": address,
+            "balance_for_network_fees_usdc": fmt(Decimal(fees).scaleb(-NATIVE_DECIMALS)),
+            "is_the_contracts_agent": "yes" if self.chain.agent_of(self.shop) == address
+            else "no: the owner sets it in the dashboard (Make it the agent)",
+            "contract_paused": "yes" if self.chain.is_paused(self.shop) else "no",
+        }
+
+    def reconcile(self, decisions: list[Decision], book: PaymentBook) -> Settlement:
+        """What needs no decision, every cycle: follow payments already sent to their final
+        state, write finished ones in the ERP, and list the wallets waiting for the owner's
+        approval in the contract. Nothing new is paid here; only the agent pays."""
+        events: list[PaymentEvent] = []
+        for sent in book.pending_payments():
+            events.extend(self._follow(sent, book, wait=False))
+        pending: list[PendingApproval] = []
+        for decision in decisions:
+            try:
+                if asks_only_about_wallet(decision):
+                    events.extend(self._list_for_approval(decision, book, pending))
+                elif decision.action is Action.PAY:
+                    self._list_unapproved(decision, pending)
+            except (ChainError, LedgerError) as error:
+                log.warning("wallet of %s not listed this cycle: %s", decision.invoice, error)
+        if self.writer is not None:
+            for done in book.unrecorded_payments():
+                events.extend(self._record(done, book))
+        if self.approvals_file is not None:
+            write_approvals(self.approvals_file, self.shop, pending, self.clock())
+        return Settlement(events=tuple(events), needs_approval=tuple(pending))
+
+    def _list_unapproved(self, decision: Decision, pending: list[PendingApproval]) -> None:
+        wallet = self.ledger.get_supplier(decision.supplier).wallet_address or ""
+        if is_evm_address(wallet) and not self.chain.is_approved(self.shop,
+                                                                  to_checksum_address(wallet)):
+            pending.append(PendingApproval(wallet=to_checksum_address(wallet),
+                                           invoice=decision.invoice, amount=decision.amount))
 
     def settle(self, plan: PaymentPlan, book: PaymentBook) -> Settlement:
         agent = self.agent_address()

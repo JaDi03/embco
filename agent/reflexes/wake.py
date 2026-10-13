@@ -1,9 +1,10 @@
 """When to wake the agent, and why. The reflexes decide this without the model.
 
 Every cycle (every 15 minutes) the reflexes look for a reason: an invoice that is new, changed or
-still without the agent's decision, a payment that failed or was blocked, a due date close by
-with no payment planned before it, an alarm the agent set, the daily round, or the heartbeat
-when the agent has not looked for a while. No reason, no session: quiet cycles cost nothing.
+still without the agent's decision, a payment that failed or was blocked, the day the agent
+planned to pay something, a due date close by with no payment planned before it, an alarm the
+agent set, the daily round, or the heartbeat when the agent has not looked for a while. No
+reason, no session: quiet cycles cost nothing.
 
 A one-time reason (an alarm, a due date, the round) fires until a session that finished saw it.
 """
@@ -14,7 +15,7 @@ from datetime import datetime, timedelta, tzinfo
 from agent.guardrails.controls.base import fmt
 from agent.guardrails.rules import Action, Decision, fingerprint
 from agent.memory import Change, ChangeKind
-from agent.models import AgentDecision, Alarm, Choice, Note, Session, Wake
+from agent.models import AgentDecision, Alarm, Choice, Note, Session, Wake, payment_seen_key
 from services.payments import PaymentEvent, PaymentStatus
 
 HEARTBEAT = timedelta(hours=4)
@@ -60,11 +61,14 @@ def wakes_for(
             wakes.append(Wake("undecided", f"{d.invoice} has no decision from you yet.",
                               d.invoice))
     since = last.at if last else None
+    seen = set(last.seen_payments) if last else set()
     for p in payments:
-        if since and p.at > since and p.status in (PaymentStatus.FAILED, PaymentStatus.BLOCKED):
+        if (since and p.at > since and p.status in (PaymentStatus.FAILED, PaymentStatus.BLOCKED)
+                and payment_seen_key(p) not in seen):
             wakes.append(Wake("payment", f"The payment of {p.invoice} was "
                                          f"{p.status.value.lower()}: {p.reason}", p.invoice))
     for d in open_:
+        wakes.extend(_scheduled_today(d, standing.get(d.invoice), local.date(), fired))
         wakes.extend(_due_soon(d, standing.get(d.invoice), local.date(), fired))
     for alarm in due_alarms(sessions, now):
         key = _alarm_key(alarm)
@@ -99,6 +103,20 @@ def recent_notes(sessions: Sequence[Session]) -> list[Note]:
 
 def _holds(standing: AgentDecision | None, decision: Decision) -> bool:
     return standing is not None and standing.fingerprint == fingerprint(decision)
+
+
+def _scheduled_today(decision: Decision, standing: AgentDecision | None, today,
+                     fired) -> list[Wake]:
+    """The day the agent chose to pay an invoice, it is woken to pay it itself."""
+    if not (_holds(standing, decision) and standing.choice is Choice.SCHEDULE
+            and standing.pay_on and standing.pay_on <= today):
+        return []
+    key = f"scheduled:{decision.invoice}:{standing.pay_on.isoformat()}"
+    if key in fired:
+        return []
+    return [Wake("scheduled", f"You planned to pay {decision.invoice} ({fmt(decision.amount)} "
+                              f"USDC) on {standing.pay_on}: pay it now with pay_now, or decide "
+                              "again with what you see.", decision.invoice, key=key)]
 
 
 def _due_soon(decision: Decision, standing: AgentDecision | None, today, fired) -> list[Wake]:

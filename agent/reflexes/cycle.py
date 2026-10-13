@@ -1,11 +1,11 @@
-"""One full pass of the agent: check its memory, decide, remember, ask for proofs, plan, and
-optionally have the AI helper explain what needs the owner.
+"""One full pass: the checks, the agent's memory, proofs, and the agent's session.
 
-With a `brain`, Claude decides which of the invoices the rules allow are paid and when; without
-one nothing is planned for payment. With `payments`, what is planned for now is paid through the
-shop contract; without one, the plan is only reported. The owner's approval of a new wallet in
-the contract also answers the agent's question about it, and so does an owner's mark on the
-invoice in the ERP. Invoices the agent already paid or sent are not planned again.
+With a `brain`, Claude decides what to do with each invoice the checks allow, and pays during
+its session: with `payments`, its pay_now sends the payment through the shop contract and tells
+it what happened, so it can act on the result. Without a brain nothing is paid. Before the
+session, payments already sent are followed to their final state and written in the ERP; that
+needs no decision. The owner's approval of a new wallet in the contract also answers the
+agent's question about it, and so does an owner's mark on the invoice in the ERP.
 """
 
 import logging
@@ -96,18 +96,24 @@ def run_cycle(
     explanations = (
         explain_decisions(journal, explainer, decisions, notes, now) if explainer else []
     )
+    settled = _reconcile(payments, decisions, journal) if payments else None
     done = paid_or_sent(journal, decisions) if payments else set()
-    unpaid = [d for d in decisions if d.invoice not in done]
     thought = None
     if brain is None:
+        unpaid = [d for d in decisions if d.invoice not in done]
         plan = _without_brain(plan_payments(unpaid, policy.weekly_budget))
     else:
         thought = think(brain, journal=journal, ledger=ledger, decisions=decisions,
                         changes=memory.changes, policy=policy, done=done, now=now, extra=wakes,
-                        messages=messages, conversation=conversation)
+                        messages=messages, conversation=conversation, payer=payments)
+        done = paid_or_sent(journal, decisions) if payments else set()
+        unpaid = [d for d in decisions if d.invoice not in done]
         plan = agent_plan(unpaid, thought.agent, now.astimezone(brain.zone).date(),
                           policy.weekly_budget, brain.autonomy)
-    settlement = _settle(payments, plan, journal) if payments else None
+    settlement = None
+    if settled is not None:
+        made = thought.payments if thought else ()
+        settlement = replace(settled, events=(*settled.events, *made))
     return CycleReport(
         run_id=memory.run_id,
         at=now,
@@ -144,10 +150,11 @@ def _answers_from_chain(
     return {a.invoice: a for a in answers}
 
 
-def _settle(payer: Payer, plan: PaymentPlan, journal: DecisionJournal) -> Settlement:
-    """A payment problem never stops the agent from deciding; it is reported instead."""
+def _reconcile(payer: Payer, decisions: list[Decision], journal: DecisionJournal) -> Settlement:
+    """Payments already sent are followed and booked before the agent looks, so it sees where
+    they stand. A problem here never stops the agent from deciding; it is reported instead."""
     try:
-        return payer.settle(plan, journal)
+        return payer.reconcile(decisions, journal)
     except (PaymentSetupError, ChainError, CircleError) as error:
-        log.warning("payments skipped this cycle: %s", error)
+        log.warning("payments not followed this cycle: %s", error)
         return Settlement(problem=str(error))

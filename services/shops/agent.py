@@ -223,12 +223,17 @@ def run_shop(
             waiting = chat.unanswered(folder)
             if not waiting or brain is None:
                 return
-            thought = converse(brain, journal=journal, ledger=ledger,
+            thinking = brain
+            if store.payments_paused(shop):  # the owner paused payments
+                thinking = replace(brain, autonomy=Autonomy.OBSERVE)
+            now = datetime.now(UTC)
+            thought = converse(thinking, journal=journal, ledger=ledger,
                                decisions=last_check["decisions"], policy=policy["now"],
-                               done=last_check["done"], now=datetime.now(UTC),
+                               done=last_check["done"], now=now,
                                messages=[m["text"] for m in waiting],
-                               conversation=chat.read_chat(folder, limit=12))
-            activity.append_activity(folder, activity.session_events(thought.session))
+                               conversation=chat.read_chat(folder, limit=12), payer=payments)
+            activity.append_activity(folder, [*activity.session_events(thought.session),
+                                              *activity.payment_events(now, thought.payments)])
             chat.append_chat(folder, chat_replies(thought.session, True))
             if thought.session and any(d.choice is Choice.PAY_NOW
                                        for d in thought.session.decisions):

@@ -140,6 +140,17 @@ class ArcRpc:
         return datetime.fromtimestamp(int(self._rpc("eth_getBlockByNumber",
                                                     [block, False])["timestamp"], 16), UTC)
 
+    def fee_balance(self, address: str) -> int:
+        """The wallet's native balance, which pays Arc network fees (USDC, 18 decimals)."""
+        try:
+            return int(self._rpc("eth_getBalance", [to_checksum_address(address), "latest"]), 16)
+        except (TypeError, ValueError):
+            raise ChainError("Arc node returned an unexpected balance") from None
+
+    def is_paused(self, shop: str) -> bool:
+        (paused,) = decode(["bool"], self._view(shop, "paused()", [], []))
+        return paused
+
     def remaining_this_week(self, shop: str) -> int:
         (units,) = decode(["uint256"], self._view(shop, "remainingThisWeek()", [], []))
         return units
