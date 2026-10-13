@@ -10,7 +10,7 @@ Each question is written into the chat (and from there to Telegram) once, in one
 
 from collections.abc import Callable, Iterable, Mapping
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_DOWN, Decimal, InvalidOperation
 from typing import Any
 
 from agent.guardrails.controls.base import Outcome, fmt
@@ -44,10 +44,10 @@ def wallet_steps(decision: Decision, policy: PolicyConfig, funds: Mapping[str, s
     if decision.amount > policy.max_per_payment:
         steps.append(f"raise the per-payment limit (now {fmt(policy.max_per_payment)} USDC)")
     elif room is not None and decision.amount > room:
-        steps.append(f"raise the weekly limit or wait for it to renew ({fmt(room)} USDC left)")
+        steps.append(f"raise the weekly limit or wait for it to renew ({_cents(room)} USDC left)")
     balance, available = _usdc(funds, "owner_balance"), _usdc(funds, "available_to_pay")
     if balance is not None and decision.amount > balance:
-        steps.append(f"add USDC to your wallet ({fmt(balance)} there)")
+        steps.append(f"add USDC to your wallet ({_cents(balance)} there)")
     elif available is not None and decision.amount > available:
         steps.append("authorize payments again")
     if paused:
@@ -89,6 +89,12 @@ def new_questions(folder, decisions: Iterable[Decision], agent: Mapping[str, Age
                         "asks": question_key(choice, kind), "invoice": decision.invoice,
                         "question": choice.question, "buttons": not steps})
     return entries
+
+
+def _cents(value: Decimal) -> str:
+    """The chain gives six decimals; the owner reads cents, rounded down so it never shows more
+    than there is."""
+    return fmt(value.quantize(Decimal("0.01"), rounding=ROUND_DOWN))
 
 
 def _usdc(funds: Mapping[str, str] | None, key: str) -> Decimal | None:

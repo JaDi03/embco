@@ -45,8 +45,8 @@ def test_only_a_yes_missing_comes_with_buttons_short_and_once(tmp_path):
 
 def test_what_needs_the_wallet_is_a_reminder_to_use_the_dashboard(tmp_path):
     d = decision(invoice="ACC-PINV-2026-00017", amount="476.0")
-    [entry] = questions(tmp_path, d, funds={"owner_balance": "165.95",
-                                            "available_to_pay": "165.95"})
+    [entry] = questions(tmp_path, d, funds={"owner_balance": "165.959618",
+                                            "available_to_pay": "165.959618"})
     assert entry["buttons"] is False
     assert entry["text"] == (
         "Northern Grains, 476 USDC (ACC-PINV-2026-00017): needs you in the dashboard: raise the "
@@ -57,7 +57,7 @@ def test_each_wallet_step_is_named(tmp_path):
     first = decision(action=Action.ASK, findings=(
         Finding("payee_wallet", Outcome.ASK, "first payment to this supplier"),))
     assert "approve Northern Grains's wallet" in questions(tmp_path, first)[0]["text"]
-    week = questions(tmp_path / "w", decision(), room=Decimal("100"))[0]["text"]
+    week = questions(tmp_path / "w", decision(), room=Decimal("100.004"))[0]["text"]
     assert "raise the weekly limit or wait for it to renew (100 USDC left)" in week
     owed = questions(tmp_path / "a", decision(),
                      funds={"owner_balance": "500", "available_to_pay": "50"})[0]["text"]
