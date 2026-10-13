@@ -23,9 +23,20 @@ OWNER_CHAT, STRANGER = 1001, 666
 class FakeApi:
     def __init__(self):
         self.sent = []
+        self.buttons = []  # (chat_id, buttons) of each message sent with buttons
+        self.pressed = []  # notes shown for button presses
+        self.dropped = []  # (chat_id, message_id) whose buttons were taken off
 
-    def send(self, chat_id, text):
+    def send(self, chat_id, text, buttons=None):
         self.sent.append((chat_id, text))
+        if buttons:
+            self.buttons.append((chat_id, buttons))
+
+    def answer_button(self, callback_id, text):
+        self.pressed.append(text)
+
+    def drop_buttons(self, chat_id, message_id):
+        self.dropped.append((chat_id, message_id))
 
     def last(self, chat_id):
         return [t for c, t in self.sent if c == chat_id][-1]
@@ -137,6 +148,54 @@ def test_a_message_goes_to_the_agent_and_only_its_answers_come_back(bot):
     sent = len(bot.api.sent)
     bot.forward()
     assert len(bot.api.sent) == sent  # never twice
+
+
+INVOICE, PRINT = "ACC-PINV-2026-00012", "f1"
+
+
+def asked(bot, choice="ASK"):
+    """The agent asked about INVOICE in its last check, and the bot forwarded the question."""
+    folder = bot.store.folder(SHOP)
+    bot.store.write_last_run(SHOP, {"decisions": [
+        {"invoice": INVOICE, "fingerprint": PRINT, "agent": {"choice": choice}}]})
+    linked(bot)
+    chat.append_chat(folder, [{"from": chat.AGENT, "text": "Did the flour arrive?",
+                               "asks": f"{INVOICE}:{PRINT}", "invoice": INVOICE}])
+    bot.forward()
+    return bot.api.buttons[-1][1]
+
+
+def press(chat_id, data, kind="private"):
+    return {"update_id": 2, "callback_query": {
+        "id": "cb1", "data": data,
+        "message": {"message_id": 77, "chat": {"id": chat_id, "type": kind}}}}
+
+
+def test_a_question_comes_with_buttons_and_a_press_is_a_message_to_the_agent(bot):
+    buttons = asked(bot)
+    assert [label for label, _ in buttons] == ["Yes, pay it", "No, hold it"]
+    bot.handle(press(OWNER_CHAT, buttons[0][1]))
+    taken = chat.take_messages(bot.store.folder(SHOP))
+    assert [(m["text"], m["by"]) for m in taken] == [
+        ("About ACC-PINV-2026-00012: yes, go ahead and pay it.", "owner via Telegram")]
+    assert bot.api.dropped == [(OWNER_CHAT, 77)]
+    assert bot.api.last(OWNER_CHAT).startswith("Yes, pay it: Your agent is reading it")
+
+
+def test_a_press_from_another_chat_or_a_group_does_nothing(bot):
+    buttons = asked(bot)
+    for chat_id, kind in ((STRANGER, "private"), (OWNER_CHAT, "group")):
+        bot.handle(press(chat_id, buttons[0][1], kind))
+    bot.handle(press(OWNER_CHAT, f"0x{'1' * 40}:1:yes"))  # a shop this chat is not linked to
+    assert not chat.messages_waiting(bot.store.folder(SHOP))
+    assert bot.api.pressed == ["This button is not for this chat."] * 3
+
+
+def test_a_question_no_longer_open_is_not_answered(bot):
+    buttons = asked(bot, choice="PAY_NOW")
+    bot.handle(press(OWNER_CHAT, buttons[1][1]))
+    assert not chat.messages_waiting(bot.store.folder(SHOP))
+    assert bot.api.pressed == ["This question is no longer open."]
 
 
 def test_an_agent_turned_off_is_not_disturbed(bot):

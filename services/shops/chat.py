@@ -81,10 +81,11 @@ def read_chat(folder: Path, after: int = 0, limit: int = 100) -> list[dict[str, 
 
 
 def unanswered(folder: Path) -> list[dict[str, Any]]:
-    """The owner's messages after the agent's last reply."""
+    """The owner's messages after the agent's last reply (a question the agent sent about an
+    invoice is not a reply)."""
     pending: list[dict[str, Any]] = []
     for entry in read_chat(folder, limit=MAX_ENTRIES):
-        if entry.get("from") == AGENT:
+        if entry.get("from") == AGENT and not entry.get("asks"):
             pending = []
         elif entry.get("from") == OWNER:
             pending.append(entry)

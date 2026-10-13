@@ -6,7 +6,9 @@ Commands never go through the model:
   /pause  pause payments only: the contract is paused and the agent only observes; it still
           checks, decides and answers.
   /status the agent's state and what it is waiting for.
-Any other text is a message to the agent; its answers come back to the chat.
+Any other text is a message to the agent; its answers come back to the chat. The agent's
+questions about invoices come with two buttons (yes, pay it / no, hold it): a press is only a
+message to the agent, as if typed. What needs the owner's wallet stays in the dashboard.
 
 Only a private chat linked from the dashboard is heard: never a group, whose members could read
 the answers and stop the agent. Any other chat is told how to link and nothing else. A /link code
@@ -27,6 +29,7 @@ from services.circle import CircleClient, CircleError
 from services.hub.units import UnitError, Units
 from services.shops import chat
 from services.shops.activity import append_activity, switched
+from services.shops.questions import NO, YES, answer_text
 from services.shops.store import ShopError, ShopStore
 from services.telegram import links
 from services.telegram.api import TelegramApi, TelegramError
@@ -35,6 +38,7 @@ log = logging.getLogger("embco.telegram")
 
 PAUSE_CALL = keccak(text="pause()")[:4]
 LINK_TRIES = 5  # per chat and hour
+ANSWERS = (("Yes, pay it", YES), ("No, hold it", NO))  # quick answers to the agent's questions
 HELP = ("Commands:\n/stop - turn the agent off now (no checks, no Claude, no payments)\n"
         "/pause - pause payments; the agent keeps watching and answering\n/status - how it is\n"
         "Anything else is a message to your agent.")
@@ -68,6 +72,9 @@ class Bot:
     tries: dict[int, list[datetime]] = field(default_factory=dict)
 
     def handle(self, update: dict[str, Any]) -> None:
+        if update.get("callback_query"):
+            self._button(update["callback_query"])
+            return
         message = update.get("message") or {}
         chat_id = (message.get("chat") or {}).get("id")
         text = (message.get("text") or "").strip()
@@ -109,8 +116,12 @@ class Bot:
                      if e.get("from") in (chat.AGENT, chat.SYSTEM)]
             for entry in fresh:
                 cost = f"\n({entry['cost']} est.)" if entry.get("cost") else ""
+                buttons = None
+                if entry.get("asks"):
+                    buttons = [(label, f"{shop}:{entry['seq']}:{answer}")
+                               for label, answer in ANSWERS]
                 try:
-                    self.api.send(int(link["chat_id"]), f"{entry['text']}{cost}")
+                    self.api.send(int(link["chat_id"]), f"{entry['text']}{cost}", buttons)
                 except TelegramError as error:
                     log.warning("could not forward to the chat of %s: %s", shop, error)
                     return
@@ -186,6 +197,42 @@ class Bot:
         if session.get("summary"):
             lines.append(f"Last word from the agent: {session['summary']}")
         return "\n".join(lines)
+
+    def _button(self, query: dict[str, Any]) -> None:
+        """A quick answer to one of the agent's questions: only from the linked private chat,
+        only while the question is still open, and it is only a message to the agent."""
+        message = query.get("message") or {}
+        chat_id = (message.get("chat") or {}).get("id")
+        shop, _, rest = str(query.get("data") or "").partition(":")
+        seq, _, answer = rest.partition(":")
+        if (not isinstance(chat_id, int) or (message.get("chat") or {}).get("type") != "private"
+                or shop not in self.shops_of(chat_id) or answer not in (YES, NO)
+                or not seq.isdigit()):
+            self.api.answer_button(str(query.get("id")), "This button is not for this chat.")
+            return
+        asked = next((e for e in chat.read_chat(self.store.folder(shop), after=int(seq) - 1,
+                                                limit=chat.MAX_ENTRIES)
+                      if e.get("seq") == int(seq) and e.get("asks")), None)
+        if asked is None or not self._still_asked(shop, asked["asks"]):
+            reply = "This question is no longer open."
+        else:
+            reply = self._to_agent(shop, answer_text(asked["invoice"], answer))
+        self.api.answer_button(str(query.get("id")), reply)
+        try:
+            self.api.drop_buttons(chat_id, int(message.get("message_id", 0)))
+        except TelegramError:
+            log.warning("could not take the buttons off a question of %s", shop)
+        label = next(lbl for lbl, a in ANSWERS if a == answer)
+        self.api.send(chat_id, f"{label}: {reply}")
+
+    def _still_asked(self, shop: str, key: str) -> bool:
+        """The agent still asks this question, as of its last check."""
+        invoice, _, print_ = key.partition(":")
+        for d in (self.store.last_run(shop) or {}).get("decisions", []):
+            if d.get("invoice") == invoice:
+                agent = d.get("agent") or {}
+                return agent.get("choice") == "ASK" and d.get("fingerprint") == print_
+        return False
 
     def _to_agent(self, shop: str, text: str) -> str:
         if not self.store.agent_on(shop):
