@@ -151,6 +151,18 @@ def test_answers_are_marked_as_sent_to_telegram_once_a_chat_is_linked(tmp_path):
     assert on_telegram(tmp_path, reply) == [{"from": "agent", "text": "Paid.", "telegram": True}]
 
 
+def test_a_changed_invoice_reads_well_and_shows_what_to_weigh_after_an_answer():
+    from agent.guardrails.rules import Action
+
+    approved = ("approved by owner (approved the wallet in the contract)",
+                "to weigh: FLOUR-50: not linked to an order and a receipt")
+    assert activity._changed("PINV-12", "Northern", Action.PAY, approved) == (
+        "PINV-12 from Northern: now nothing stops it; "
+        "to weigh: FLOUR-50: not linked to an order and a receipt.")
+    assert activity._changed("PINV-16", "Ogun", Action.HOLD, ("same bill as PINV-15",)) == (
+        "PINV-16 from Ogun: now on hold: same bill as PINV-15.")
+
+
 def test_only_the_newest_events_are_kept(tmp_path, monkeypatch):
     monkeypatch.setattr(activity, "MAX_EVENTS", 3)
     for _ in range(5):

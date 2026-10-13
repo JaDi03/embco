@@ -16,6 +16,7 @@ from agent.guardrails.rules import Action, Decision, fingerprint
 from agent.models import AgentDecision, Choice, Wake
 
 HORIZON_DAYS = 7
+MONEY_MOVED = Decimal(1)  # USDC: a smaller change in what can be paid does not wake the agent
 
 
 def commitments(decisions: Sequence[Decision], standing: Mapping[str, AgentDecision],
@@ -51,8 +52,8 @@ def money_wake(sessions, funds: Mapping[str, str] | None, decisions: Sequence[De
     seen = next((s.money for s in reversed(sessions) if s.finished and s.money), None)
     if seen is None:
         return None
-    keys = ("available_to_pay", "payments_authorized")
-    if all(seen.get(k) == funds.get(k) for k in keys):
+    if (seen.get("payments_authorized") == funds.get("payments_authorized")
+            and not _moved(seen.get("available_to_pay"), funds.get("available_to_pay"))):
         return None
     now, authorized = funds["available_to_pay"], funds.get("payments_authorized")
     return Wake("money", (
@@ -60,6 +61,16 @@ def money_wake(sessions, funds: Mapping[str, str] | None, decisions: Sequence[De
         f"paid now (was {seen.get('available_to_pay')}), payments authorized: {authorized}. "
         "Look again at what you scheduled, asked or held because of money."),
         key=f"money:{now}:{authorized}")
+
+
+def _moved(before: str | None, now: str | None) -> bool:
+    """The money that can be paid changed by at least MONEY_MOVED since the agent last looked.
+    The owner's own network fees (a few thousandths of a USDC, paid from the same balance on
+    Arc) are not a reason to look again; small changes still add up against that last look."""
+    try:
+        return abs(Decimal(now) - Decimal(before)) >= MONEY_MOVED
+    except (TypeError, InvalidOperation):
+        return before != now
 
 
 def funds_wake(decisions: Sequence[Decision], standing: Mapping[str, AgentDecision],

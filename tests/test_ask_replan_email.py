@@ -68,6 +68,16 @@ def test_the_same_money_or_nothing_payable_wakes_nobody():
     assert money_wake([], {**MONEY, "available_to_pay": "520"}, [OVERDUE], set()) is None
 
 
+def test_the_owners_own_network_fees_do_not_wake_the_agent():
+    seen = {**MONEY, "available_to_pay": "349.947054"}
+    fees = {**MONEY, "available_to_pay": "349.945618"}  # the gas of approving a wallet
+    assert money_wake([session_with(seen)], fees, [OVERDUE], set()) is None
+    paused = {**fees, "payments_authorized": "no"}  # the authorization always counts
+    assert money_wake([session_with(seen)], paused, [OVERDUE], set()).kind == "money"
+    added = {**MONEY, "available_to_pay": "350.947054"}  # one USDC more: worth a look
+    assert money_wake([session_with(seen)], added, [OVERDUE], set()).kind == "money"
+
+
 class Quiet:
     model = "scripted"
 

@@ -35,10 +35,16 @@ _ACTION = {Action.PAY: "nothing stops it", Action.HOLD: "on hold", Action.ASK: "
 
 
 def _why(action: Action, reasons) -> str:
-    """The first reason, for a stop or for something the agent has to weigh."""
-    if not reasons or (action is Action.PAY and not reasons[0].startswith("to weigh")):
-        return ""
-    return f": {reasons[0]}" if action is not Action.PAY else f"; {reasons[0]}"
+    """What stops it, or the first thing the agent has to weigh: an owner's answer comes first
+    in the reasons, so the first thing to weigh is looked for."""
+    if action is not Action.PAY:
+        return f": {reasons[0]}" if reasons else ""
+    weigh = next((r for r in reasons if r.startswith("to weigh")), None)
+    return f"; {weigh}" if weigh else ""
+
+
+def _changed(invoice: str, supplier: str, action: Action, reasons) -> str:
+    return f"{invoice} from {supplier}: now {_ACTION[action]}{_why(action, reasons)}."
 
 
 def _short(wallet: str) -> str:
@@ -187,8 +193,8 @@ def cycle_events(report: CycleReport, interval_minutes: int) -> list[dict[str, A
                                           f"{fmt(d.amount)} USDC: {_ACTION[d.action]}{why}.",
                                  invoice=d.invoice, action=d.action.value))
         elif change.kind is ChangeKind.CHANGED:
-            events.append(_event(at, CHANGED, f"{d.invoice} from {d.supplier} is now "
-                                              f"{_ACTION[d.action]}{why}.",
+            events.append(_event(at, CHANGED, _changed(d.invoice, d.supplier, d.action,
+                                                       d.reasons),
                                  invoice=d.invoice, action=d.action.value))
     events.extend(_event(at, CLOSED, f"{invoice} is no longer unpaid in ERPNext.", invoice=invoice)
                   for invoice in report.closed)
@@ -288,8 +294,8 @@ def history_events(entries) -> list[dict[str, Any]]:
             reasons = body.get("reasons") or []
             why = _why(action, reasons)
             if invoice in seen:
-                events.append(_event(at, CHANGED, f"{invoice} from {body['supplier']} is now "
-                                                  f"{_ACTION[action]}{why}.",
+                events.append(_event(at, CHANGED, _changed(invoice, body["supplier"], action,
+                                                           reasons),
                                      invoice=invoice, action=action.value))
             else:
                 seen.add(invoice)
