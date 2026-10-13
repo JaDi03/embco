@@ -208,6 +208,7 @@ def run_shop(
         if added := activity.backfill(folder, journal.entries()):
             log.info("shop %s: %d past events added to the activity feed", shop, added)
         seen: dict[str, PolicyConfig | None] = {"limits": None}
+        logged = activity.logged_limits(folder)  # told before a restart: not told again
         last_check: dict[str, Any] = {"decisions": None, "done": set(), "at": None, "due": 0.0}
         every = settings.interval.total_seconds()
 
@@ -253,7 +254,7 @@ def run_shop(
                 policy["now"] = current_policy(policy["now"], read_limits, shop)
                 activity.append_activity(folder, [
                     *activity.inbox_events(started, signed, answered),
-                    *(activity.limits_read(started, seen["limits"], policy["now"])
+                    *(activity.limits_read(started, seen["limits"], policy["now"], logged)
                       if read_limits else [])])
                 limits_changed = seen["limits"] not in (None, policy["now"])
                 seen["limits"] = policy["now"]
@@ -275,8 +276,8 @@ def run_shop(
                                             "error": str(error)})
                 activity.append_activity(folder, [activity.check_failed(datetime.now(UTC), error)])
                 raise
-            activity.append_activity(folder, [*activity.agent_events(report),
-                                              *activity.cycle_events(report, minutes)])
+            activity.end_check(folder, [*activity.agent_events(report),
+                                        *activity.cycle_events(report, minutes)])
             chat.append_chat(folder, chat_replies(report.thought.session if report.thought
                                                    else None, bool(waiting)))
             last_check.update(decisions=list(report.decisions), done=set(report.already_paid),

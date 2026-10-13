@@ -91,11 +91,21 @@ export function timeOf(at, locale) {
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString(locale, { hour12: false });
 }
 
-/** Keep the newest events, no duplicates, in order. */
+/** Keep the newest events, no duplicates, in order. An event that joins quiet checks into one
+ * line names the events it replaces: those are dropped. */
 export function merge(current, incoming, max = 300) {
   const seen = new Set(current.map((e) => e.seq));
-  const all = [...current, ...incoming.filter((e) => !seen.has(e.seq))].sort((a, b) => a.seq - b.seq);
+  const replaced = new Set(incoming.flatMap((e) => e.replaces ?? []));
+  const all = [...current, ...incoming.filter((e) => !seen.has(e.seq))]
+    .filter((e) => !replaced.has(e.seq))
+    .sort((a, b) => a.seq - b.seq);
   return all.slice(-max);
+}
+
+/** A line's text; a line of quiet checks says since when, in the viewer's time. */
+export function lineText(e) {
+  if (!e.since || !e.checks || !e.summary) return e.text;
+  return `Nothing changed in ${e.checks} checks since ${timeOf(e.since).slice(0, 5)}. ${e.summary}.`;
 }
 
 /**
