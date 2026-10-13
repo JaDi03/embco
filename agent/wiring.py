@@ -55,6 +55,7 @@ def brain_setup(
     settings: Settings, room: Callable[[], Decimal | None] | None = None,
     funds: Callable[[], dict[str, str] | None] | None = None,
     mailer: Callable[[str, str, str], str] | None = None,
+    wallet_notice: Callable[[str], str] | None = None,
 ) -> BrainSetup | None:
     if not settings.brain:
         return None
@@ -70,4 +71,5 @@ def brain_setup(
         **({"room": room} if room else {}),
         **({"funds": funds} if funds else {}),
         **({"mailer": mailer} if mailer else {}),
+        **({"wallet_notice": wallet_notice} if wallet_notice else {}),
     )

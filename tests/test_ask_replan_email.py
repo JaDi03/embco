@@ -7,6 +7,8 @@ from decimal import Decimal
 import pytest
 
 from agent.agent import SessionRun
+from agent.guardrails.controls.base import Finding, Outcome
+from agent.guardrails.controls.payee_wallet import WAITING_FOR_SIGNATURE
 from agent.guardrails.rules import Action, Decision, PolicyConfig
 from agent.memory import SqliteJournal
 from agent.models import Session, Usage, Wake
@@ -142,3 +144,64 @@ def test_the_email_leaves_from_the_erp_to_the_supplier_on_record_with_the_text_e
     assert to == "orders@central.example" and form["recipients"] == to
     assert form["subject"] == "embcocompany: Invoice CPL-6011"
     assert form["content"] == "<p>Paid on &lt;b&gt;14 Oct&lt;/b&gt;.</p><p>Thank you.</p>"
+
+
+# ---- asking a supplier to confirm its wallet
+
+UNSIGNED = Decision(
+    invoice="PINV-00017", supplier="Lekki Oils & Spices Ltd", amount=Decimal(120),
+    due_date=date(2026, 10, 22), action=Action.HOLD, reasons=("r",),
+    findings=(Finding("payee_wallet", Outcome.HOLD,
+                      f"first payment, wallet 0xE6Bb...Ec1A; {WAITING_FOR_SIGNATURE}"),))
+
+
+def test_the_wallet_notice_goes_once_after_the_owner_agreed_and_only_to_a_wallet_waiting(tmp_path):
+    sent = []
+
+    def notice(supplier):
+        sent.append(supplier)
+        return "accounts@lekki.example"
+
+    def notice_box(journal, **kw):
+        return Toolbox(decisions=[OVERDUE, UNSIGNED], ledger=None, journal=journal, policy=POLICY,
+                       now=NOW, zone=LAGOS, wallet_notice=notice, **kw)
+
+    lekki = {"supplier": "Lekki Oils & Spices Ltd"}
+    with SqliteJournal(tmp_path / "j.sqlite3") as journal:
+        with pytest.raises(ToolError, match="owner agreed"):
+            notice_box(journal).call("ask_supplier_to_confirm_wallet", lekki)
+        b = notice_box(journal, messages=("yes, ask them",), require_all=False, emails_today=3)
+        with pytest.raises(ToolError, match="no wallet waiting"):
+            b.call("ask_supplier_to_confirm_wallet", {"supplier": "Central Provisions Ltd"})
+        assert "accounts@lekki.example" in b.call("ask_supplier_to_confirm_wallet", lekki)
+        with pytest.raises(ToolError, match="already went"):
+            b.call("ask_supplier_to_confirm_wallet", lekki)
+    assert sent == ["Lekki Oils & Spices Ltd"] and b.notified_wallets == ["Lekki Oils & Spices Ltd"]
+
+
+def test_the_wallet_notice_is_the_standard_one_with_the_wallet_on_record():
+    from services.erp.erpnext.adapter import ErpnextAdapter
+
+    class Frappe:
+        def __init__(self):
+            self.calls = []
+
+        def get_doc(self, doctype, name):
+            return {"email_id": "accounts@lekki.example"}
+
+        def call_method(self, method, form):
+            self.calls.append(form)
+
+    class Supplier:
+        wallet_address = "0xE6Bb000000000000000000000000000000Ec1A"
+
+    adapter = ErpnextAdapter.__new__(ErpnextAdapter)
+    adapter._frappe, adapter._company = Frappe(), "lopezgrocery"
+    adapter.get_supplier = lambda name: Supplier()
+    to = adapter.email_wallet_notice("Lekki Oils & Spices Ltd", "app.embco.xyz/supplier")
+    [form] = adapter._frappe.calls
+    assert to == "accounts@lekki.example"
+    assert form["subject"] == "lopezgrocery: confirm the wallet you are paid to"
+    assert "app.embco.xyz/supplier" in form["content"]
+    assert Supplier.wallet_address in form["content"]
+    assert "http" not in form["content"]

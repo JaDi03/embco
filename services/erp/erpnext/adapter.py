@@ -104,6 +104,13 @@ class ErpnextAdapter:
         """Write to the supplier from the shop's own ERPNext; returns the address used."""
         return mail.email_supplier_message(self._frappe, supplier, self._company, subject, body)
 
+    def email_wallet_notice(self, supplier: str, site: str) -> str:
+        """The standard notice asking the supplier to confirm the wallet on file on its page
+        (the same one the owner sends from the dashboard); returns the address used."""
+        wallet = self.get_supplier(supplier).wallet_address
+        return mail.email_supplier_notice(self._frappe, supplier, self._company, site, wallet,
+                                          signature_needed=True)
+
     def invoice_index(self) -> list[dict[str, Any]]:
         """Every submitted invoice in one light request: name, when it last changed, and the
         fields that can change without a new version (amount still due, due date)."""

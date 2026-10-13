@@ -34,6 +34,7 @@ from services.settings import Settings, SettingsError
 from services.shops import (
     BRAIN_PLATFORM,
     PLATFORM,
+    SITE_PLATFORM,
     ShopError,
     ShopStore,
     erp_for,
@@ -105,7 +106,8 @@ def _shop(args) -> int:
     folder = Path(args.dir)
     try:
         store = ShopStore(folder.parent, read_key(Path(args.key_file)))
-        platform = {name: os.environ.get(name, "") for name in (*PLATFORM, *BRAIN_PLATFORM)}
+        names = (*PLATFORM, *BRAIN_PLATFORM, *SITE_PLATFORM)
+        platform = {name: os.environ.get(name, "") for name in names}
         run_shop(store, folder.name, cycles=args.cycles, platform=platform)
     except (ShopError, SettingsError) as error:
         print(f"configuration error: {error}", file=sys.stderr)

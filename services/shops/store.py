@@ -39,6 +39,7 @@ SUBMIT_PAYMENTS = "submit_payments"
 _SHOP = re.compile(r"^0x[0-9a-f]{40}$")
 PLATFORM = ("CIRCLE_API_KEY", "CIRCLE_ENTITY_SECRET", "ARC_TESTNET_RPC_URL")
 BRAIN_PLATFORM = ("ANTHROPIC_API_KEY",)  # the platform's model account, for shops with a brain
+SITE_PLATFORM = ("EMBCO_PUBLIC_URL",)  # where suppliers find their page
 
 
 class ShopError(Exception):
@@ -159,6 +160,7 @@ class ShopStore:
             "EMBCO_UTC_OFFSET": config.utc_offset,
             "EMBCO_ROUND_HOUR": str(config.round_hour),
         }
+        env.update({name: (platform or {}).get(name, "").strip() for name in SITE_PLATFORM})
         if config.brain:
             env.update({name: (platform or {}).get(name, "").strip() for name in BRAIN_PLATFORM})
         if pay:
