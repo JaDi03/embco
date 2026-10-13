@@ -22,6 +22,22 @@ export function checkMessage(text) {
   return { text: clean };
 }
 
+const HEX = /0x[0-9a-fA-F]{64}(?![0-9a-fA-F])|0x[0-9a-fA-F]{40}(?![0-9a-fA-F])/g;
+
+/** A message cut into text, transaction hashes and addresses, so the page can link each one to
+ * the explorer. Anything else stays plain text. */
+export function linkParts(text) {
+  const parts = [];
+  let at = 0;
+  for (const match of String(text ?? "").matchAll(HEX)) {
+    if (match.index > at) parts.push({ text: text.slice(at, match.index) });
+    parts.push(match[0].length === 66 ? { tx: match[0] } : { address: match[0] });
+    at = match.index + match[0].length;
+  }
+  if (at < String(text ?? "").length) parts.push({ text: text.slice(at) });
+  return parts;
+}
+
 export const VIA_TELEGRAM = "owner via Telegram";  // who wrote it, as the bot records it
 
 /** One bubble per entry: the owner on the right, the agent and the service on the left. What

@@ -10,7 +10,7 @@ import * as chat from "./chat.js";
 import * as hub from "./hub.js";
 import { agentView, groupTasks, raisedLimits, taskFor } from "./needs.js";
 import * as suppliers from "./suppliers.js";
-import { factory, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
+import { factory, memoNames, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
 import { AUTHORIZE_ALL, authorizationView, formatUsdc, parseUsdc, shortAddress, ZERO_ADDRESS } from "./units.js";
 import { chooseWallet } from "./picker.js";
 import "./theme.js";
@@ -401,7 +401,8 @@ function paintChat() {
   }
   box.replaceChildren(...terminal.chat.map((entry) => {
     const b = chat.bubbleOf(entry);
-    const bubble = el("div", { className: `bubble ${b.side}`, textContent: b.text });
+    const bubble = el("div", { className: `bubble ${b.side}` }, ...chat.linkParts(b.text).map((p) =>
+      p.tx ? link(shortAddress(p.tx), txUrl(p.tx)) : p.address ? link(shortAddress(p.address), addressUrl(p.address)) : p.text));
     if (b.meta) bubble.append(el("span", { className: "meta", textContent: b.meta }));
     return bubble;
   }));
@@ -747,8 +748,9 @@ async function renderHistory(isOwner) {
   if (!payments.childElementCount) payments.replaceChildren(loading());
 
   let history;
+  let memos;
   try {
-    history = await shopHistory(session.shop);
+    [history, memos] = await Promise.all([shopHistory(session.shop), memoNames(session.shop)]);
   } catch (error) {
     const unavailable = () =>
       Object.assign(document.createElement("li"), { className: "empty", textContent: describeError(error) });
@@ -788,7 +790,14 @@ async function renderHistory(isOwner) {
             textContent: `${formatUsdc(p.amount)} USDC`,
           });
           const detail = document.createElement("span");
-          detail.append(`to ${shortAddress(p.payee)}, paid by ${who}, invoice ${p.invoiceRef.slice(0, 10)}... `);
+          const name = memos.get(p.invoiceRef.toLowerCase());
+          detail.append(`to ${shortAddress(p.payee)}, paid by ${who}, `);
+          if (name) {
+            detail.append("invoice ", el("b", { textContent: name }), " ",
+              el("span", { className: "memo-tag", textContent: "memo on Arc", title: "The invoice name is written on chain with the payment, through Arc's Memo contract: anyone can check it on the explorer." }), " ");
+          } else {
+            detail.append(`invoice reference ${p.invoiceRef.slice(0, 10)}... `);
+          }
           detail.append(link("view", txUrl(p.tx)));
           li.append(amount, detail);
           return li;

@@ -92,3 +92,19 @@ test("an overloaded network reads as a sentence, not 'missing revert data'", () 
   assert.match(describeError(busy), /network is busy/);
   assert.match(describeError({ message: "rate limit exceeded" }), /network is busy/);
 });
+
+test("a payment's memo on Arc gives back its invoice name", async () => {
+  const { decodeMemos } = await import("../shop.js");
+  const memo = new ethers.Interface([
+    "event Memo(address indexed sender, address indexed target, bytes32 callDataHash, bytes32 indexed memoId, bytes memo, uint256 memoIndex)",
+  ]);
+  const event = memo.getEvent("Memo");
+  // the topic of the Memo event on Arc Testnet, read from the agent's payment of ACC-PINV-2026-00011
+  assert.equal(event.topicHash, "0xeb15ee720798341c37739df41be53acfbbf70ae6802dade35457beec6e47a5e4");
+  const ref = ethers.id("lopezgrocery/ACC-PINV-2026-00011");
+  const { topics, data } = memo.encodeEventLog(event, [
+    AGENT, SUPPLIER_A, ethers.ZeroHash, ref, ethers.toUtf8Bytes("ACC-PINV-2026-00011"), 787496n]);
+  const names = decodeMemos([{ topics, data }, { topics: ["0x" + "00".repeat(32)], data: "0x" }]);
+  assert.equal(names.get(ref.toLowerCase()), "ACC-PINV-2026-00011");
+  assert.equal(names.size, 1);
+});
