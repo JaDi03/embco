@@ -8,6 +8,7 @@ disconnecting stops it and forgets the keys, keeping the agent's memory.
 from collections.abc import Callable
 from typing import Any
 
+from eth_utils import is_address, to_checksum_address
 from fastapi import Cookie, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -32,6 +33,10 @@ from services.telegram import links
 
 COOKIE = "embco_session"
 PUBLIC_URL = "https://app.embco.xyz"
+
+
+class SignInRequest(BaseModel):
+    address: str = Field(max_length=42)
 
 
 class SignIn(BaseModel):
@@ -96,8 +101,10 @@ def create_app(
             raise HubError(400, str(error)) from error
 
     @app.post("/api/shops/{shop}/sign-in-request")
-    def sign_in_request(shop: str) -> dict[str, Any]:
-        return auth.challenge(shop_of(shop))
+    def sign_in_request(shop: str, body: SignInRequest) -> dict[str, Any]:
+        if not is_address(body.address):
+            raise HubError(422, "this is not a wallet address")
+        return auth.challenge(shop_of(shop), to_checksum_address(body.address))
 
     @app.post("/api/shops/{shop}/sign-in")
     def sign_in(shop: str, body: SignIn) -> JSONResponse:
@@ -218,7 +225,8 @@ def create_app(
     app.include_router(owner_action_routes(store=store, units=units, shop_of=shop_of,
                                            owner_session=owner_session,
                                            telegram_bot=telegram_bot))
-    app.include_router(supplier_routes(store=store, auth=supplier_auth or SupplierAuth(),
+    supplier_auth = supplier_auth or SupplierAuth(public_url=public_url)
+    app.include_router(supplier_routes(store=store, auth=supplier_auth,
                                        shop_of=shop_of, owner_session=owner_session,
                                        frappe_for=frappe_for, public_url=public_url))
     return app

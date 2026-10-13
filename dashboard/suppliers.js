@@ -36,14 +36,14 @@ export const whatsappUrl = (text) => `https://wa.me/?text=${encodeURIComponent(t
 
 // ---- the supplier
 
+/** Sign-In with Ethereum (EIP-4361): the hub writes the message, the wallet signs it as is. */
 export async function signInSupplier(signer, fetchImpl = fetch) {
   const wallet = await signer.getAddress();
-  const typed = await call(`${supplierPath}/sign-in-request`, { method: "POST", body: { wallet }, fetchImpl });
-  const { domain, types, value } = forEthers(typed);
-  const signature = await signer.signTypedData(domain, types, value);
+  const request = await call(`${supplierPath}/sign-in-request`, { method: "POST", body: { wallet }, fetchImpl });
+  const signature = await signer.signMessage(request.message);
   return call(`${supplierPath}/sign-in`, {
     method: "POST",
-    body: { nonce: typed.message.nonce, signature },
+    body: { nonce: request.nonce, signature },
     fetchImpl,
   });
 }

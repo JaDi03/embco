@@ -94,9 +94,10 @@ def client_of(hub):
 
 def owner_client(hub, owner):  # noqa: F811
     client = client_of(hub)
-    message = client.post(f"/api/shops/{SHOP}/sign-in-request").json()
+    message = client.post(f"/api/shops/{SHOP}/sign-in-request",
+                          json={"address": owner.address}).json()
     response = client.post(f"/api/shops/{SHOP}/sign-in", json={
-        "nonce": message["message"]["nonce"], "signature": sign(owner, message)})
+        "nonce": message["nonce"], "signature": sign(owner, message)})
     assert response.status_code == 200, response.text
     return client
 
@@ -105,7 +106,7 @@ def supplier_client(hub, key=SUPPLIER_KEY):
     client = client_of(hub)
     message = client.post("/api/supplier/sign-in-request", json={"wallet": key.address}).json()
     response = client.post("/api/supplier/sign-in", json={
-        "nonce": message["message"]["nonce"], "signature": sign(key, message)})
+        "nonce": message["nonce"], "signature": sign(key, message)})
     assert response.status_code == 200, response.text
     return client
 
@@ -190,7 +191,7 @@ def test_a_sign_in_for_one_wallet_cannot_be_signed_by_another(hub):
     message = client.post("/api/supplier/sign-in-request",
                           json={"wallet": SUPPLIER_KEY.address}).json()
     response = client.post("/api/supplier/sign-in", json={
-        "nonce": message["message"]["nonce"], "signature": sign(Account.create(), message)})
+        "nonce": message["nonce"], "signature": sign(Account.create(), message)})
     assert response.status_code == 401
     assert client.get("/api/supplier/me").status_code == 401
 
@@ -202,7 +203,7 @@ def test_a_sign_in_request_needs_a_wallet_address(hub):
 
 def test_sign_in_requests_are_capped(monkeypatch):
     monkeypatch.setattr("services.hub.supplier_auth.MAX_OPEN_REQUESTS", 2)
-    supplier_auth = SupplierAuth()
+    supplier_auth = SupplierAuth(public_url="https://app.embco.xyz")
     supplier_auth.challenge(SUPPLIER_KEY.address)
     supplier_auth.challenge(SUPPLIER_KEY.address)
     with pytest.raises(AuthError, match="too many"):

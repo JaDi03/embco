@@ -38,13 +38,14 @@ def build_app(env: Mapping[str, str]) -> FastAPI:
     api_key = env.get("CIRCLE_API_KEY", "").strip()
     entity_secret = env.get("CIRCLE_ENTITY_SECRET", "").strip()
     circle = CircleClient(api_key, entity_secret) if api_key and entity_secret else None
+    public_url = (env.get("EMBCO_PUBLIC_URL") or PUBLIC_URL).rstrip("/")
     return create_app(
         store=store,
-        auth=Auth(chain.shops_of),
+        auth=Auth(chain.shops_of, public_url=public_url),
         limits_of=chain.limits,
         units=SystemdUnits(),
         circle=circle,
-        public_url=(env.get("EMBCO_PUBLIC_URL") or PUBLIC_URL).rstrip("/"),
+        public_url=public_url,
         telegram_bot=env.get("TELEGRAM_BOT_USERNAME", "").strip().lstrip("@") or None,
     )
 

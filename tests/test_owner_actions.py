@@ -153,9 +153,10 @@ def hub(tmp_path, auth, journal):  # noqa: F811
 
 def owner_client(hub, owner):  # noqa: F811
     client = TestClient(hub["app"], base_url="https://testserver")
-    message = client.post(f"/api/shops/{SHOP}/sign-in-request").json()
+    message = client.post(f"/api/shops/{SHOP}/sign-in-request",
+                          json={"address": owner.address}).json()
     response = client.post(f"/api/shops/{SHOP}/sign-in", json={
-        "nonce": message["message"]["nonce"], "signature": sign(owner, message)})
+        "nonce": message["nonce"], "signature": sign(owner, message)})
     assert response.status_code == 200, response.text
     return client
 
