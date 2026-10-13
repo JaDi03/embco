@@ -68,12 +68,27 @@ def check_failed(at: datetime, error: Exception) -> dict[str, Any]:
                   f"The check stopped: {error}. The agent tries again at its next check.")
 
 
-def limits_read(at: datetime, before: PolicyConfig | None, now: PolicyConfig) -> list[dict]:
-    if before is not None and (before.max_per_payment, before.weekly_budget) == (
-            now.max_per_payment, now.weekly_budget):
+def limits_read(at: datetime, before: PolicyConfig | None, now: PolicyConfig,
+                logged: tuple[Decimal, Decimal] | None = None) -> list[dict]:
+    """The contract's limits, told only when they differ from the last ones seen: by this run,
+    or, after a restart, the last ones written in the feed (`logged`)."""
+    known = (before.max_per_payment, before.weekly_budget) if before is not None else logged
+    if known == (now.max_per_payment, now.weekly_budget):
         return []
     return [_event(at, LIMITS, f"Limits from your contract: {fmt(now.max_per_payment)} USDC per "
-                               f"payment, {fmt(now.weekly_budget)} USDC per week.")]
+                               f"payment, {fmt(now.weekly_budget)} USDC per week.",
+                   per_payment=str(now.max_per_payment), weekly=str(now.weekly_budget))]
+
+
+def logged_limits(folder: Path) -> tuple[Decimal, Decimal] | None:
+    """The limits in the newest limits event of the feed, if it carries them."""
+    for event in reversed(read_activity(folder, limit=MAX_EVENTS)):
+        if event.get("kind") == LIMITS:
+            try:
+                return Decimal(event["per_payment"]), Decimal(event["weekly"])
+            except (KeyError, ArithmeticError, TypeError, ValueError):
+                return None
+    return None
 
 
 def inbox_events(at: datetime, signatures: Mapping[str, Mapping[str, str]],
@@ -188,19 +203,51 @@ def cycle_events(report: CycleReport, interval_minutes: int) -> list[dict[str, A
                f"{len(plan.held)} on hold")
     if paid_now:
         summary += f", {fmt(paid_now)} USDC paid"
-    events.append(_event(at, DONE, f"{summary}. Next check in {interval_minutes} minutes."))
+    events.append(_event(at, DONE, f"{summary}. Next check in {interval_minutes} minutes.",
+                         summary=summary))
     return events
+
+
+def end_check(folder: Path, events: list[dict[str, Any]]) -> None:
+    """Write what a check found. A check that found nothing (only its "done", with the same
+    counts) joins the quiet checks right before it into one line, so days without news read as
+    one line instead of one per check. That line says how many checks and since when, and
+    names the events it replaces so a page that already shows them drops them."""
+    old = read_activity(folder, limit=MAX_EVENTS)
+    if not (len(events) == 1 and events[0]["kind"] == DONE and len(old) >= 2
+            and old[-1]["kind"] == CHECK):
+        append_activity(folder, events)
+        return
+    done, previous = events[0], old[-2]
+    if previous["kind"] != DONE or previous.get("summary") != done.get("summary"):
+        append_activity(folder, events)
+        return
+    if "checks" in previous:  # already a line of quiet checks
+        replaced, since, checks = old[-2:], previous["since"], previous["checks"] + 1
+    elif len(old) >= 3 and old[-3]["kind"] == CHECK:  # one quiet check: its start and its end
+        replaced, since, checks = old[-3:], old[-3]["at"], 2
+    else:  # the last check found something: it stays as it was
+        append_activity(folder, events)
+        return
+    line = {**done, "text": f"Nothing changed in {checks} checks. {done['text']}",
+            "since": since, "checks": checks, "replaces": [e["seq"] for e in replaced]}
+    _save(folder, [*old[:-len(replaced)], {"seq": old[-1]["seq"] + 1, **line}])
 
 
 def append_activity(folder: Path, events: list[dict[str, Any]]) -> None:
     """Number the events after the last one and keep only the newest MAX_EVENTS."""
     if not events:
         return
-    path = folder / ACTIVITY
     old = read_activity(folder, limit=MAX_EVENTS)
     seq = old[-1]["seq"] if old else 0
     numbered = [{"seq": seq + i, **e} for i, e in enumerate(events, start=1)]
-    kept = (old + numbered)[-MAX_EVENTS:]
+    _save(folder, old + numbered)
+
+
+def _save(folder: Path, events: list[dict[str, Any]]) -> None:
+    """Write the feed atomically, keeping only the newest MAX_EVENTS."""
+    kept = events[-MAX_EVENTS:]
+    path = folder / ACTIVITY
     tmp = path.with_name(ACTIVITY + ".tmp")
     tmp.write_text("".join(json.dumps(e) + "\n" for e in kept), encoding="utf-8")
     os.chmod(tmp, 0o600)

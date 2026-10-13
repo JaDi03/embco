@@ -91,6 +91,54 @@ def test_signatures_answers_and_limits_are_told_once(tmp_path):
     assert activity.limits_read(at, POLICY, POLICY) == []
 
 
+def test_limits_told_before_a_restart_are_not_told_again(tmp_path):
+    activity.append_activity(tmp_path, activity.limits_read(MONDAY, None, POLICY))
+    logged = activity.logged_limits(tmp_path)
+    assert logged == (Decimal(5000), Decimal(2500))
+    assert activity.limits_read(MONDAY, None, POLICY, logged) == []
+    raised = replace(POLICY, max_per_payment=Decimal(6000))
+    assert activity.limits_read(MONDAY, None, raised, logged)[0]["text"].startswith(
+        "Limits from your contract: 6000 USDC per payment")
+
+
+def done(at, summary="Check done: 1 unpaid, 0 need you, 0 on hold"):
+    return {"at": at.isoformat(), "kind": "done", "text": f"{summary}. Next check in 15 minutes.",
+            "summary": summary}
+
+
+def quiet_check(folder, at, summary=None):
+    activity.append_activity(folder, [activity.check_started(at)])
+    activity.end_check(folder, [done(at, summary) if summary else done(at)])
+
+
+def test_quiet_checks_become_one_line(tmp_path):
+    later = [MONDAY.replace(minute=m) for m in (15, 30, 45)]
+    activity.append_activity(tmp_path, [activity.check_started(MONDAY)])
+    activity.end_check(tmp_path, [{"at": MONDAY.isoformat(), "kind": "new", "text": "New"},
+                                  done(MONDAY)])
+    quiet_check(tmp_path, later[0])  # after a check with news: shown as it is
+    assert kinds(activity.read_activity(tmp_path)) == ["check", "new", "done", "check", "done"]
+    quiet_check(tmp_path, later[1])
+    quiet_check(tmp_path, later[2])
+    events = activity.read_activity(tmp_path)
+    assert kinds(events) == ["check", "new", "done", "done"]
+    line = events[-1]
+    assert line["checks"] == 3 and line["since"] == later[0].isoformat()
+    assert line["at"] == later[2].isoformat()
+    assert line["text"].startswith("Nothing changed in 3 checks. Check done: 1 unpaid")
+    assert line["replaces"] == [7, 8]  # the line of 2 checks and the start of the third
+    assert line["seq"] == 9  # numbers never go back: a page asks for what is after its last
+
+
+def test_a_check_with_other_counts_starts_a_new_line(tmp_path):
+    quiet_check(tmp_path, MONDAY)
+    quiet_check(tmp_path, MONDAY.replace(minute=15))
+    quiet_check(tmp_path, MONDAY.replace(minute=30), "Check done: 2 unpaid, 0 need you, 0 on hold")
+    events = activity.read_activity(tmp_path)
+    assert kinds(events) == ["done", "check", "done"]
+    assert "since" not in events[-1]
+
+
 def test_only_the_newest_events_are_kept(tmp_path, monkeypatch):
     monkeypatch.setattr(activity, "MAX_EVENTS", 3)
     for _ in range(5):

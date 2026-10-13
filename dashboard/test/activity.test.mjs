@@ -22,6 +22,14 @@ test("new events join the old ones once, in order, newest kept", () => {
   assert.deepEqual(merged.map((e) => e.seq), [2, 3]);
 });
 
+test("a line of quiet checks replaces the lines it joins", () => {
+  const line = { ...ev(6, "done"), replaces: [4, 5], since: "2026-10-09T19:30:00+00:00", checks: 3, summary: "Check done: 1 unpaid" };
+  const merged = activity.merge([ev(3, "new"), ev(4, "done"), ev(5, "check")], [line]);
+  assert.deepEqual(merged.map((e) => e.seq), [3, 6]);
+  assert.match(activity.lineText(line), /^Nothing changed in 3 checks since \d\d:\d\d\. Check done: 1 unpaid\.$/);
+  assert.equal(activity.lineText(ev(7, "done")), "done");
+});
+
 test("a check with no end yet means the agent is checking now", () => {
   assert.equal(activity.nextCheck([ev(1, "done"), ev(2, "check"), ev(3, "new")], 15).state, "checking");
 });

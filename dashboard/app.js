@@ -364,7 +364,7 @@ function sessionCard(s) {
 
 function timelineLine(e) {
   const who = activity.actorOf(e.kind);
-  const text = el("span", { textContent: e.text });
+  const text = el("span", { textContent: activity.lineText(e) });
   if (e.tx) text.append(" ", link("tx", txUrl(e.tx)));
   return el("div", { className: "line" },
     el("span", { className: "time", textContent: activity.timeOf(e.at).slice(0, 5) }),
