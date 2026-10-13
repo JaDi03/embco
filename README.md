@@ -6,8 +6,8 @@
 
 **The payables agent for the ERPNext you already run.**
 
-It reads your purchases, decides what to pay, and pays suppliers in USDC on Arc,
-within limits that a smart contract enforces. The model proposes. The contract releases the money.
+It reads your purchases, decides what to pay and when, pays suppliers in USDC on Arc itself,
+and acts on what happened. A smart contract sets the limits it cannot cross.
 
 [**Documentation**](https://jadi03.github.io/embco/) ·
 [**Dashboard**](https://app.embco.xyz) ·
@@ -28,10 +28,13 @@ within limits that a smart contract enforces. The model proposes. The contract r
 
 - **Checks** every invoice against its order and receipt, and looks for duplicates, price jumps
   and unsigned supplier wallets.
-- **Decides** PAY, HOLD or ASK the owner, with a written reason. An AI model plans what to pay
-  and when, inside rules it cannot change.
-- **Pays** in USDC, through a shop contract on Arc that holds the owner's limits, and records the
-  payment back in ERPNext.
+- **Decides**, with an AI model: pay now, pay on a date, hold, or ask the owner, each with a
+  written reason, among the invoices the checks allow.
+- **Pays** itself in USDC, through a shop contract on Arc that holds the owner's limits, then
+  reads the result: the transaction, or the contract's or Circle's own error. When something
+  stops a payment, it looks up why and tells the owner what only they can fix. Every payment is
+  recorded back in ERPNext.
+- **Talks** with the owner on the dashboard and on Telegram: questions, instructions, notices.
 - **Remembers** every decision and answer in a hash-chained journal that nobody can rewrite
   unnoticed.
 
@@ -53,7 +56,7 @@ How each part works, with diagrams: [the documentation](https://jadi03.github.io
 ```
 embco/
 ├── agent/               the agent: its brain and the checks it cannot skip
-│   ├── agent.py         the brain: the AI model plans what to pay and when
+│   ├── agent.py         the brain: the AI model decides, pays and acts on the result
 │   ├── tools/           what the agent can read and do
 │   ├── reflexes/        what wakes it, and the cycle every 15 minutes
 │   ├── guardrails/      the controls, the fixed PAY / HOLD / ASK rule and the gate

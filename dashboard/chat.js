@@ -22,12 +22,18 @@ export function checkMessage(text) {
   return { text: clean };
 }
 
-/** One bubble per entry: the owner on the right, the agent and the service on the left. */
+export const VIA_TELEGRAM = "owner via Telegram";  // who wrote it, as the bot records it
+
+/** One bubble per entry: the owner on the right, the agent and the service on the left. What
+ * the owner wrote on Telegram, and what also went to their Telegram chat, says so. */
 export function bubbleOf(entry) {
-  if (entry.from === "owner") return { side: "me", text: entry.text, meta: "" };
+  if (entry.from === "owner") {
+    return { side: "me", text: entry.text, meta: entry.by === VIA_TELEGRAM ? "via Telegram" : "" };
+  }
+  const telegram = entry.telegram ? "sent to Telegram" : "";
   if (entry.from === "agent") {
-    const meta = ["AGENT", entry.model ? "Claude" : "", entry.cost ? `${entry.cost} est.` : ""];
+    const meta = ["AGENT", entry.model ? "Claude" : "", entry.cost ? `${entry.cost} est.` : "", telegram];
     return { side: "agent", text: entry.text, meta: meta.filter(Boolean).join(" · ") };
   }
-  return { side: "system", text: entry.text, meta: "SERVICE" };
+  return { side: "system", text: entry.text, meta: ["SERVICE", telegram].filter(Boolean).join(" · ") };
 }

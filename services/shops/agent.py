@@ -33,6 +33,7 @@ from services.shops.inbox import take_answers, take_signatures
 from services.shops.owner_view import decision_view
 from services.shops.store import ShopStore
 from services.shops.supplier_view import supplier_view
+from services.telegram import links
 
 log = logging.getLogger("embco")
 
@@ -118,6 +119,14 @@ def chat_replies(session, owner_waiting: bool) -> list[dict[str, Any]]:
         return [{"from": chat.SYSTEM, "at": at, "text": "The agent could not answer right now "
                  f"({session.error}). It tries again in a few minutes."}]
     return []
+
+
+def on_telegram(folder, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Mark what also goes to the owner's Telegram chat: the bot forwards every answer of the
+    agent and word of the service once a chat is linked."""
+    if links.link_of(folder) is None:
+        return entries
+    return [{**e, "telegram": True} for e in entries]
 
 
 def claude_today(sessions, zone, now: datetime) -> dict[str, Any]:
@@ -234,7 +243,7 @@ def run_shop(
                                conversation=chat.read_chat(folder, limit=12), payer=payments)
             activity.append_activity(folder, [*activity.session_events(thought.session),
                                               *activity.payment_events(now, thought.payments)])
-            chat.append_chat(folder, chat_replies(thought.session, True))
+            chat.append_chat(folder, on_telegram(folder, chat_replies(thought.session, True)))
             if thought.session and any(d.choice is Choice.PAY_NOW
                                        for d in thought.session.decisions):
                 last_check["due"] = 0.0  # the owner asked to pay: the next check runs now
@@ -283,8 +292,8 @@ def run_shop(
                 raise
             activity.end_check(folder, [*activity.agent_events(report),
                                         *activity.cycle_events(report, minutes)])
-            chat.append_chat(folder, chat_replies(report.thought.session if report.thought
-                                                   else None, bool(waiting)))
+            chat.append_chat(folder, on_telegram(folder, chat_replies(
+                report.thought.session if report.thought else None, bool(waiting))))
             last_check.update(decisions=list(report.decisions), done=set(report.already_paid),
                               at=time.monotonic())
             latest = {p.invoice: p for p in journal.latest_payments()}

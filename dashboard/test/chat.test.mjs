@@ -19,6 +19,14 @@ test("the owner's words go right, the agent's left with what it cost", () => {
   assert.equal(chat.bubbleOf({ from: "system", text: "could not answer" }).meta, "SERVICE");
 });
 
+test("what came from Telegram, and what went there, says so", () => {
+  assert.equal(chat.bubbleOf({ from: "owner", text: "pay it", by: chat.VIA_TELEGRAM }).meta, "via Telegram");
+  assert.equal(chat.bubbleOf({ from: "owner", text: "pay it", by: "owner 0xabc" }).meta, "");
+  const reply = chat.bubbleOf({ from: "agent", text: "Paid.", cost: "$0.0014", model: "m", telegram: true });
+  assert.equal(reply.meta, "AGENT · Claude · $0.0014 est. · sent to Telegram");
+  assert.equal(chat.bubbleOf({ from: "system", text: "x", telegram: true }).meta, "SERVICE · sent to Telegram");
+});
+
 test("sending posts the text to this shop, with the session cookie", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {

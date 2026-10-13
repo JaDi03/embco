@@ -1,13 +1,15 @@
 # embco
 
 **A payables agent for the ERPNext you already run.** It reads purchase orders, receipts and
-invoices, decides **PAY, HOLD or ASK the owner** with a written reason, and settles in USDC on
-Arc through Circle. The model proposes. A smart contract releases the money.
+invoices, decides what to pay now, what to pay later, what to hold and what to ask the owner,
+with a written reason, and pays in USDC on Arc through Circle. The AI agent pays and reads the
+result; a smart contract sets how far it can go.
 
 !!! warning "Early, testnet only"
-    The agent reads, checks, decides, remembers and explains against a live ERPNext. With
-    payments turned on, it pays the invoices it approved through the shop contract on Arc
-    Testnet. There is no mainnet deployment.
+    The agent reads, checks, decides, pays, remembers and explains against a live ERPNext. With
+    payments turned on, it pays through the shop contract on Arc Testnet during its own session,
+    and acts on what happened: a refusal or an error comes back to it word for word. There is no
+    mainnet deployment.
 
 ## Why it exists
 
@@ -55,8 +57,9 @@ model and the money:
 
 - **Arc and USDC.** Suppliers are paid in USDC, straight from the shop owner's wallet.
 - **Circle** developer-controlled wallets send the agent's transactions with idempotency keys.
-- **An AI model** plans which payments to make and when, and writes the explanations. Its
-  decisions pass through the same gate as everything else. Today it is Claude, by Anthropic
+- **An AI model** decides which payments to make and when, sends them, reads what happened and
+  tells the owner what only they can fix. Its payments pass through the same gate and the same
+  contract as everything else. Today it is Claude, by Anthropic
   ([how to use another model](architecture.md#model-independence)).
 - **ERPNext** stays the system of record. embco adds a Payment Entry for every payment it makes.
 
