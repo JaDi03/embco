@@ -31,6 +31,7 @@ from services.settings import Settings
 from services.shops import activity, chat
 from services.shops.inbox import take_answers, take_signatures
 from services.shops.owner_view import decision_view
+from services.shops.questions import new_questions
 from services.shops.store import ShopStore
 from services.shops.supplier_view import supplier_view
 from services.telegram import links
@@ -131,7 +132,7 @@ def not_woken(folder, thought, owner_waiting: bool, at: datetime) -> list[dict[s
         return []
     key = f"{at.date().isoformat()}:{thought.skipped}"
     for entry in reversed(chat.read_chat(folder, limit=chat.MAX_ENTRIES)):
-        if entry.get("from") == chat.AGENT:
+        if entry.get("from") == chat.AGENT and not entry.get("asks"):
             break
         if entry.get("not_woken") == key:
             return []
@@ -315,7 +316,9 @@ def run_shop(
                                         *activity.cycle_events(report, minutes)])
             chat.append_chat(folder, on_telegram(folder, [
                 *chat_replies(report.thought.session if report.thought else None, bool(waiting)),
-                *not_woken(folder, report.thought, bool(waiting), report.at)]))
+                *not_woken(folder, report.thought, bool(waiting), report.at),
+                *(new_questions(folder, report.decisions, report.thought.agent, report.at)
+                  if report.thought else [])]))
             last_check.update(decisions=list(report.decisions), done=set(report.already_paid),
                               at=time.monotonic())
             latest = {p.invoice: p for p in journal.latest_payments()}
