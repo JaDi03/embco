@@ -5,7 +5,7 @@ from decimal import Decimal
 import httpx
 import pytest
 from eth_account import Account
-from eth_account.messages import encode_typed_data
+from eth_account.messages import encode_defunct
 from fastapi.testclient import TestClient
 
 from services.circle import CircleWallet
@@ -71,7 +71,8 @@ class Clock:
 
 
 def sign(account, message):
-    return Account.sign_message(encode_typed_data(full_message=message),
+    """Signs a sign-in request's EIP-4361 text with personal_sign, as the wallet does."""
+    return Account.sign_message(encode_defunct(text=message["message"]),
                                 account.key).signature.hex()
 
 
@@ -87,37 +88,43 @@ def clock():
 
 @pytest.fixture
 def auth(owner, clock):
-    return Auth(lambda wallet: [SHOP] if wallet == owner.address else [], clock=clock)
+    return Auth(lambda wallet: [SHOP] if wallet == owner.address else [],
+                public_url="https://app.embco.xyz", clock=clock)
 
 
 def test_the_shop_owner_signs_in(auth, owner):
-    message = auth.challenge(SHOP)
-    token, session = auth.sign_in(SHOP, message["message"]["nonce"], sign(owner, message))
+    message = auth.challenge(SHOP, owner.address)
+    assert message["message"].startswith("app.embco.xyz wants you to sign in with your Ethereum")
+    token, session = auth.sign_in(SHOP, message["nonce"], sign(owner, message))
     assert session.owner == owner.address
     assert auth.session(token, SHOP) == session
 
 
-def test_another_wallet_cannot_sign_in_for_the_shop(auth):
-    message = auth.challenge(SHOP)
+def test_another_wallet_cannot_sign_in_for_the_shop(auth, owner):
+    stranger = Account.create()
+    message = auth.challenge(SHOP, stranger.address)
     with pytest.raises(AuthError, match="does not own"):
-        auth.sign_in(SHOP, message["message"]["nonce"], sign(Account.create(), message))
+        auth.sign_in(SHOP, message["nonce"], sign(stranger, message))
+    message = auth.challenge(SHOP, owner.address)  # the owner's message, signed by someone else
+    with pytest.raises(AuthError, match="not valid"):
+        auth.sign_in(SHOP, message["nonce"], sign(stranger, message))
 
 
 def test_a_sign_in_request_works_once_and_expires(auth, owner, clock):
-    message = auth.challenge(SHOP)
-    nonce, signature = message["message"]["nonce"], sign(owner, message)
+    message = auth.challenge(SHOP, owner.address)
+    nonce, signature = message["nonce"], sign(owner, message)
     auth.sign_in(SHOP, nonce, signature)
     with pytest.raises(AuthError, match="expired"):
         auth.sign_in(SHOP, nonce, signature)
-    late = auth.challenge(SHOP)
+    late = auth.challenge(SHOP, owner.address)
     clock.now += timedelta(minutes=6)
     with pytest.raises(AuthError, match="expired"):
-        auth.sign_in(SHOP, late["message"]["nonce"], sign(owner, late))
+        auth.sign_in(SHOP, late["nonce"], sign(owner, late))
 
 
 def test_a_session_is_for_one_shop_and_ends(auth, owner, clock):
-    message = auth.challenge(SHOP)
-    token, _ = auth.sign_in(SHOP, message["message"]["nonce"], sign(owner, message))
+    message = auth.challenge(SHOP, owner.address)
+    token, _ = auth.sign_in(SHOP, message["nonce"], sign(owner, message))
     with pytest.raises(AuthError, match="another shop"):
         auth.session(token, OTHER_SHOP)
     clock.now += timedelta(hours=13)
@@ -196,9 +203,10 @@ def hub(tmp_path, auth):
 
 def signed_in(hub, owner, shop=SHOP):
     client = hub["client"]
-    message = client.post(f"/api/shops/{shop}/sign-in-request").json()
+    message = client.post(f"/api/shops/{shop}/sign-in-request",
+                          json={"address": owner.address}).json()
     response = client.post(f"/api/shops/{shop}/sign-in", json={
-        "nonce": message["message"]["nonce"], "signature": sign(owner, message)})
+        "nonce": message["nonce"], "signature": sign(owner, message)})
     assert response.status_code == 200, response.text
     return client
 

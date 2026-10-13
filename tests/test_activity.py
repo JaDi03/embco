@@ -111,9 +111,10 @@ def client(store, auth, owner):  # noqa: F811
 
 
 def test_the_owner_reads_new_events_only(client, owner):  # noqa: F811
-    message = client.post(f"/api/shops/{SHOP}/sign-in-request").json()
+    message = client.post(f"/api/shops/{SHOP}/sign-in-request",
+                          json={"address": owner.address}).json()
     client.post(f"/api/shops/{SHOP}/sign-in", json={
-        "nonce": message["message"]["nonce"], "signature": sign(owner, message)})
+        "nonce": message["nonce"], "signature": sign(owner, message)})
     body = client.get(f"/api/shops/{SHOP}/activity", params={"after": 1}).json()
     assert [e["seq"] for e in body["events"]] == [2, 3]
     assert body["interval_minutes"] == 15

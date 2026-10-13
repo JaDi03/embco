@@ -41,13 +41,14 @@ export function forEthers(typed) {
   return { domain: typed.domain, types, value: typed.message };
 }
 
+/** Sign-In with Ethereum (EIP-4361): the hub writes the message, the wallet signs it as is. */
 export async function signIn(signer, shop, fetchImpl = fetch) {
-  const typed = await call(`${shopPath(shop)}/sign-in-request`, { method: "POST", fetchImpl });
-  const { domain, types, value } = forEthers(typed);
-  const signature = await signer.signTypedData(domain, types, value);
+  const address = await signer.getAddress();
+  const request = await call(`${shopPath(shop)}/sign-in-request`, { method: "POST", body: { address }, fetchImpl });
+  const signature = await signer.signMessage(request.message);
   return call(`${shopPath(shop)}/sign-in`, {
     method: "POST",
-    body: { nonce: typed.message.nonce, signature },
+    body: { nonce: request.nonce, signature },
     fetchImpl,
   });
 }

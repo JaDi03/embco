@@ -1,8 +1,9 @@
 """Who may manage a shop's agent: the wallet that owns the shop contract, proven by a signature.
 
-The dashboard asks for a nonce, the owner signs a readable EIP-712 message with it, and the hub
-checks on chain that our factory lists the shop under the signer. A nonce works once and for a
-few minutes; a session lives in memory, so a restart only asks the owner to sign again.
+The owner signs in with Ethereum (EIP-4361): the hub issues the sign-in message with a nonce, the
+owner's wallet signs it, and the hub checks it with the siwe library, then checks on chain that our
+factory lists the shop under the signer. A nonce works once and for a few minutes; a session lives
+in memory, so a restart only asks the owner to sign again.
 """
 
 import secrets
@@ -11,27 +12,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from eth_account import Account
-from eth_account.messages import encode_typed_data
-
+from services.hub.siwe_sign_in import VerificationError, generate_nonce, sign_in_text, signer_of
 from services.signing.wallet_ownership import ARC_TESTNET_CHAIN_ID
 
 NONCE_LIFETIME = timedelta(minutes=5)
 SESSION_LIFETIME = timedelta(hours=12)
-STATEMENT = "Sign in to manage the embco agent of this shop."
-_TYPES = {
-    "EIP712Domain": [
-        {"name": "name", "type": "string"},
-        {"name": "version", "type": "string"},
-        {"name": "chainId", "type": "uint256"},
-    ],
-    "SignIn": [
-        {"name": "statement", "type": "string"},
-        {"name": "shop", "type": "address"},
-        {"name": "nonce", "type": "string"},
-        {"name": "expiresAt", "type": "string"},
-    ],
-}
 
 Clock = Callable[[], datetime]
 
@@ -47,45 +32,42 @@ class Session:
     expires_at: datetime
 
 
-def sign_in_message(shop: str, nonce: str, expires_at: datetime,
-                    chain_id: int = ARC_TESTNET_CHAIN_ID) -> dict[str, Any]:
-    """The exact message the owner signs with eth_signTypedData_v4."""
-    return {
-        "types": _TYPES,
-        "primaryType": "SignIn",
-        "domain": {"name": "embco", "version": "1", "chainId": chain_id},
-        "message": {"statement": STATEMENT, "shop": shop, "nonce": nonce,
-                    "expiresAt": expires_at.isoformat()},
-    }
+def statement(shop: str) -> str:
+    return f"Sign in to manage the embco agent of the shop contract {shop}."
 
 
 class Auth:
     def __init__(self, shops_of: Callable[[str], list[str]], *,
+                 public_url: str,
                  chain_id: int = ARC_TESTNET_CHAIN_ID,
                  clock: Clock = lambda: datetime.now(UTC)) -> None:
         self._shops_of = shops_of
+        self._public_url = public_url
         self._chain_id = chain_id
         self._clock = clock
-        self._nonces: dict[str, tuple[str, datetime]] = {}
+        self._nonces: dict[str, tuple[str, str, datetime]] = {}  # nonce: (shop, message, expiry)
         self._sessions: dict[str, Session] = {}
 
-    def challenge(self, shop: str) -> dict[str, Any]:
+    def challenge(self, shop: str, address: str) -> dict[str, Any]:
+        """The sign-in message for `address` (checksummed) to sign with personal_sign."""
         self._forget_expired()
-        nonce = secrets.token_hex(16)
-        expires_at = self._clock() + NONCE_LIFETIME
-        self._nonces[nonce] = (shop, expires_at)
-        return sign_in_message(shop, nonce, expires_at, self._chain_id)
+        nonce = generate_nonce()
+        now = self._clock()
+        text = sign_in_text(public_url=self._public_url, address=address, statement=statement(shop),
+                            nonce=nonce, chain_id=self._chain_id, issued_at=now,
+                            expires_at=now + NONCE_LIFETIME)
+        self._nonces[nonce] = (shop, text, now + NONCE_LIFETIME)
+        return {"message": text, "nonce": nonce}
 
     def sign_in(self, shop: str, nonce: str, signature: str) -> tuple[str, Session]:
         """(session token, session). The nonce is spent even when the signature fails."""
         entry = self._nonces.pop(nonce, None)
-        if entry is None or entry[0] != shop or entry[1] < self._clock():
+        if entry is None or entry[0] != shop or entry[2] < self._clock():
             raise AuthError("the sign-in request expired; ask for a new one")
-        message = sign_in_message(shop, nonce, entry[1], self._chain_id)
         try:
-            signer = Account.recover_message(encode_typed_data(full_message=message),
-                                             signature=signature)
-        except Exception as error:  # noqa: BLE001 (any malformed signature is a failed sign-in)
+            signer = signer_of(entry[1], signature, public_url=self._public_url, nonce=nonce,
+                               chain_id=self._chain_id, now=self._clock())
+        except VerificationError as error:
             raise AuthError("the signature is not valid") from error
         if shop not in {s.lower() for s in self._shops_of(signer)}:
             raise AuthError("this wallet does not own the shop")
@@ -107,5 +89,5 @@ class Auth:
 
     def _forget_expired(self) -> None:
         now = self._clock()
-        self._nonces = {n: v for n, v in self._nonces.items() if v[1] >= now}
+        self._nonces = {n: v for n, v in self._nonces.items() if v[2] >= now}
         self._sessions = {t: s for t, s in self._sessions.items() if s.expires_at >= now}

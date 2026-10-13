@@ -29,6 +29,7 @@ function fakeFetch(routes) {
 const fakeSigner = {
   getAddress: async () => WALLET,
   signTypedData: async (domain, types, value) => `sig:${Object.keys(types).join()}:${value.nonce ?? value.statement}`,
+  signMessage: async (text) => `sig:${text.length}`,
 };
 
 test("the notice tells the supplier what to type and never carries a link", () => {
@@ -53,14 +54,15 @@ test("the WhatsApp share carries the whole notice, encoded", () => {
   assert.equal(decodeURIComponent(url.split("=")[1]), "Hello S,\n\nType app.embco.xyz/supplier");
 });
 
-test("a supplier signs in with its own wallet and the nonce comes back with the signature", async () => {
+test("a supplier signs the hub's EIP-4361 message with its own wallet and the nonce comes back", async () => {
+  const message = "app.embco.xyz wants you to sign in with your Ethereum account:\n" + WALLET;
   const { impl, calls } = fakeFetch({
-    "POST /api/supplier/sign-in-request": [200, TYPED],
+    "POST /api/supplier/sign-in-request": [200, { message, nonce: "n1n1n1n1" }],
     "POST /api/supplier/sign-in": [200, { wallet: WALLET }],
   });
   await suppliers.signInSupplier(fakeSigner, impl);
   assert.deepEqual(calls[0].body, { wallet: WALLET });
-  assert.deepEqual(calls[1].body, { nonce: "n-1", signature: "sig:SupplierSignIn:n-1" });
+  assert.deepEqual(calls[1].body, { nonce: "n1n1n1n1", signature: `sig:${message.length}` });
   assert.ok(calls.every((c) => c.path.startsWith("/api/") && c.credentials === "same-origin"));
 });
 

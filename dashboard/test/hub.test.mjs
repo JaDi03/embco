@@ -32,15 +32,18 @@ test("ethers gets the types without the domain type", () => {
   assert.equal(value.nonce, "n-1");
 });
 
-test("signing in sends back the nonce with the owner's signature, on this site only", async () => {
+test("signing in signs the hub's EIP-4361 message as is and sends back its nonce, on this site only", async () => {
   const shop = SHOP.toLowerCase();
+  const OWNER = "0x2137" + "0".repeat(32) + "0379";
+  const message = "app.embco.xyz wants you to sign in with your Ethereum account:\n" + OWNER;
   const { impl, calls } = fakeFetch({
-    [`POST /api/shops/${shop}/sign-in-request`]: [200, TYPED],
-    [`POST /api/shops/${shop}/sign-in`]: [200, { owner: "0xOwner" }],
+    [`POST /api/shops/${shop}/sign-in-request`]: [200, { message, nonce: "n1n1n1n1" }],
+    [`POST /api/shops/${shop}/sign-in`]: [200, { owner: OWNER }],
   });
-  const signer = { signTypedData: async (domain, types, value) => `sig:${value.nonce}:${Object.keys(types)}` };
-  assert.deepEqual(await hub.signIn(signer, SHOP, impl), { owner: "0xOwner" });
-  assert.deepEqual(calls[1].body, { nonce: "n-1", signature: "sig:n-1:SignIn" });
+  const signer = { getAddress: async () => OWNER, signMessage: async (text) => `sig:${text.length}` };
+  assert.deepEqual(await hub.signIn(signer, SHOP, impl), { owner: OWNER });
+  assert.deepEqual(calls[0].body, { address: OWNER });
+  assert.deepEqual(calls[1].body, { nonce: "n1n1n1n1", signature: `sig:${message.length}` });
   assert.ok(calls.every((c) => c.credentials === "same-origin"));
 });
 
