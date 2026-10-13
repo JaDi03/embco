@@ -29,8 +29,9 @@ def supplier_email(frappe: FrappeClient, supplier: str) -> str:
 
 
 def email_supplier_notice(frappe: FrappeClient, supplier: str, company: str, site: str,
-                          wallet: str | None, signature_needed: bool) -> None:
-    """Tell the supplier to visit its page, at the email on its record in the ERP."""
+                          wallet: str | None, signature_needed: bool) -> str:
+    """Tell the supplier to visit its page, at the email on its record in the ERP. Returns the
+    address used."""
     recipient = supplier_email(frappe, supplier)
     if not recipient:
         raise LedgerError(f"{supplier} has no email in the ERP; add one to its contact")
@@ -59,6 +60,7 @@ def email_supplier_notice(frappe: FrappeClient, supplier: str, company: str, sit
         "sent_or_received": "Sent",
         "send_email": "1",
     })
+    return recipient
 
 
 def email_supplier_message(frappe: FrappeClient, supplier: str, company: str, subject: str,

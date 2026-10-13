@@ -97,3 +97,4 @@ class Session:
     replies: tuple[str, ...] = ()  # what the agent answered the owner in this session
     money: dict[str, str] | None = None  # what could be paid when the session ran, from the chain
     emails: tuple[str, ...] = ()  # suppliers the agent wrote to in this session
+    wallet_notices: tuple[str, ...] = ()  # suppliers sent the notice to confirm their wallet

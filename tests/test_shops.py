@@ -106,6 +106,12 @@ def test_a_shop_that_chose_the_brain_gets_it_with_the_platform_model_key(store):
     assert settings.utc_offset.total_seconds() == 3600
 
 
+def test_a_shop_gets_the_server_public_address_for_its_supplier_page(store):
+    store.save(config(), creds())
+    settings = store.settings(SHOP_A, {"EMBCO_PUBLIC_URL": "https://pay.myshop.example"})
+    assert settings.supplier_site == "pay.myshop.example/supplier"
+
+
 def test_a_shop_has_the_brain_unless_it_turns_it_off(store):
     store.save(config(), creds())
     assert store.settings(SHOP_A, {}).brain

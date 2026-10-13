@@ -14,6 +14,7 @@ from agent.guardrails.controls.context import Context
 from services.erp.models import PaymentRecord, Supplier
 
 _EVM_ADDRESS = re.compile(r"^0x[0-9a-fA-F]{40}$")
+WAITING_FOR_SIGNATURE = "waiting for the supplier to sign the wallet challenge"
 
 
 def is_evm_address(value: str) -> bool:
@@ -56,7 +57,7 @@ class PayeeWallet:
         ) + _who_changed(ctx, wallet)
         proof = ctx.wallet_proof
         if proof is None or needs_proof(ctx.supplier, last, proof):
-            return hold(self.name, f"{what}; waiting for the supplier to sign the wallet challenge")
+            return hold(self.name, f"{what}; {WAITING_FOR_SIGNATURE}")
         return ask(
             self.name,
             f"{what}; the supplier proved it controls the new wallet on "

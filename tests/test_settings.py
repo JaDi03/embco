@@ -27,6 +27,12 @@ def test_settings_come_from_the_environment_with_defaults():
 
 
 
+def test_the_supplier_page_follows_the_server_public_address():
+    assert Settings.from_env(ENV).supplier_site == "app.embco.xyz/supplier"
+    own = Settings.from_env({**ENV, "EMBCO_PUBLIC_URL": "https://pay.myshop.example"})
+    assert own.supplier_site == "pay.myshop.example/supplier"
+
+
 def test_draft_mode_is_on_unless_it_is_turned_off():
     assert Settings.from_env(ENV).erpnext_draft_payments
     submitted = Settings.from_env(ENV | {"EMBCO_ERPNEXT_DRAFT_PAYMENTS": "off"})

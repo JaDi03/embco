@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import Any
 
 from agent.guardrails.controls.base import Outcome, fmt, short
+from agent.guardrails.controls.payee_wallet import WAITING_FOR_SIGNATURE
 from agent.guardrails.gate import pay_refusal, schedule_refusal
 from agent.guardrails.rules import Action, Decision, PolicyConfig, fingerprint
 from agent.memory import DecisionJournal
@@ -53,6 +54,7 @@ class Toolbox:
     room: Callable[[], Decimal | None] = lambda: None  # what the contract allows this week
     funds: Callable[[], dict[str, str] | None] = lambda: None  # reset time, balance, authorization
     mailer: Callable[[str, str, str], str] | None = None  # writes to a supplier from the ERP
+    wallet_notice: Callable[[str], str] | None = None  # the standard wallet notice, from the ERP
     emails_today: int = 0  # emails the agent already sent today, for the daily cap
     past_notes: tuple[Note, ...] = ()
     messages: tuple[str, ...] = ()  # what the owner wrote since the agent's last reply
@@ -63,6 +65,7 @@ class Toolbox:
     replies: list[str] = field(default_factory=list)  # to the owner: answers and notices
     notices: int = 0
     emailed: list[str] = field(default_factory=list)
+    notified_wallets: list[str] = field(default_factory=list)  # suppliers sent the wallet notice
     summary: str | None = None
 
     def __post_init__(self) -> None:
@@ -289,6 +292,25 @@ class Toolbox:
             raise ToolError(f"the email was not sent: {error}") from None
         self.emailed.append(supplier)
         return f"sent to {supplier} at {address}"
+
+    def _ask_supplier_to_confirm_wallet(self, supplier: str) -> str:
+        if self.wallet_notice is None:
+            raise ToolError("email is not available for this shop")
+        if not self.messages:
+            raise ToolError("send the wallet notice only after the owner agreed in this "
+                            "conversation; ask the owner first")
+        waiting = {d.supplier for d in self.decisions for f in d.findings
+                   if f.outcome is not Outcome.PASS and WAITING_FOR_SIGNATURE in f.reason}
+        if supplier not in waiting:
+            raise ToolError(f"{supplier} has no wallet waiting for its signature")
+        if supplier in self.notified_wallets:
+            raise ToolError(f"the notice already went to {supplier} in this session")
+        try:
+            address = self.wallet_notice(supplier)
+        except LedgerError as error:
+            raise ToolError(f"the notice was not sent: {error}") from None
+        self.notified_wallets.append(supplier)
+        return f"notice sent to {supplier} at {address}"
 
     def _notify_owner(self, text: str) -> str:
         if self.notices >= MAX_NOTICES:

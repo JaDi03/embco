@@ -39,6 +39,7 @@ class BrainSetup:
     chat_brain: Brain | None = None  # answers the owner; faster, lower effort
     funds: Callable[[], dict[str, str] | None] = field(default=lambda: None)
     mailer: Callable[[str, str, str], str] | None = None  # writes to a supplier from the ERP
+    wallet_notice: Callable[[str], str] | None = None  # the standard wallet notice, from the ERP
 
 
 @dataclass(frozen=True)
@@ -91,6 +92,7 @@ def think(
     toolbox = Toolbox(decisions=list(decisions), ledger=ledger, journal=journal, policy=policy,
                       now=now, zone=setup.zone, done=set(done), standing=standing,
                       room=setup.room, funds=setup.funds, mailer=setup.mailer,
+                      wallet_notice=setup.wallet_notice,
                       emails_today=emails_today(sessions, setup.zone, now),
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages))
@@ -111,6 +113,7 @@ def think(
         steps=steps, model=setup.brain.model, error=error,
         replies=tuple(toolbox.replies) if finished else (),
         emails=tuple(toolbox.emailed),
+        wallet_notices=tuple(toolbox.notified_wallets),
         **({"usage": usage} if usage else {}),
     )
     journal.record_session(session)
@@ -150,6 +153,7 @@ def converse(
     toolbox = Toolbox(decisions=list(decisions), ledger=ledger, journal=journal, policy=policy,
                       now=now, zone=setup.zone, done=set(done), standing=standing,
                       room=setup.room, funds=setup.funds, mailer=setup.mailer,
+                      wallet_notice=setup.wallet_notice,
                       emails_today=emails_today(sessions, setup.zone, now),
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), require_all=False)
@@ -170,6 +174,7 @@ def converse(
         steps=steps, model=brain.model, error=error,
         replies=tuple(toolbox.replies) if finished else (),
         emails=tuple(toolbox.emailed),
+        wallet_notices=tuple(toolbox.notified_wallets),
         **({"usage": usage} if usage else {}),
     )
     journal.record_session(session)

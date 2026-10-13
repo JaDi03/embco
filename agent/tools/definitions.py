@@ -97,6 +97,13 @@ TOOLS: list[dict[str, Any]] = [
           supplier=_text("The supplier name exactly as listed."),
           subject=_text("A short subject."),
           body=_text("The message, a few plain sentences; blank lines between paragraphs.")),
+    _tool("ask_supplier_to_confirm_wallet",
+          "Send the supplier the standard notice to confirm the wallet the ERP holds for it: it "
+          "tells the supplier to type the shop's supplier page itself and sign in with that "
+          "wallet, with no link. Use it for a supplier whose wallet is waiting for its "
+          "signature, only after the owner agreed in this conversation. The text is fixed; you "
+          "do not write it.",
+          supplier=_text("The supplier name exactly as listed.")),
     _tool("finish",
           "End the session once every open invoice has your decision. The summary is what the "
           "owner reads first.",

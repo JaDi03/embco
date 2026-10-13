@@ -4,6 +4,7 @@ from services.shops.agent import erp_for, payer_for, run_shop, summarize
 from services.shops.store import (
     BRAIN_PLATFORM,
     PLATFORM,
+    SITE_PLATFORM,
     ErpCredentials,
     ShopConfig,
     ShopError,
@@ -15,6 +16,7 @@ from services.shops.store import (
 
 __all__ = [
     "BRAIN_PLATFORM",
+    "SITE_PLATFORM",
     "PLATFORM",
     "ErpCredentials",
     "ShopConfig",

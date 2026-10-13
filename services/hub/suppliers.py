@@ -9,7 +9,6 @@ then left in the shop's inbox: the shop's agent records it on its next cycle.
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import urlsplit
 
 from eth_account import Account
 from eth_account.messages import encode_typed_data
@@ -24,11 +23,11 @@ from services.erp.erpnext.mail import email_supplier_notice
 from services.hub.auth import SESSION_LIFETIME, AuthError
 from services.hub.errors import HubError
 from services.hub.supplier_auth import SupplierAuth, SupplierSession
+from services.settings import supplier_site
 from services.shops.inbox import drop_signature, signature_waiting
 from services.shops.store import ShopError, ShopStore
 
 COOKIE = "embco_supplier"
-PAGE_PATH = "/supplier"
 
 
 class SignInRequest(BaseModel):
@@ -57,8 +56,7 @@ def supplier_routes(
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
 ) -> APIRouter:
     router = APIRouter()
-    parts = urlsplit(public_url)
-    site = f"{parts.netloc}{PAGE_PATH}"  # what the supplier types, without https://
+    site = supplier_site(public_url)
 
     def entries(shop: str) -> dict[str, Any]:
         return ((store.supplier_view(shop) or {}).get("suppliers")) or {}

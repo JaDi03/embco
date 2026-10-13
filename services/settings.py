@@ -33,12 +33,19 @@ REQUIRED = (
 DEFAULT_JOURNAL = "data/journal.sqlite3"
 DEFAULT_INTERVAL_MINUTES = 15
 EFFORTS = ("low", "medium", "high")
+DEFAULT_PUBLIC_URL = "https://app.embco.xyz"
+SUPPLIER_PAGE = "/supplier"
 _TRUE = {"1", "true", "yes", "on"}
 _FALSE = {"", "0", "false", "no", "off"}
 
 
 class SettingsError(Exception):
     pass
+
+
+def supplier_site(public_url: str) -> str:
+    """The supplier page as a supplier types it: host and path, without https://."""
+    return f"{urlsplit(public_url).netloc}{SUPPLIER_PAGE}"
 
 
 @dataclass(frozen=True)
@@ -72,6 +79,7 @@ class Settings:
     utc_offset: timedelta = timedelta(0)  # the shop's local time, for rounds and dates
     round_hour: int = 8
     brain_daily_tokens: int = DAILY_TOKENS
+    supplier_site: str = supplier_site(DEFAULT_PUBLIC_URL)  # typed by suppliers, no https://
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> "Settings":
@@ -123,6 +131,7 @@ class Settings:
             round_hour=_whole("ROUND_HOUR", get("ROUND_HOUR"), 8, 0, 23),
             brain_daily_tokens=_whole("BRAIN_DAILY_TOKENS", get("BRAIN_DAILY_TOKENS"),
                                       DAILY_TOKENS, 1, 100_000_000),
+            supplier_site=supplier_site(get("PUBLIC_URL") or DEFAULT_PUBLIC_URL),
         )
         if pay:
             settings._check_payments()

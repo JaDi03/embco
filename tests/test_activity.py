@@ -155,3 +155,16 @@ def test_the_past_keeps_its_own_times_and_order(store):
         events = activity.history_events(journal.entries())
     assert [e["at"] for e in events] == sorted(e["at"] for e in events)
     assert events[0]["kind"] == "limits"
+
+
+def test_the_wallet_notices_the_agent_sent_show_and_are_remembered(tmp_path):
+    from agent.models import Session, Wake
+
+    session = Session(at=datetime(2026, 10, 13, 7, 0, tzinfo=UTC), wakes=(Wake("message", "m"),),
+                      finished=True, wallet_notices=("Lekki Oils & Spices Ltd",))
+    texts = [e["text"] for e in activity.session_events(session)]
+    assert "Sent Lekki Oils & Spices Ltd the notice to confirm its wallet." in texts
+    with SqliteJournal(tmp_path / "j.sqlite3") as journal:
+        journal.record_session(session)
+        [kept] = journal.sessions()
+    assert kept.wallet_notices == ("Lekki Oils & Spices Ltd",)
