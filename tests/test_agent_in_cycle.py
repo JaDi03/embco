@@ -176,6 +176,33 @@ def test_a_refusal_the_agent_already_saw_does_not_wake_it_again(journal):  # noq
     assert brain.sessions == 1
 
 
+class PaysWhenTold:
+    """Chooses pay_now for what is undecided, and again when told a choice did not go out."""
+
+    model, sessions = "scripted", 0
+
+    def run(self, toolbox, briefing):
+        self.sessions += 1
+        todo = toolbox.undecided() or (["PINV-1"] if "has not gone out" in briefing else [])
+        for invoice in todo:
+            toolbox.call("pay_now", {"invoice": invoice, "reason": "due soon"})
+        toolbox.call("finish", {"summary": "Done."})
+        return SessionRun(finished=True, steps=1, usage=Usage())
+
+
+def test_a_choice_to_pay_that_never_went_out_wakes_the_agent_once_it_can_pay(journal):  # noqa: F811
+    payer, _, circle = make_payer(matching_ledger())
+    brain = PaysWhenTold()
+    cycle(journal, payer, brain, NOW, autonomy=Autonomy.OBSERVE)  # paused: recorded, not sent
+    cycle(journal, payer, brain, NOW + timedelta(minutes=15), autonomy=Autonomy.OBSERVE)
+    assert brain.sessions == 1 and circle.sent == []  # no loop while payments are paused
+
+    cycle(journal, payer, brain, NOW + timedelta(minutes=30))  # the owner resumed payments
+    assert brain.sessions == 2 and len(circle.sent) == 1
+    cycle(journal, payer, brain, NOW + timedelta(minutes=45))
+    assert brain.sessions == 2  # paid: nothing more to wake it for
+
+
 def test_the_agent_is_not_woken_again_when_nothing_happened(journal):  # noqa: F811
     payer, _, _ = make_payer(matching_ledger())
     brain = OneChoiceBrain("hold")

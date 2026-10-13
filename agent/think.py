@@ -80,7 +80,8 @@ def think(
     wakes = wakes_for(now=now, zone=setup.zone, decisions=decisions, changes=changes,
                       sessions=sessions, standing=standing, done=done,
                       payments=journal.latest_payments(), round_hour=setup.round_hour,
-                      extra=[*extra, *([short] if short else []), *([moved] if moved else [])])
+                      extra=[*extra, *([short] if short else []), *([moved] if moved else [])],
+                      can_pay=payer is not None and setup.autonomy is Autonomy.ACT)
     last = sessions[-1] if sessions else None
     if not wakes:
         return Thought(agent=standing, last=last)

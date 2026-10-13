@@ -36,6 +36,7 @@ def wakes_for(
     payments: Sequence[PaymentEvent],
     round_hour: int,
     extra: Sequence[Wake] = (),
+    can_pay: bool = False,  # the agent can send payments now (connected and not paused)
 ) -> list[Wake]:
     last = sessions[-1] if sessions else None
     fired = {w.key for s in sessions if s.finished for w in s.wakes if w.key}
@@ -68,7 +69,7 @@ def wakes_for(
             wakes.append(Wake("payment", f"The payment of {p.invoice} was "
                                          f"{p.status.value.lower()}: {p.reason}", p.invoice))
     for d in open_:
-        wakes.extend(_scheduled_today(d, standing.get(d.invoice), local.date(), fired))
+        wakes.extend(_scheduled_today(d, standing.get(d.invoice), local.date(), fired, can_pay))
         wakes.extend(_due_soon(d, standing.get(d.invoice), local.date(), fired))
     for alarm in due_alarms(sessions, now):
         key = _alarm_key(alarm)
@@ -106,17 +107,26 @@ def _holds(standing: AgentDecision | None, decision: Decision) -> bool:
 
 
 def _scheduled_today(decision: Decision, standing: AgentDecision | None, today,
-                     fired) -> list[Wake]:
-    """The day the agent chose to pay an invoice, it is woken to pay it itself."""
-    if not (_holds(standing, decision) and standing.choice is Choice.SCHEDULE
-            and standing.pay_on and standing.pay_on <= today):
+                     fired, can_pay: bool) -> list[Wake]:
+    """The day the agent chose to pay an invoice, it is woken to pay it itself; and so is a
+    choice to pay now that never went out (made while payments were paused, or before the
+    agent paid in its own session)."""
+    if not _holds(standing, decision):
         return []
-    key = f"scheduled:{decision.invoice}:{standing.pay_on.isoformat()}"
+    if standing.choice is Choice.SCHEDULE and standing.pay_on and standing.pay_on <= today:
+        key = f"scheduled:{decision.invoice}:{standing.pay_on.isoformat()}"
+        text = (f"You planned to pay {decision.invoice} ({fmt(decision.amount)} USDC) on "
+                f"{standing.pay_on}: pay it now with pay_now, or decide again with what you see.")
+    elif standing.choice is Choice.PAY_NOW and can_pay:
+        at = standing.decided_at.isoformat() if standing.decided_at else ""
+        key = f"chosen:{decision.invoice}:{at}"
+        text = (f"You chose to pay {decision.invoice} ({fmt(decision.amount)} USDC) but it has "
+                "not gone out: pay it with pay_now, or decide again with what you see.")
+    else:
+        return []
     if key in fired:
         return []
-    return [Wake("scheduled", f"You planned to pay {decision.invoice} ({fmt(decision.amount)} "
-                              f"USDC) on {standing.pay_on}: pay it now with pay_now, or decide "
-                              "again with what you see.", decision.invoice, key=key)]
+    return [Wake("scheduled", text, decision.invoice, key=key)]
 
 
 def _due_soon(decision: Decision, standing: AgentDecision | None, today, fired) -> list[Wake]:
