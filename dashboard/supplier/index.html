@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Embco · Supplier</title>
     <meta name="description" content="See what shops paying through Embco owe your wallet, and confirm the wallet you are paid to." />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0f17" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="../brand/logo.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="../icons/icon-192.png" />
     <link rel="stylesheet" href="../style.css" />
@@ -18,17 +19,17 @@
         <span class="wordmark">Embco</span>
       </a>
       <div class="topbar-right">
-        <span class="pill">Supplier</span>
+        <span class="pill" title="Test network: payments are made in test USDC with no real value">Arc Testnet</span>
+        <button class="icon-btn" id="theme-toggle" type="button" aria-label="Switch light or dark mode">◐</button>
         <button class="btn btn-ghost" id="sign-out" hidden>Sign out</button>
       </div>
     </header>
-
-    <div class="testnet-banner">Test network: payments are made in test USDC with no real value.</div>
 
     <main class="container">
       <p class="notice" id="notice" role="status" aria-live="polite" hidden></p>
 
       <section id="view-welcome" class="view" hidden>
+        <p class="eyebrow">For suppliers</p>
         <h1>Your payments from shops that use Embco</h1>
         <p class="lead">
           Sign in with the wallet you are paid to. You will see your invoices and payments with each shop, and you can

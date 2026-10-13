@@ -13,6 +13,7 @@ import * as suppliers from "./suppliers.js";
 import { factory, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
 import { AUTHORIZE_ALL, authorizationView, formatUsdc, parseUsdc, shortAddress, ZERO_ADDRESS } from "./units.js";
 import { chooseWallet } from "./picker.js";
+import "./theme.js";
 import * as wallet from "./wallet.js";
 
 const $ = (id) => document.getElementById(id);
@@ -1150,34 +1151,7 @@ function wireActions() {
   });
 }
 
-const THEME_KEY = "embco-theme";
-
-function applyTheme(theme) {
-  if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
-  else delete document.documentElement.dataset.theme;
-}
-
-function wireTheme() {
-  try {
-    applyTheme(localStorage.getItem(THEME_KEY));
-  } catch {
-    // no storage (private window): follow the system
-  }
-  $("theme-toggle").addEventListener("click", () => {
-    const current = document.documentElement.dataset.theme
-      ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    const next = current === "dark" ? "light" : "dark";
-    applyTheme(next);
-    try {
-      localStorage.setItem(THEME_KEY, next);
-    } catch {
-      // the choice lasts for this visit only
-    }
-  });
-}
-
 function start() {
-  wireTheme();
   $("faucet-link").href = FAUCET_URL;
   $("explorer-link").href = ARC_TESTNET.explorer;
   wireActions();
