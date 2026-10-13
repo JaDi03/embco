@@ -4,8 +4,8 @@ The loop is ours, not the SDK's runner, so the caps are exact: a fixed number of
 of tokens per session. A session that hits a cap, fails or is refused ends unfinished, and an
 unfinished session changes nothing: no new payment, the previous decisions stay.
 
-The default model is Claude Haiku 5.5 at medium effort. The goal and the tools are the same in
-every request, so they are served from the prompt cache.
+The default model is Claude Haiku 5.5 at high effort: its decisions move money. The goal and the
+tools are the same in every request, so they are served from the prompt cache.
 """
 
 import logging
@@ -21,7 +21,8 @@ from agent.tools import TOOLS, Toolbox, ToolError
 log = logging.getLogger("agent")
 
 DEFAULT_MODEL = "claude-haiku-5-5"
-DEFAULT_EFFORT = "medium"
+DEFAULT_EFFORT = "high"
+CHAT_EFFORT = "medium"  # answering the owner: quick, but it may pay too
 MAX_TURNS = 25
 MAX_SESSION_TOKENS = 400_000
 MAX_OUTPUT_TOKENS = 8000  # per response: room for adaptive thinking and several tool calls

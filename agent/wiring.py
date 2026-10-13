@@ -4,7 +4,7 @@ from collections.abc import Callable
 from datetime import timezone
 from decimal import Decimal
 
-from agent.agent import ClaudeBrain
+from agent.agent import CHAT_EFFORT, ClaudeBrain
 from agent.guardrails.controls.base import fmt
 from agent.think import BrainSetup
 from services.payments import ChainError, Payer
@@ -62,11 +62,12 @@ def brain_setup(
     return BrainSetup(
         brain=ClaudeBrain(settings.brain_model, effort=settings.brain_effort,
                           api_key=settings.anthropic_api_key),
-        chat_brain=ClaudeBrain(settings.brain_model, effort="low",
+        chat_brain=ClaudeBrain(settings.brain_model, effort=CHAT_EFFORT,
                                api_key=settings.anthropic_api_key),
         zone=timezone(settings.utc_offset),
         round_hour=settings.round_hour,
         autonomy=settings.autonomy,
+        daily_budget=settings.brain_daily_budget,
         daily_tokens=settings.brain_daily_tokens,
         **({"room": room} if room else {}),
         **({"funds": funds} if funds else {}),

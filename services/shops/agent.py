@@ -19,7 +19,7 @@ from agent.models import Autonomy, Choice, Wake
 from agent.reflexes.cycle import CycleReport, run_cycle
 from agent.reflexes.report import format_report
 from agent.reflexes.watch import watch
-from agent.think import converse
+from agent.think import BUDGET_USED, converse
 from agent.wiring import brain_setup, funds_of, room_of
 from services.circle import CircleClient
 from services.erp import ErpnextAdapter, LedgerError
@@ -119,6 +119,26 @@ def chat_replies(session, owner_waiting: bool) -> list[dict[str, Any]]:
         return [{"from": chat.SYSTEM, "at": at, "text": "The agent could not answer right now "
                  f"({session.error}). It tries again in a few minutes."}]
     return []
+
+
+def not_woken(folder, thought, owner_waiting: bool, at: datetime) -> list[dict[str, Any]]:
+    """A word from the service when the agent had a reason to wake but was not woken: always
+    when the owner is waiting for an answer, and for the daily budget even when not. Said once
+    per reason and day, so a check every 15 minutes does not repeat it."""
+    if thought is None or thought.session is not None or not thought.skipped:
+        return []
+    if not (owner_waiting or thought.skipped.startswith(BUDGET_USED)):
+        return []
+    key = f"{at.date().isoformat()}:{thought.skipped}"
+    for entry in reversed(chat.read_chat(folder, limit=chat.MAX_ENTRIES)):
+        if entry.get("from") == chat.AGENT:
+            break
+        if entry.get("not_woken") == key:
+            return []
+    return [{"from": chat.SYSTEM, "at": at.isoformat(), "not_woken": key,
+             "text": f"The agent was not woken: {thought.skipped}. Meanwhile the checks keep "
+                     "running and payments already sent are followed and booked; nothing new "
+                     "is paid."}]
 
 
 def on_telegram(folder, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -243,7 +263,8 @@ def run_shop(
                                conversation=chat.read_chat(folder, limit=12), payer=payments)
             activity.append_activity(folder, [*activity.session_events(thought.session),
                                               *activity.payment_events(now, thought.payments)])
-            chat.append_chat(folder, on_telegram(folder, chat_replies(thought.session, True)))
+            chat.append_chat(folder, on_telegram(folder, [
+                *chat_replies(thought.session, True), *not_woken(folder, thought, True, now)]))
             if thought.session and any(d.choice is Choice.PAY_NOW
                                        for d in thought.session.decisions):
                 last_check["due"] = 0.0  # the owner asked to pay: the next check runs now
@@ -292,8 +313,9 @@ def run_shop(
                 raise
             activity.end_check(folder, [*activity.agent_events(report),
                                         *activity.cycle_events(report, minutes)])
-            chat.append_chat(folder, on_telegram(folder, chat_replies(
-                report.thought.session if report.thought else None, bool(waiting))))
+            chat.append_chat(folder, on_telegram(folder, [
+                *chat_replies(report.thought.session if report.thought else None, bool(waiting)),
+                *not_woken(folder, report.thought, bool(waiting), report.at)]))
             last_check.update(decisions=list(report.decisions), done=set(report.already_paid),
                               at=time.monotonic())
             latest = {p.invoice: p for p in journal.latest_payments()}

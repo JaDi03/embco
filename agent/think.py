@@ -12,6 +12,7 @@ from decimal import Decimal
 from typing import Any
 
 from agent.agent import Brain
+from agent.cost import estimate, shown
 from agent.guardrails.rules import Decision, PolicyConfig
 from agent.memory import Change, DecisionJournal
 from agent.models import AgentDecision, Autonomy, Session, Wake, payment_seen_key
@@ -24,7 +25,26 @@ from services.payments import PaymentEvent
 
 log = logging.getLogger("agent")
 
-DAILY_TOKENS = 2_000_000
+DAILY_BUDGET = Decimal("1.00")  # USD a day (shop time) for the model, estimated from the tokens
+DAILY_TOKENS = 2_000_000  # the ceiling for sessions of a model with no known price
+BUDGET_USED = "the agent's daily budget is used up"
+
+
+def over_budget(setup: "BrainSetup", sessions: Sequence[Session], now: datetime) -> str:
+    """Why the agent may not be woken again today, or "" when it may: what today's sessions
+    cost reached the daily budget. Sessions of a model with no known price count by tokens
+    instead, against the ceiling."""
+    today = now.astimezone(setup.zone).date()
+    todays = [s for s in sessions if s.at.astimezone(setup.zone).date() == today]
+    costs = [(s, estimate(s.usage, s.model)) for s in todays]
+    spent = sum((c for _, c in costs if c is not None), Decimal(0))
+    tokens = sum(s.usage.total for s, c in costs if c is None)
+    if spent >= setup.daily_budget or tokens >= setup.daily_tokens:
+        log.warning("agent not woken: %s and %d tokens used today (budget %s, ceiling %d)",
+                    shown(spent), tokens, shown(setup.daily_budget), setup.daily_tokens)
+        return (f"{BUDGET_USED} ({shown(spent)} of {shown(setup.daily_budget)}); it is woken "
+                "again tomorrow, shop time")
+    return ""
 
 
 @dataclass(frozen=True)
@@ -35,6 +55,7 @@ class BrainSetup:
     zone: tzinfo
     round_hour: int = 8
     autonomy: Autonomy = Autonomy.ACT
+    daily_budget: Decimal = DAILY_BUDGET
     daily_tokens: int = DAILY_TOKENS
     room: Callable[[], Decimal | None] = field(default=lambda: None)
     chat_brain: Brain | None = None  # answers the owner; faster, lower effort
@@ -88,12 +109,8 @@ def think(
     if backing_off(sessions, now):
         return Thought(agent=standing, last=last,
                        skipped="the last session failed; trying again soon")
-    today = now.astimezone(setup.zone).date()
-    used = sum(s.usage.total for s in sessions if s.at.astimezone(setup.zone).date() == today)
-    if used >= setup.daily_tokens:
-        log.warning("agent not woken: %d tokens used today (cap %d)", used, setup.daily_tokens)
-        return Thought(agent=standing, last=last,
-                       skipped="the agent's daily budget is used up")
+    if spent := over_budget(setup, sessions, now):
+        return Thought(agent=standing, last=last, skipped=spent)
     toolbox = Toolbox(decisions=list(decisions), ledger=ledger, journal=journal, policy=policy,
                       now=now, zone=setup.zone, done=set(done), standing=standing,
                       room=setup.room, funds=setup.funds, mailer=setup.mailer,
@@ -152,11 +169,8 @@ def converse(
     if backing_off(sessions, now):
         return Thought(agent=standing, last=last,
                        skipped="the last session failed; trying again soon")
-    today = now.astimezone(setup.zone).date()
-    used = sum(s.usage.total for s in sessions if s.at.astimezone(setup.zone).date() == today)
-    if used >= setup.daily_tokens:
-        return Thought(agent=standing, last=last,
-                       skipped="the agent's daily budget is used up")
+    if spent := over_budget(setup, sessions, now):
+        return Thought(agent=standing, last=last, skipped=spent)
     brain = setup.chat_brain or setup.brain
     toolbox = Toolbox(decisions=list(decisions), ledger=ledger, journal=journal, policy=policy,
                       now=now, zone=setup.zone, done=set(done), standing=standing,
