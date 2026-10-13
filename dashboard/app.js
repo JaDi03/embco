@@ -74,16 +74,33 @@ async function render() {
     $("no-wallet").hidden = false;
     return;
   }
-  const account = await wallet.currentAccount();
+  // A wallet waking up (Chrome puts extensions to sleep) can take seconds: show the start page
+  // meanwhile, and go on by itself when it answers.
+  const waiting = setTimeout(() => {
+    show("view-welcome");
+    notify("Waiting for your wallet to answer...");
+  }, 1500);
+  let account;
+  let provider;
+  let onArc;
+  try {
+    account = await wallet.currentAccount();
+    if (account) {
+      provider = await wallet.browserProvider();
+      onArc = await wallet.onArc(provider);
+    }
+  } finally {
+    clearTimeout(waiting);
+    notify("");
+  }
   setAccount(account);
   if (!account) {
     $("network-pill").hidden = true;
     show("view-welcome");
     return;
   }
-  const provider = await wallet.browserProvider();
   session = { provider, account, shop: null };
-  if (!(await wallet.onArc(provider))) {
+  if (!onArc) {
     $("network-pill").hidden = true;
     show("view-network");
     return;

@@ -3,9 +3,6 @@
 import { ethers } from "./vendor/ethers-6.17.0.min.js";
 import { ARC_TESTNET, rpcUrl } from "./config.js";
 
-const ANSWER_MS = 10_000;
-const NO_ANSWER = "Your wallet did not answer. Open MetaMask, unlock it, and reload this page.";
-
 /**
  * MetaMask when it announced itself, else the first wallet that did, else window.ethereum.
  * Another wallet (Rabby, for one) can take window.ethereum and pretend to be MetaMask.
@@ -29,13 +26,6 @@ async function findWallet() {
 let found = null;
 const eip1193 = () => (found ??= findWallet());
 
-/** A wallet that never answers would leave the page empty; this ends the wait with a message. */
-function answered(promise) {
-  let timer;
-  const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(NO_ANSWER)), ANSWER_MS); });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
-
 export async function hasWallet() {
   return (await eip1193()) !== null;
 }
@@ -54,7 +44,7 @@ export async function connect() {
 export async function currentAccount() {
   const wallet = await eip1193();
   if (!wallet) return null;
-  const accounts = await answered(wallet.request({ method: "eth_accounts" }));
+  const accounts = await wallet.request({ method: "eth_accounts" });
   return accounts[0] ? ethers.getAddress(accounts[0]) : null;
 }
 
@@ -71,7 +61,7 @@ export async function disconnect() {
 }
 
 export async function onArc(provider) {
-  const network = await answered(provider.getNetwork());
+  const network = await provider.getNetwork();
   return network.chainId === ARC_TESTNET.chainId;
 }
 
