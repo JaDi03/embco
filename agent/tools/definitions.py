@@ -5,12 +5,16 @@ Order and text are fixed so the request prefix stays the same and is served from
 
 from typing import Any
 
+MAX_STRICT_TOOLS = 20  # the Claude API refuses a request with more strict tools than this
+
 
 def _tool(name: str, description: str, **properties: dict[str, Any]) -> dict[str, Any]:
+    """Strict only when it takes inputs: strict checks the inputs, and the API allows at most
+    MAX_STRICT_TOOLS strict tools per request."""
     return {
         "name": name,
         "description": description,
-        "strict": True,
+        "strict": bool(properties),
         "input_schema": {
             "type": "object",
             "properties": properties,
