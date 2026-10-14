@@ -119,7 +119,7 @@ def think(
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), payer=payer,
                       can_pay=setup.autonomy is Autonomy.ACT)
-    text = briefing(toolbox, wakes, pending_alarms(sessions, now), recent_notes(sessions),
+    text = briefing(toolbox, wakes, pending_alarms(sessions, now, done), recent_notes(sessions),
                     conversation, already_told(sessions, setup.zone, now))
     try:
         run = setup.brain.run(toolbox, text)
@@ -129,7 +129,7 @@ def think(
         finished, error, steps, usage = False, "the session crashed", 0, None
     session = Session(
         at=now, wakes=tuple(wakes), finished=finished, summary=toolbox.summary or "",
-        money=money,
+        money=money_after(setup, toolbox, money),
         decisions=tuple(toolbox.chosen.values()) if finished else (),
         alarms=tuple(toolbox.alarms) if finished else (),
         notes=tuple(toolbox.notes) if finished else (),
@@ -180,7 +180,7 @@ def converse(
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), require_all=False, payer=payer,
                       can_pay=setup.autonomy is Autonomy.ACT)
-    text = chat_briefing(toolbox, pending_alarms(sessions, now), recent_notes(sessions),
+    text = chat_briefing(toolbox, pending_alarms(sessions, now, done), recent_notes(sessions),
                          conversation, already_told(sessions, setup.zone, now))
     try:
         run = brain.run(toolbox, text)
@@ -191,6 +191,7 @@ def converse(
     session = Session(
         at=now, wakes=(Wake("message", f"The owner wrote to you ({len(messages)} message(s))."),),
         finished=finished, summary=toolbox.summary or "",
+        money=money_after(setup, toolbox, None),
         decisions=tuple(toolbox.chosen.values()) if finished else (),
         alarms=tuple(toolbox.alarms) if finished else (),
         notes=tuple(toolbox.notes) if finished else (),
@@ -204,6 +205,15 @@ def converse(
     journal.record_session(session)
     return Thought(agent={**standing, **{d.invoice: d for d in session.decisions}},
                    session=session, last=session, payments=tuple(toolbox.payments))
+
+
+def money_after(setup: BrainSetup, toolbox: Toolbox,
+                before: dict[str, str] | None) -> dict[str, str] | None:
+    """The money the agent leaves the session knowing: read again when it paid, so its own
+    payments are not a change of money that wakes it in the next check."""
+    if not toolbox.payments:
+        return before
+    return setup.funds() or before
 
 
 def emails_today(sessions: Sequence[Session], zone: tzinfo, now: datetime) -> int:

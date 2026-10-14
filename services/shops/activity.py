@@ -187,6 +187,8 @@ def cycle_events(report: CycleReport, interval_minutes: int) -> list[dict[str, A
     events = []
     for change in report.changes:
         d = change.decision
+        if d.invoice in report.already_paid:
+            continue  # paid or sent: its payment lines say what happened
         why = _why(d.action, d.reasons)
         if change.kind is ChangeKind.NEW:
             events.append(_event(at, NEW, f"New invoice {d.invoice} from {d.supplier}, "

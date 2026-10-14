@@ -17,7 +17,8 @@ def session_body(session: Session) -> dict[str, Any]:
         "wakes": [{"kind": w.kind, "text": w.text, "invoice": w.invoice, "key": w.key}
                   for w in session.wakes],
         "decided": [d.invoice for d in session.decisions],
-        "alarms": [{"at": a.at.isoformat(), "why": a.why} for a in session.alarms],
+        "alarms": [{"at": a.at.isoformat(), "why": a.why, "invoice": a.invoice}
+                   for a in session.alarms],
         "notes": [{"about": n.about, "text": n.text} for n in session.notes],
         "steps": session.steps,
         "model": session.model,
@@ -55,7 +56,8 @@ def session_from(at: datetime, body: dict[str, Any],
         summary=body.get("summary", ""),
         decisions=tuple(decisions[i] for i in body.get("decided", [])
                         if decisions and i in decisions),
-        alarms=tuple(Alarm(datetime.fromisoformat(a["at"]), a["why"], set_at=at)
+        alarms=tuple(Alarm(datetime.fromisoformat(a["at"]), a["why"], set_at=at,
+                           invoice=a.get("invoice"))
                      for a in body.get("alarms", [])),
         notes=tuple(Note(n["about"], n["text"], at=at) for n in body.get("notes", [])),
         steps=int(body.get("steps", 0)),

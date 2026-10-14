@@ -301,7 +301,7 @@ class Toolbox:
                      recommendation=recommendation.strip())
         return f"{invoice}: the owner will be asked"
 
-    def _set_alarm(self, at: str, why: str) -> str:
+    def _set_alarm(self, at: str, why: str, invoice: str = "") -> str:
         if len(self.alarms) >= MAX_ALARMS:
             raise ToolError(f"at most {MAX_ALARMS} alarms per session")
         try:
@@ -313,7 +313,12 @@ class Toolbox:
             raise ToolError("that time has already passed")
         if when > self.now + timedelta(days=MAX_ALARM_DAYS):
             raise ToolError(f"set alarms at most {MAX_ALARM_DAYS} days ahead")
-        self.alarms.append(Alarm(at=when, why=why.strip(), set_at=self.now))
+        invoice = invoice.strip()
+        if invoice and invoice not in {d.invoice for d in self.decisions}:
+            raise ToolError(f"{invoice} is not an open invoice; leave it empty or use the name "
+                            "exactly as listed")
+        self.alarms.append(Alarm(at=when, why=why.strip(), set_at=self.now,
+                                 invoice=invoice or None))
         return f"alarm set for {when.astimezone(self.zone):%Y-%m-%d %H:%M}"
 
     def _note(self, about: str, text: str) -> str:
