@@ -428,6 +428,13 @@ function timelineLine(e) {
     text);
 }
 
+/** The working line under the chat: animated dots and the time since the owner wrote. */
+function showWorking() {
+  const status = $("chat-status");
+  status.textContent = chat.workingText(terminal.waiting, terminal.chat);
+  status.classList.toggle("working", terminal.waiting);
+}
+
 async function pollChat() {
   const after = terminal.chat.at(-1)?.seq ?? 0;
   let body;
@@ -440,7 +447,7 @@ async function pollChat() {
   terminal.chat = activity.merge(terminal.chat, fresh, 200);
   terminal.waiting = Boolean(body.waiting);
   if (fresh.length || !$("chat-log").childElementCount) paintChat();
-  $("chat-status").textContent = terminal.waiting ? "The agent is reading your message..." : "";
+  showWorking();
   if (terminal.waiting && !terminal.fastChat) {  // waiting for an answer: look every second
     terminal.fastChat = setTimeout(() => {
       terminal.fastChat = null;
@@ -1154,7 +1161,8 @@ function wireActions() {
       terminal.chat = [...terminal.chat, { seq: Number.MAX_SAFE_INTEGER, from: "owner", text: checked.text, local: true }];
       paintChat();
       terminal.chat = terminal.chat.filter((e) => !e.local);  // the hub's copy replaces it on the next poll
-      $("chat-status").textContent = "The agent is reading your message...";
+      terminal.waiting = true;
+      showWorking();
       pollChat();
     } catch (error) {
       $("chat-status").textContent = describeError(error);

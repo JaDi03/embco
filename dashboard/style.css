@@ -390,6 +390,12 @@ body:has(#view-shop:not([hidden])) .notice { margin: 8px 16px 0; }
 }
 .chat-status { flex: none; margin: 0; padding: 0 16px; }
 .chat-status:empty { display: none; }
+.chat-status.working::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px;
+  border-radius: 50%; background: currentColor; vertical-align: middle;
+  box-shadow: 10px 0 0 currentColor, 20px 0 0 currentColor; margin-right: 28px;
+  animation: working 1.2s ease-in-out infinite; }
+@keyframes working { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .chat-status.working::before { animation: none; } }
 .chat-form { flex: none; display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); background: var(--surface); }
 .chat-form input { flex: 1; min-width: 0; }
 

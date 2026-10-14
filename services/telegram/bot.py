@@ -33,12 +33,13 @@ from services.shops.activity import append_activity, switched
 from services.shops.questions import NO, YES, answer_text
 from services.shops.store import ShopError, ShopStore
 from services.telegram import links
-from services.telegram.api import TelegramApi, TelegramError
+from services.telegram.api import BUSY_POLL_SECONDS, POLL_SECONDS, TelegramApi, TelegramError
 
 log = logging.getLogger("embco.telegram")
 
 PAUSE_CALL = keccak(text="pause()")[:4]
 LINK_TRIES = 5  # per chat and hour
+WORKING_AT_MOST = timedelta(minutes=10)  # an owner's message older than this unanswered: not shown
 ANSWERS = (("Yes, pay it", YES), ("No, hold it", NO))  # quick answers to the agent's questions
 HELP = ("Commands:\n/stop - turn the agent off now (no checks, no Claude, no payments)\n"
         "/pause - pause payments; the agent keeps watching and answering\n/status - how it is\n"
@@ -71,6 +72,7 @@ class Bot:
     pause_contract: Callable[[str], str]
     clock: Callable[[], datetime] = field(default=lambda: datetime.now(UTC))
     tries: dict[int, list[datetime]] = field(default_factory=dict)
+    busy: bool = False  # some linked chat is waiting on its agent: poll faster to keep "typing..."
 
     def handle(self, update: dict[str, Any]) -> None:
         if update.get("callback_query"):
@@ -107,7 +109,9 @@ class Bot:
         self.api.send(chat_id, reply)
 
     def forward(self) -> None:
-        """Send each linked chat what the agent (or the service) wrote since last time."""
+        """Send each linked chat what the agent (or the service) wrote since last time, and show
+        "typing..." where the owner wrote and the agent is still working on it."""
+        self.busy = False
         for shop in self.store.shops():
             folder = self.store.folder(shop)
             link = links.link_of(folder)
@@ -127,6 +131,25 @@ class Bot:
                     log.warning("could not forward to the chat of %s: %s", shop, error)
                     return
                 links.set_forwarded(folder, int(entry["seq"]))
+            if self._working(folder):
+                self.busy = True
+                try:
+                    self.api.typing(int(link["chat_id"]))
+                except TelegramError as error:
+                    log.warning("could not show typing to %s: %s", shop, error)
+
+    def _working(self, folder) -> bool:
+        """The owner wrote and the agent has not answered yet, recently enough to still be at it."""
+        if chat.messages_waiting(folder):
+            return True
+        waiting = chat.unanswered(folder)
+        if not waiting:
+            return False
+        try:
+            at = datetime.fromisoformat(str(waiting[-1]["at"]))
+        except (KeyError, ValueError):
+            return False
+        return self.clock() - at < WORKING_AT_MOST
 
     def shops_of(self, chat_id: int) -> list[str]:
         return [s for s in self.store.shops()
@@ -252,7 +275,7 @@ def run_bot(bot: Bot, *, rounds: int | None = None, sleep: Callable[[float], Non
     while rounds is None or done < rounds:
         done += 1
         try:
-            updates = bot.api.get_updates(offset)
+            updates = bot.api.get_updates(offset, BUSY_POLL_SECONDS if bot.busy else POLL_SECONDS)
         except TelegramError as error:
             log.warning("%s; trying again", error)
             sleep(5)

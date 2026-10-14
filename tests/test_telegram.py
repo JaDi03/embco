@@ -26,6 +26,7 @@ class FakeApi:
         self.buttons = []  # (chat_id, buttons) of each message sent with buttons
         self.pressed = []  # notes shown for button presses
         self.dropped = []  # (chat_id, message_id) whose buttons were taken off
+        self.typed = []  # chats shown "typing..."
 
     def send(self, chat_id, text, buttons=None):
         self.sent.append((chat_id, text))
@@ -34,6 +35,9 @@ class FakeApi:
 
     def answer_button(self, callback_id, text):
         self.pressed.append(text)
+
+    def typing(self, chat_id):
+        self.typed.append(chat_id)
 
     def drop_buttons(self, chat_id, message_id):
         self.dropped.append((chat_id, message_id))
@@ -148,6 +152,28 @@ def test_a_message_goes_to_the_agent_and_only_its_answers_come_back(bot):
     sent = len(bot.api.sent)
     bot.forward()
     assert len(bot.api.sent) == sent  # never twice
+
+
+def test_the_chat_shows_typing_while_the_agent_works_on_the_owners_message(bot):
+    folder = bot.store.folder(SHOP)
+    linked(bot).handle(say(OWNER_CHAT, "Pay the Adeyemi bill today."))
+    bot.forward()  # not taken yet by the agent
+    assert bot.api.typed == [OWNER_CHAT] and bot.busy
+    chat.take_messages(folder)
+    bot.forward()  # taken: the agent is at it
+    assert bot.api.typed == [OWNER_CHAT, OWNER_CHAT] and bot.busy
+    chat.append_chat(folder, [{"from": chat.AGENT, "text": "Paid it."}])
+    bot.forward()  # answered: no more typing, and the bot polls at its usual pace
+    assert bot.api.typed == [OWNER_CHAT, OWNER_CHAT] and not bot.busy
+
+
+def test_an_old_unanswered_message_does_not_show_typing_forever(bot):
+    folder = bot.store.folder(SHOP)
+    linked(bot).handle(say(OWNER_CHAT, "Hello?"))
+    chat.take_messages(folder)
+    bot.clock = lambda: NOW + timedelta(minutes=30)  # the agent never answered
+    bot.forward()
+    assert bot.api.typed == [] and not bot.busy
 
 
 INVOICE, PRINT = "ACC-PINV-2026-00012", "f1"

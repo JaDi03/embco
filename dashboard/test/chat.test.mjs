@@ -48,3 +48,12 @@ test("sending posts the text to this shop, with the session cookie", async () =>
   assert.deepEqual(calls[0].body, { text: "hi" });
   assert.equal(calls[0].credentials, "same-origin");
 });
+
+test("while the agent works, the owner sees for how long since they wrote", async () => {
+  const { workingText } = await import("../chat.js");
+  const entries = [{ from: "agent", at: "2026-10-14T19:20:00Z" }, { from: "owner", at: "2026-10-14T19:24:00Z" }];
+  const now = Date.parse("2026-10-14T19:25:20Z");
+  assert.equal(workingText(true, entries, now), "The agent is working on your message · 1m 20s");
+  assert.equal(workingText(true, [{ from: "owner", at: "2026-10-14T19:25:12Z" }], now), "The agent is working on your message · 8s");
+  assert.equal(workingText(false, entries, now), "");
+});
