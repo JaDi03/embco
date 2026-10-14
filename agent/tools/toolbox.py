@@ -640,9 +640,20 @@ def _decimal(text: str) -> Decimal | None:
 
 
 def _moved(split: list[Allocation], fees: list[dict[str, Any]]) -> dict[str, Any]:
-    """What a move takes from each chain, its fees and what reaches the owner's wallet on Arc."""
+    """What a move takes from each chain, its fees and what reaches the owner's wallet on Arc.
+    Each chain's gas and protocol fee come out of that chain's balance on top of the amount (the
+    forwarder's fee comes off what is minted on Arc), so a chain gives up more than its amount."""
     total = sum((a.amount for a in split), Decimal(0))
     fee = {f.get("type", ""): Decimal(str(f.get("amount", "0"))) for f in fees}
-    return {"from": [{"chain": a.chain, "amount": fmt(a.amount)} for a in split],
+    on_top: dict[str, Decimal] = {}
+    for f in fees:
+        if f.get("type") == FORWARDER:
+            continue
+        for part in f.get("allocations") or []:
+            chain = part.get("chain", "")
+            on_top[chain] = on_top.get(chain, Decimal(0)) + Decimal(str(part.get("amount", "0")))
+    return {"from": [{"chain": a.chain, "amount": fmt(a.amount),
+                      "taken_from_balance": fmt(a.amount + on_top.get(a.chain, Decimal(0)))}
+                     for a in split],
             "total": fmt(total), "fees": {k: fmt(v) for k, v in fee.items()},
             "arrives_on_arc": fmt(total - fee.get(FORWARDER, Decimal(0)))}

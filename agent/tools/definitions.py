@@ -90,15 +90,18 @@ TOOLS: list[dict[str, Any]] = [
           amount=_text("USDC to move, e.g. 120 or 30.5."), reason=REASON),
     _tool("estimate_bring_funds",
           "What it would cost to bring USDC from the owner's Unified Balance on other chains to "
-          "the owner's wallet on Arc, with the split you give: the fees and what would arrive. "
+          "the owner's wallet on Arc, with the split you give: the fees, what each chain's "
+          "balance gives up (the amount plus that chain's gas and protocol fee, which come out "
+          "of the same balance: it must fit in what is available there) and what would arrive. "
           "Nothing moves.",
           allocations=ALLOCATIONS),
     _tool("bring_funds",
           "Bring USDC from the owner's Unified Balance on other chains to the owner's own wallet "
           "on Arc, for real, so the shop contract can pay from it. You choose how much comes "
           "from each chain; it always arrives at the owner's wallet, never anywhere else. Only "
-          "chains where the owner authorized you. Returns what arrived, the fees and the "
-          "transaction, or the real error.",
+          "chains where the owner authorized you. Each chain's gas and protocol fee come out of "
+          "its balance on top of the amount, so leave room for them (estimate first). Returns "
+          "what arrived, the fees and the transaction, or the real error.",
           allocations=ALLOCATIONS, reason=REASON),
     _tool("schedule_payment",
           "Plan to pay this invoice on a later date you choose (shop's local date). Only "
