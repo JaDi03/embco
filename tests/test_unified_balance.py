@@ -181,7 +181,8 @@ def test_the_agent_brings_what_it_chose_and_sees_fees_and_what_arrived(tmp_path)
             "reason": "00017 needs 476 and the wallet on Arc holds 165.95."}))
     assert funds.brought == [[Allocation("Base_Sepolia", Decimal("310.05"))]]
     assert estimate["arrives_on_arc"] == "310.035838"  # the forwarder's fee comes off the mint
-    assert moved["from"] == [{"chain": "Base_Sepolia", "amount": "310.05"}]
+    assert moved["from"] == [{"chain": "Base_Sepolia", "amount": "310.05",
+                              "taken_from_balance": "310.05"}]  # the fees in FEES name no chain
     assert moved["fees"] == {"provider": "0.0155", "gasFee": "0.048274", "forwarder": "0.014162"}
     assert moved["tx"] == "0x" + "2" * 64
     assert tools.funds_moved == [moved]
@@ -323,3 +324,23 @@ def test_a_chain_without_its_factory_is_not_offered():
     assert wallets.read(OWNER, AGENT) == []
     with pytest.raises(Exception, match="no ShopFunding factory on Base_Sepolia"):
         wallets.deposit(OWNER, AGENT, "Base_Sepolia", Decimal(1))
+
+
+def test_a_chain_gives_up_its_amount_plus_its_own_gas_and_protocol_fee(tmp_path):
+    # the 14-Oct estimate for 11 USDC from Ethereum Sepolia: about 1.10 of gas on top of the 11
+    fees = [{"type": "provider", "amount": "0.00055",
+             "allocations": [{"chain": "Ethereum_Sepolia", "amount": "0.00055"}]},
+            {"type": "gasFee", "amount": "1.09945",
+             "allocations": [{"chain": "Ethereum_Sepolia", "amount": "1.09945"}]},
+            {"type": "forwarder", "amount": "0.017439"}]
+
+    class Estimates(Funds):
+        def estimate(self, allocations):
+            return {"fees": fees}
+
+    with SqliteJournal(tmp_path / "j.sqlite3") as journal:
+        seen = json.loads(box(journal, Estimates()).call(
+            "estimate_bring_funds", {"allocations": "Ethereum_Sepolia:11"}))
+    assert seen["from"] == [{"chain": "Ethereum_Sepolia", "amount": "11",
+                             "taken_from_balance": "12.1"}]
+    assert seen["arrives_on_arc"] == "10.982561"
