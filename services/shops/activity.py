@@ -163,7 +163,11 @@ def session_events(session) -> list[dict[str, Any]]:
 
 
 def _brought(moved: Mapping[str, Any]) -> str:
-    """A move from the owner's Unified Balance, in the owner's words."""
+    """A move of the owner's funds, in the owner's words: a deposit into their Unified Balance,
+    or a spend from it to their wallet on Arc."""
+    if moved.get("kind") == "deposit":
+        return (f"Moved {moved['amount']} USDC from your wallet on "
+                f"{moved['chain'].replace('_', ' ')} into your Unified Balance.")
     sources = ", ".join(f"{s['chain'].replace('_', ' ')} {s['amount']}" for s in moved["from"])
     return (f"Brought {moved['arrives_on_arc']} USDC to your wallet on Arc from your Unified "
             f"Balance ({sources}).")

@@ -303,6 +303,13 @@
             </p>
             <p class="hint" id="unified-note"></p>
             <ul class="list" id="unified-chains"></ul>
+            <ul class="list" id="funding-wallets"></ul>
+            <form id="funding-form" class="stack-form" novalidate hidden>
+              <select name="chain" id="funding-chain" aria-label="Chain to let the agent move USDC from"></select>
+              <input name="maxPerMove" inputmode="decimal" placeholder="Most per move (USDC)" aria-label="Most the agent may move at once" />
+              <input name="weeklyCap" inputmode="decimal" placeholder="Most per week (USDC)" aria-label="Most the agent may move in a week" />
+              <button class="btn btn-primary" type="submit">Let the agent move USDC from this chain</button>
+            </form>
             <form id="unified-form" class="stack-form" novalidate>
               <select name="chain" id="unified-chain" aria-label="Chain"></select>
               <input name="amount" inputmode="decimal" placeholder="Amount to deposit (USDC)" aria-label="Amount to deposit" />

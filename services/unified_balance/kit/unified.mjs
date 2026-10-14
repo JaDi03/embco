@@ -103,7 +103,15 @@ async function spend(input, env) {
   return kit.spend(spendParams({ adapter, ...input }));
 }
 
-export const COMMANDS = { balances, prepare, estimate, spend, chains: async () => ({ chains: sourceChains() }) };
+/** Each source chain as the kit defines it: its public node, its USDC and its Circle name. */
+export function chainFacts() {
+  return sourceChains().map((name) => {
+    const chain = resolveChainIdentifier(name);
+    return { chain: name, rpc: chain.rpcEndpoints[0], usdc: chain.usdcAddress, circle: toCircleBlockchain(name) };
+  });
+}
+
+export const COMMANDS = { balances, prepare, estimate, spend, chains: async () => ({ chains: chainFacts() }) };
 
 /** Run one command; the answer is plain data, or the kit's own error message. */
 export async function run(command, input, env) {
