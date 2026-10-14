@@ -5,7 +5,8 @@ Each question is written into the chat (and from there to Telegram) once, in one
   it). An answer is only a message to the agent, the same words the dashboard's buttons send:
   the agent decides, and the contract still sets the limits.
 - something needs the owner's wallet (approve the supplier's wallet, raise a limit, add money,
-  authorize or resume payments): a short reminder to do it in the dashboard, with no buttons.
+  authorize or resume payments): a short reminder to do it in the dashboard, then the agent's
+  question, with no buttons.
 """
 
 from collections.abc import Callable, Iterable, Mapping
@@ -40,7 +41,7 @@ def wallet_steps(decision: Decision, policy: PolicyConfig, funds: Mapping[str, s
     """What the owner has to do with their wallet in the dashboard before this can be paid."""
     steps = []
     if any(f.control == "payee_wallet" and f.outcome is Outcome.ASK for f in decision.findings):
-        steps.append(f"approve {decision.supplier}'s wallet")
+        steps.append("approve its wallet")
     if decision.amount > policy.max_per_payment:
         steps.append(f"raise the per-payment limit (now {fmt(policy.max_per_payment)} USDC)")
     elif room is not None and decision.amount > room:
@@ -81,7 +82,7 @@ def new_questions(folder, decisions: Iterable[Decision], agent: Mapping[str, Age
         amount = f"{fmt(decision.amount)} USDC"
         if steps:
             text = (f"{decision.supplier}, {amount} ({decision.invoice}): needs you in the "
-                    f"dashboard: {', '.join(steps)}.")
+                    f"dashboard: {', '.join(steps)}.\n{choice.question or choice.reason}")
         else:
             text = (f"Pay {amount} to {decision.supplier} ({decision.invoice})?\n"
                     f"{choice.question or choice.reason}")

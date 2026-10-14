@@ -14,8 +14,8 @@ from typing import Any
 from agent.agent import Brain
 from agent.cost import estimate, shown
 from agent.guardrails.rules import Decision, PolicyConfig
-from agent.memory import Change, DecisionJournal
-from agent.models import AgentDecision, Autonomy, Session, Wake, payment_seen_key
+from agent.memory import Change, DecisionJournal, JournalEntry
+from agent.models import AgentDecision, Autonomy, Choice, Session, Wake, payment_seen_key
 from agent.prompt import already_told, briefing, chat_briefing
 from agent.reflexes.funds import funds_wake, money_wake
 from agent.reflexes.wake import backing_off, pending_alarms, recent_notes, wakes_for
@@ -28,6 +28,19 @@ log = logging.getLogger("agent")
 DAILY_BUDGET = Decimal("1.00")  # USD a day (shop time) for the model, estimated from the tokens
 DAILY_TOKENS = 2_000_000  # the ceiling for sessions of a model with no known price
 BUDGET_USED = "the agent's daily budget is used up"
+
+
+def decided_on(journal: DecisionJournal,
+               standing: Mapping[str, AgentDecision]) -> dict[str, JournalEntry]:
+    """The rule decision each of the agent's holds was made on, to tell a hold that only lost
+    reasons since from one with something new."""
+    found = {}
+    for invoice, choice in standing.items():
+        if choice.choice is Choice.HOLD:
+            match = [e for e in journal.history(invoice) if e.fingerprint == choice.fingerprint]
+            if match:
+                found[invoice] = match[-1]
+    return found
 
 
 def over_budget(setup: "BrainSetup", sessions: Sequence[Session], now: datetime) -> str:
@@ -102,7 +115,8 @@ def think(
                       sessions=sessions, standing=standing, done=done,
                       payments=journal.latest_payments(), round_hour=setup.round_hour,
                       extra=[*extra, *([short] if short else []), *([moved] if moved else [])],
-                      can_pay=payer is not None and setup.autonomy is Autonomy.ACT)
+                      can_pay=payer is not None and setup.autonomy is Autonomy.ACT,
+                      decided_on=decided_on(journal, standing))
     last = sessions[-1] if sessions else None
     if not wakes:
         return Thought(agent=standing, last=last)

@@ -50,13 +50,16 @@ def test_what_needs_the_wallet_is_a_reminder_to_use_the_dashboard(tmp_path):
     assert entry["buttons"] is False
     assert entry["text"] == (
         "Northern Grains, 476 USDC (ACC-PINV-2026-00017): needs you in the dashboard: raise the "
-        "per-payment limit (now 250 USDC), add USDC to your wallet (165.95 there).")
+        "per-payment limit (now 250 USDC), add USDC to your wallet (165.95 there).\n"
+        "Did the flour arrive?")
 
 
 def test_each_wallet_step_is_named(tmp_path):
     first = decision(action=Action.ASK, findings=(
         Finding("payee_wallet", Outcome.ASK, "first payment to this supplier"),))
-    assert "approve Northern Grains's wallet" in questions(tmp_path, first)[0]["text"]
+    wallet = questions(tmp_path, first)[0]["text"]
+    assert "needs you in the dashboard: approve its wallet." in wallet
+    assert wallet.count("Northern Grains") == 1
     week = questions(tmp_path / "w", decision(), room=Decimal("100.004"))[0]["text"]
     assert "raise the weekly limit or wait for it to renew (100 USDC left)" in week
     owed = questions(tmp_path / "a", decision(),
