@@ -81,7 +81,9 @@ TOOLS: list[dict[str, Any]] = [
     _tool("ask_owner",
           "Ask the owner a question about this invoice; it is not paid until the owner answers. "
           "Ask only what the owner really has to decide, so that yes means pay it and no means "
-          "hold it, and say what you recommend. The question reaches the owner by itself.",
+          "hold it, and say what you recommend. The question reaches the owner by itself. When "
+          "the owner must first do something in the dashboard (approve a wallet, raise a limit, "
+          "add money), their yes cannot do it: ask what they should check before doing it.",
           invoice=INVOICE,
           question=_text("The question, short and concrete."),
           recommendation=_text("What you recommend and why, in one sentence.")),

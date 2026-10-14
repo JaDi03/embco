@@ -6,17 +6,18 @@ planned to pay something, a due date close by with no payment planned before it,
 agent set, or the daily round. No reason, no session: quiet cycles cost nothing.
 
 What the agent itself did is not a reason: an invoice it already paid or sent does not wake it
-when it changes, and an alarm about it does not ring.
+when it changes, and an alarm about it does not ring. Nor is a hold the agent chose that only lost
+reasons since (paying another invoice of the supplier drops its "first payment"): it still holds.
 
 A one-time reason (an alarm, a due date, the round) fires until a session that finished saw it.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta, tzinfo
 
 from agent.guardrails.controls.base import fmt
 from agent.guardrails.rules import Action, Decision, fingerprint
-from agent.memory import Change, ChangeKind
+from agent.memory import Change, ChangeKind, JournalEntry
 from agent.models import AgentDecision, Alarm, Choice, Note, Session, Wake, payment_seen_key
 from services.payments import PaymentEvent, PaymentStatus
 
@@ -38,7 +39,9 @@ def wakes_for(
     round_hour: int,
     extra: Sequence[Wake] = (),
     can_pay: bool = False,  # the agent can send payments now (connected and not paused)
+    decided_on: Mapping[str, JournalEntry] | None = None,  # the rule decision each choice was on
 ) -> list[Wake]:
+    decided_on = decided_on or {}
     last = sessions[-1] if sessions else None
     fired = {w.key for s in sessions if s.finished for w in s.wakes if w.key}
     local = now.astimezone(zone)
@@ -55,13 +58,16 @@ def wakes_for(
             wakes.append(Wake("new", f"New invoice {d.invoice} from {d.supplier}, "
                                      f"{fmt(d.amount)} USDC.", d.invoice))
         elif change.kind is ChangeKind.CHANGED:
+            if _still_held(standing.get(d.invoice), decided_on.get(d.invoice), d):
+                continue
             wakes.append(Wake("changed", f"{d.invoice} changed: {change.note}", d.invoice))
         else:
             continue
         told.add(d.invoice)
     open_ = [d for d in decisions if d.invoice not in done]
     for d in open_:
-        if d.invoice not in told and not _holds(standing.get(d.invoice), d):
+        if d.invoice not in told and not _holds(standing.get(d.invoice), d) and not (
+                _still_held(standing.get(d.invoice), decided_on.get(d.invoice), d)):
             wakes.append(Wake("undecided", f"{d.invoice} has no decision from you yet.",
                               d.invoice))
     since = last.at if last else None
@@ -107,6 +113,18 @@ def recent_notes(sessions: Sequence[Session]) -> list[Note]:
 
 def _holds(standing: AgentDecision | None, decision: Decision) -> bool:
     return standing is not None and standing.fingerprint == fingerprint(decision)
+
+
+def _still_held(standing: AgentDecision | None, decided_on: JournalEntry | None,
+                decision: Decision) -> bool:
+    """The agent chose to hold, the rules still hold it for the same amount, and the only
+    change since is reasons gone: nothing new to decide."""
+    if standing is None or decided_on is None or standing.choice is not Choice.HOLD:
+        return False
+    return (decided_on.fingerprint == standing.fingerprint
+            and decided_on.action is Action.HOLD and decision.action is Action.HOLD
+            and decided_on.supplier == decision.supplier and decided_on.amount == decision.amount
+            and set(decision.reasons) <= set(decided_on.reasons))
 
 
 def _scheduled_today(decision: Decision, standing: AgentDecision | None, today,

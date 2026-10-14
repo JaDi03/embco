@@ -31,6 +31,7 @@ AGENT, REFLEX = "agent", "reflex"  # what the agent decided; what woke it
 YOU = "you"  # what the owner did from the dashboard
 SHOWN_WAKES = 3
 
+_SENT = (PaymentStatus.SUBMITTED, PaymentStatus.COMPLETE, PaymentStatus.RECORDED)
 _ACTION = {Action.PAY: "nothing stops it", Action.HOLD: "on hold", Action.ASK: "needs you"}
 
 
@@ -149,7 +150,6 @@ def session_events(session) -> list[dict[str, Any]]:
                              pay_on=d.pay_on.isoformat() if d.pay_on else None))
     events.extend(_event(at, AGENT, f"Will look again on {a.at:%Y-%m-%d %H:%M}: {a.why}")
                   for a in session.alarms)
-    events.extend(_event(at, AGENT, f"To you: {reply}") for reply in session.replies)
     events.extend(_event(at, AGENT, f"Emailed {supplier} from your ERPNext.")
                   for supplier in session.emails)
     events.extend(_event(at, AGENT, f"Sent {supplier} the notice to confirm its wallet.")
@@ -162,9 +162,13 @@ def session_events(session) -> list[dict[str, Any]]:
 
 
 def payment_events(at: datetime, payments) -> list[dict[str, Any]]:
-    """What payments did, in order: sent, paid with its transaction, booked, or not paid."""
+    """What payments did: one line per invoice for how far its payment got (sent, paid with its
+    transaction, booked in ERPNext), and a line for each one not paid."""
     events = []
+    furthest = {e.invoice: e for e in payments if e.status in _SENT}
     for e in payments:
+        if e.status in _SENT and furthest[e.invoice] is not e:
+            continue
         amount, to = f"{fmt(e.amount)} USDC", _short(e.payee) or e.supplier
         if e.status is PaymentStatus.SUBMITTED:
             events.append(_event(at, SENDING, f"Sending {amount} to {e.supplier} ({to}) for "
@@ -173,9 +177,9 @@ def payment_events(at: datetime, payments) -> list[dict[str, Any]]:
             events.append(_event(at, PAID, f"Paid {amount} to {e.supplier} for {e.invoice}.",
                                  invoice=e.invoice, tx=e.tx_hash))
         elif e.status is PaymentStatus.RECORDED:
-            events.append(_event(at, RECORDED, f"{e.invoice} recorded in ERPNext as "
-                                               f"{e.erp_entry}.", invoice=e.invoice,
-                                 tx=e.tx_hash))
+            events.append(_event(at, RECORDED, f"Paid {amount} to {e.supplier} for {e.invoice}, "
+                                               f"recorded in ERPNext as {e.erp_entry}.",
+                                 invoice=e.invoice, tx=e.tx_hash))
         else:
             events.append(_event(at, NOT_PAID, f"Did not pay {e.invoice}: {e.reason}.",
                                  invoice=e.invoice))
@@ -185,10 +189,14 @@ def payment_events(at: datetime, payments) -> list[dict[str, Any]]:
 def cycle_events(report: CycleReport, interval_minutes: int) -> list[dict[str, Any]]:
     at = report.at
     events = []
+    session = report.thought.session if report.thought else None
+    decided = {d.invoice for d in session.decisions} if session and session.finished else set()
     for change in report.changes:
         d = change.decision
         if d.invoice in report.already_paid:
             continue  # paid or sent: its payment lines say what happened
+        if change.kind is ChangeKind.CHANGED and d.invoice in decided:
+            continue  # the agent's own line on it says more
         why = _why(d.action, d.reasons)
         if change.kind is ChangeKind.NEW:
             events.append(_event(at, NEW, f"New invoice {d.invoice} from {d.supplier}, "

@@ -72,9 +72,10 @@ def test_payments_show_with_their_transaction(tmp_path):
     report = replace(report, settlement=Settlement(events=(paid, recorded, blocked)))
     events = activity.cycle_events(report, 15)
     by_kind = {e["kind"]: e for e in events}
-    assert by_kind["paid"]["text"] == "Paid 1000 USDC to S for PINV-1."
-    assert by_kind["paid"]["tx"] == TX
-    assert by_kind["recorded"]["text"] == "PINV-1 recorded in ERPNext as ACC-PAY-1."
+    assert "paid" not in by_kind  # one line for the payment: how far it got
+    assert by_kind["recorded"]["text"] == (
+        "Paid 1000 USDC to S for PINV-1, recorded in ERPNext as ACC-PAY-1.")
+    assert by_kind["recorded"]["tx"] == TX
     assert by_kind["not_paid"]["text"] == "Did not pay PINV-1: not approved."
     assert "1000 USDC paid" in by_kind["done"]["text"]
 

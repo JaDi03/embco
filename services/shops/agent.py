@@ -125,13 +125,15 @@ def chat_replies(session, owner_waiting: bool) -> list[dict[str, Any]]:
 
 
 def paid_notices(thought, owner_waiting: bool) -> list[dict[str, Any]]:
-    """One short line per payment the agent made on its own. When the owner wrote, its answer
-    already says what it paid."""
+    """One short line per invoice the agent paid on its own, however many steps its payment
+    went through (sent, confirmed, booked). When the owner wrote, its answer already says what
+    it paid."""
     if thought is None or owner_waiting:
         return []
+    last = {e.invoice: e for e in thought.payments}
     return [{"from": chat.AGENT, "at": e.at.isoformat(),
              "text": f"Paid {fmt(e.amount)} USDC to {e.supplier} ({e.invoice})."}
-            for e in thought.payments if e.status in SENT]
+            for e in last.values() if e.status in SENT]
 
 
 def not_woken(folder, thought, owner_waiting: bool, at: datetime) -> list[dict[str, Any]]:
