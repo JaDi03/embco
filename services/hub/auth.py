@@ -4,6 +4,10 @@ The owner signs in with Ethereum (EIP-4361): the hub issues the sign-in message 
 owner's wallet signs it, and the hub checks it with the siwe library, then checks on chain that our
 factory lists the shop under the signer. A nonce works once and for a few minutes; a session lives
 in memory, so a restart only asks the owner to sign again.
+
+The dashboard signs in for ALL_SHOPS instead: one signature covers every shop the wallet owns,
+including one it creates later in the same session, and lets the hub make the agent wallets of a
+new shop only for the wallet that asked for them.
 """
 
 import secrets
@@ -17,6 +21,7 @@ from services.signing.wallet_ownership import ARC_TESTNET_CHAIN_ID
 
 NONCE_LIFETIME = timedelta(minutes=5)
 SESSION_LIFETIME = timedelta(hours=12)
+ALL_SHOPS = "all-shops"  # a sign-in for every shop of the wallet, and for creating one
 
 Clock = Callable[[], datetime]
 
@@ -33,6 +38,8 @@ class Session:
 
 
 def statement(shop: str) -> str:
+    if shop == ALL_SHOPS:
+        return "Sign in to create and manage your embco shops."
     return f"Sign in to manage the embco agent of the shop contract {shop}."
 
 
@@ -47,6 +54,7 @@ class Auth:
         self._clock = clock
         self._nonces: dict[str, tuple[str, str, datetime]] = {}  # nonce: (shop, message, expiry)
         self._sessions: dict[str, Session] = {}
+        self._owned: dict[str, set[str]] = {}  # owner: shops seen on chain, read again on a miss
 
     def challenge(self, shop: str, address: str) -> dict[str, Any]:
         """The sign-in message for `address` (checksummed) to sign with personal_sign."""
@@ -69,7 +77,7 @@ class Auth:
                                chain_id=self._chain_id, now=self._clock())
         except VerificationError as error:
             raise AuthError("the signature is not valid") from error
-        if shop not in {s.lower() for s in self._shops_of(signer)}:
+        if shop != ALL_SHOPS and shop not in {s.lower() for s in self._shops_of(signer)}:
             raise AuthError("this wallet does not own the shop")
         token = secrets.token_urlsafe(32)
         session = Session(shop=shop, owner=signer, expires_at=self._clock() + SESSION_LIFETIME)
@@ -80,8 +88,14 @@ class Auth:
         session = self._sessions.get(token or "")
         if session is None or session.expires_at < self._clock():
             raise AuthError("sign in with the shop owner's wallet")
-        if session.shop != shop:
+        if session.shop == shop:
+            return session
+        if session.shop != ALL_SHOPS:
             raise AuthError("this session is for another shop")
+        if shop not in self._owned.get(session.owner, set()):
+            self._owned[session.owner] = {s.lower() for s in self._shops_of(session.owner)}
+            if shop not in self._owned[session.owner]:
+                raise AuthError("this wallet does not own the shop")
         return session
 
     def sign_out(self, token: str | None) -> None:

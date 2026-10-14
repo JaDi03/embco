@@ -109,6 +109,34 @@ def test_the_money_always_goes_to_the_contracts_owner():
     assert seen == [(OWNER, AGENT)]
 
 
+def test_a_gasless_agent_has_its_spends_signed_by_its_signer():
+    seen = []
+
+    class Kit:
+        def spend(self, owner, signer, allocations):
+            seen.append(("spend", signer))
+            return {}
+
+        def balances(self, owner, signer):
+            seen.append(("balances", signer))
+            return []
+
+        def prepare(self, wallet):
+            seen.append(("prepare", wallet))
+            return ["Base_Sepolia"]
+
+    signer = "0x" + "e0" * 20
+    payer = SimpleNamespace(shop="0x" + "5c" * 20, agent_address=lambda: AGENT,
+                            chain=SimpleNamespace(owner_of=lambda shop: OWNER))
+    funds = OwnerFunds(Kit(), payer, signer=signer)
+    funds.bring([Allocation("Base_Sepolia", Decimal(1))])
+    funds.chains()
+    assert funds.prepare() == ["Base_Sepolia"]
+    # the signer signs spends; both wallets exist on every chain (the agent deposits there)
+    assert seen == [("spend", signer), ("balances", signer), ("prepare", signer),
+                    ("prepare", AGENT)]
+
+
 # ---- the agent's tools
 
 

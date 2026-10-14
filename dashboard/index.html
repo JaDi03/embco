@@ -262,6 +262,7 @@
             <h3>Shop contract</h3>
             <p class="hint">
               You will be its owner. Only you can change these limits later. The agent can never go above them.
+              Your shop comes with its own agent: you do not set it up, and it never needs gas.
             </p>
             <form id="create-form" class="form" novalidate>
               <label>
@@ -271,10 +272,6 @@
               <label>
                 Most the agent may pay in a week (USDC)
                 <input name="weeklyCap" inputmode="decimal" placeholder="1000" required />
-              </label>
-              <label>
-                Agent wallet <span class="optional">(optional, you can add it later)</span>
-                <input name="agent" placeholder="0x..." autocomplete="off" spellcheck="false" />
               </label>
               <button class="btn btn-primary" type="submit">Create my shop contract</button>
             </form>

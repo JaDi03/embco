@@ -66,3 +66,16 @@ test("setting up a chain is create, approve and authorize, skipping what is done
   assert.ok(all[1].data.includes(base.funding.slice(2)));  // approves the owner's own funding contract
   assert.deepEqual(setupCalls({ ...base, create: false, delegate: false }).map((c) => c.to), [base.usdc]);
 });
+
+test("a gasless agent's funding contract is the agent's, and Gateway authorizes its signer", async () => {
+  const { setupCalls } = await import("../unified.js");
+  const agent = "0x" + "a9".repeat(20);
+  const signer = "0x" + "e0".repeat(20);
+  const [create, , authorize] = setupCalls({
+    factory: "0x" + "fa".repeat(20), funding: "0x" + "f1".repeat(20), usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    gateway: "0x0077777d7EBA4688BDeF3E311b846F25870A19B9", agent, signer,
+    maxPerMove: 1n, weeklyCap: 2n, create: true, delegate: true,
+  });
+  assert.ok(create.data.includes(agent.slice(2)) && !create.data.includes(signer.slice(2)));
+  assert.ok(authorize.data.includes(signer.slice(2)) && !authorize.data.includes(agent.slice(2)));
+});

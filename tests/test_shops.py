@@ -89,6 +89,14 @@ def test_a_shop_with_its_agent_wallet_pays_on_testnet_and_leaves_drafts(store):
     assert settings.circle_api_key == shared["CIRCLE_API_KEY"]
 
 
+def test_a_gasless_agent_runs_with_its_signer_and_an_older_one_without(store):
+    signer = "0x" + "e0" * 20
+    store.save(config(agent_wallet_id="wallet-a", signer_wallet_address=signer), creds())
+    assert store.settings(SHOP_A, platform()).signer_address == signer
+    store.save(config(agent_wallet_id="wallet-a"), creds())
+    assert store.settings(SHOP_A, platform()).signer_address is None
+
+
 @pytest.mark.parametrize("missing", ["CIRCLE_API_KEY", "CIRCLE_ENTITY_SECRET",
                                      "ARC_TESTNET_RPC_URL"])
 def test_without_the_platform_accounts_a_shop_only_observes(store, missing):

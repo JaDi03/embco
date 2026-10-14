@@ -58,6 +58,7 @@ class ShopConfig:
     interval_minutes: int = 15
     agent_wallet_id: str | None = None  # the shop's own Circle wallet, when created
     agent_wallet_address: str | None = None
+    signer_wallet_address: str | None = None  # the EOA that signs Unified Balance spends
     brain: bool = True  # Claude decides what is paid and when; off means nothing is paid
     autonomy: str = "act"  # or "observe": the agent decides and explains, pays nothing
     utc_offset: str = ""  # the shop's local time, like +01:00
@@ -165,6 +166,7 @@ class ShopStore:
             env.update({name: (platform or {}).get(name, "").strip() for name in BRAIN_PLATFORM})
         if pay:
             env.update(shared, EMBCO_AGENT_WALLET_ID=config.agent_wallet_id,
+                       EMBCO_SIGNER_ADDRESS=config.signer_wallet_address or "",
                        EMBCO_SHOP_ADDRESS=shop)
         return Settings.from_env(env)
 

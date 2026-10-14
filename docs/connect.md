@@ -6,7 +6,9 @@ and the agent never gets admin rights.
 
 !!! info "Before you start"
     - Your shop is already created in the [dashboard](https://app.embco.xyz): your wallet is
-      connected and your shop contract exists (create it in **Settings**).
+      connected and your shop contract exists (create it in **Settings**). Creating it asks for
+      one free signature and one transaction, and the shop comes with its own agent: you never
+      set it up or send it gas.
     - You can sign in to ERPNext as an administrator (System Manager) to make the changes below.
     - Your ERPNext opens with an `https://` address. embco is tested with ERPNext v16, including
       Frappe Cloud.
@@ -67,8 +69,8 @@ then you approve it in the dashboard (see [What happens next](#what-happens-next
 
 ## Step 5: Connect in the dashboard
 
-1. Open [app.embco.xyz](https://app.embco.xyz) and **Sign in** with your wallet. It is a
-   signature, not a transaction: it costs nothing.
+1. Open [app.embco.xyz](https://app.embco.xyz) and **Sign in** with your wallet, if you did
+   not when you created the shop. It is a signature, not a transaction: it costs nothing.
 2. In **Your ERPNext**, fill in:
 
     | Field | What to write |
@@ -91,8 +93,8 @@ then you approve it in the dashboard (see [What happens next](#what-happens-next
     | Payments | ERPNext can draft a payment for an invoice (nothing is saved) |
     | Wallets | How many supplier wallets were found at `USDC on Arc` |
 
-4. Click **Make it the agent**. This lets your shop's agent wallet pay approved suppliers, within
-   the limits you set.
+4. A shop created before its agent came with it shows **Make it the agent**: click it once. This
+   lets your shop's agent wallet pay approved suppliers, within the limits you set.
 
 ## What happens next
 
@@ -110,8 +112,9 @@ then you approve it in the dashboard (see [What happens next](#what-happens-next
   account, EIP-5792) asks once; otherwise once per step. Your USDC stays in your wallet there.
   When an invoice needs more than your wallet on Arc holds, the agent can move it into your
   Unified Balance and bring it to your wallet on Arc, choosing which chains it comes from. It
-  never sends it anywhere else, and your limits still apply. Each chain asks for its own gas token
-  (test ETH on Base Sepolia and Ethereum Sepolia), for you once and for the agent's wallet.
+  never sends it anywhere else, and your limits still apply. Your wallet needs that chain's gas
+  token for this setup (test ETH on Base Sepolia and Ethereum Sepolia). The agent needs none: its
+  network fees are paid by Circle Gas Station.
 - **Telegram (optional):** in the dashboard, **Connect Telegram** gives a code to send to the
   embco bot. Then `/status` says how the agent is, `/pause` pauses payments while the agent keeps
   watching, and `/stop` turns the agent off and pauses the shop contract. Only the dashboard

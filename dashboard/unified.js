@@ -84,8 +84,9 @@ const BATCH_POLL_MS = 2000;
 const BATCH_WAIT_MS = 180000;
 
 /** The calls that let the agent move funds on a chain, in order: create the owner's ShopFunding
- * (skipped when it exists), approve it, and authorize the agent in Gateway (skipped when it is). */
-export function setupCalls({ factory, funding, create, usdc, gateway, agent, maxPerMove, weeklyCap, delegate }) {
+ * for the agent (skipped when it exists), approve it, and authorize the agent's signer in Gateway
+ * (skipped when it is). The signer is the agent itself for an older shop. */
+export function setupCalls({ factory, funding, create, usdc, gateway, agent, signer = agent, maxPerMove, weeklyCap, delegate }) {
   const calls = [];
   if (create) {
     const data = new ethers.Interface(FUNDING_FACTORY_ABI).encodeFunctionData("create", [agent, maxPerMove, weeklyCap]);
@@ -93,7 +94,7 @@ export function setupCalls({ factory, funding, create, usdc, gateway, agent, max
   }
   calls.push({ to: usdc, data: new ethers.Interface(USDC_ABI).encodeFunctionData("approve", [funding, AUTHORIZE_ALL]), value: "0x0" });
   if (delegate) {
-    calls.push({ to: gateway, data: new ethers.Interface(GATEWAY_WALLET_ABI).encodeFunctionData("addDelegate", [usdc, agent]), value: "0x0" });
+    calls.push({ to: gateway, data: new ethers.Interface(GATEWAY_WALLET_ABI).encodeFunctionData("addDelegate", [usdc, signer]), value: "0x0" });
   }
   return calls;
 }
@@ -113,7 +114,7 @@ async function waitForCalls(provider, id) {
  * limits: create the owner's ShopFunding there, approve it, and authorize the agent in Gateway.
  * One confirmation when the wallet batches calls (EIP-5792, MetaMask's smart account through
  * EIP-7702); otherwise one per step. */
-export async function setUpChain(provider, chain, { agent, maxPerMove, weeklyCap }, factories = FUNDING_FACTORIES) {
+export async function setUpChain(provider, chain, { agent, signer: delegateAddress = agent, maxPerMove, weeklyCap }, factories = FUNDING_FACTORIES) {
   const { UnifiedBalanceKit, resolveChainIdentifier } = await kit();
   const definition = resolveChainIdentifier(chain);
   const adapter = await adapterOn(provider, chain);  // the wallet is now on that chain
@@ -123,10 +124,10 @@ export async function setUpChain(provider, chain, { agent, maxPerMove, weeklyCap
   const factory = new ethers.Contract(factories[chain], FUNDING_FACTORY_ABI, browser);
   const existing = (await factory.fundingsOf(owner)).at(-1);
   const funding = existing ?? (await factory.predict(owner, agent, maxPerMove, weeklyCap));
-  const delegate = await new UnifiedBalanceKit().getDelegateStatus({ from: { adapter, chain }, delegateAddress: agent });
+  const delegate = await new UnifiedBalanceKit().getDelegateStatus({ from: { adapter, chain }, delegateAddress });
   const calls = setupCalls({
     factory: factories[chain], funding, create: !existing, usdc: definition.usdcAddress,
-    gateway: GATEWAY_WALLET_TESTNET, agent, maxPerMove, weeklyCap, delegate: delegate === "none",
+    gateway: GATEWAY_WALLET_TESTNET, agent, signer: delegateAddress, maxPerMove, weeklyCap, delegate: delegate === "none",
   });
   const chainId = ethers.toQuantity(definition.chainId);
   const capabilities = await provider.request({ method: "wallet_getCapabilities", params: [owner, [chainId]] })
@@ -144,9 +145,9 @@ export async function setUpChain(provider, chain, { agent, maxPerMove, weeklyCap
   return funding;
 }
 
-/** Let the agent's wallet spend the owner's Unified Balance on this chain (only to the owner). */
-export async function authorizeAgent(provider, chain, agent) {
+/** Let the agent's signer spend the owner's Unified Balance on this chain (only to the owner). */
+export async function authorizeAgent(provider, chain, signer) {
   const { UnifiedBalanceKit } = await kit();
   const adapter = await adapterOn(provider, chain);
-  return new UnifiedBalanceKit().addDelegate({ from: { adapter, chain }, delegateAddress: agent });
+  return new UnifiedBalanceKit().addDelegate({ from: { adapter, chain }, delegateAddress: signer });
 }

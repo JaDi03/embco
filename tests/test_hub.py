@@ -172,33 +172,52 @@ class FakeUnits:
 
 
 class FakeCircle:
+    """Circle as the hub sees it: wallets by idempotency key, so asking again returns the same."""
+
     def __init__(self):
         self.created = 0
         self.address = Account.create().address
+        self.wallets: dict[str, CircleWallet] = {}
 
     def create_wallet_set(self, name, *, idempotency_key=None):
-        return "set-1"
+        return "set-" + str(idempotency_key)[:8]
 
     def create_eoa_wallet(self, wallet_set_id, name, *, idempotency_key=None):
         self.created += 1
         return CircleWallet(id="w-1", address=self.address, blockchain="ARC-TESTNET",
                             wallet_set_id=wallet_set_id)
 
+    def create_wallet(self, wallet_set_id, name, *, account_type, idempotency_key=None):
+        if idempotency_key not in self.wallets:
+            self.wallets[idempotency_key] = CircleWallet(
+                id=f"w-{len(self.wallets) + 2}", address=Account.create().address,
+                blockchain="ARC-TESTNET", wallet_set_id=wallet_set_id, account_type=account_type)
+        return self.wallets[idempotency_key]
+
+    def find_wallet(self, address, blockchain):
+        return next((w for w in self.wallets.values() if w.address == address), None)
+
+    def wallets_in_set(self, wallet_set_id, blockchain="ARC-TESTNET"):
+        return [w for w in self.wallets.values() if w.wallet_set_id == wallet_set_id]
+
 
 @pytest.fixture
-def hub(tmp_path, auth):
+def hub(tmp_path, auth, owner):
     store = ShopStore(tmp_path / "shops", new_key())
     units, circle = FakeUnits(), FakeCircle()
     erp = {"status": 200}
+    chain = {"agent": AGENT_ON_CONTRACT, "shops": []}
     app = create_app(
         store=store, auth=auth, units=units, circle=circle,
-        limits_of=lambda shop: ShopLimits(Decimal("300"), Decimal("2000"), AGENT_ON_CONTRACT),
+        shops_of=lambda wallet: list(chain["shops"]) if wallet == owner.address else [],
+        limits_of=lambda shop: ShopLimits(Decimal("300"), Decimal("2000"), chain["agent"]),
         frappe_for=lambda url, key, secret: FrappeClient(
             url, key, secret, client=httpx.Client(transport=erp_transport(status=erp["status"]))),
         check_url=lambda url: check_erp_url(url, resolve=public),
     )
     client = TestClient(app, base_url="https://testserver")
-    return {"client": client, "store": store, "units": units, "circle": circle, "erp": erp}
+    return {"client": client, "store": store, "units": units, "circle": circle, "erp": erp,
+            "chain": chain}
 
 
 def signed_in(hub, owner, shop=SHOP):
@@ -313,6 +332,96 @@ def test_circle_names_stay_short_and_keys_stay_the_same_for_a_shop():
     create_agent_wallet(Recording(), SHOP)
     assert calls[:2] == calls[2:]  # a retry sends the same names and idempotency keys
     assert calls[0] == ("embco " + SHOP[:10], calls[0][1])
+
+
+# ---- a new shop is created with its agent
+
+
+def signed_in_to_create(hub, account):
+    client = hub["client"]
+    message = client.post("/api/owners/sign-in-request", json={"address": account.address}).json()
+    assert "create and manage your embco shops" in message["message"]
+    response = client.post("/api/owners/sign-in", json={
+        "nonce": message["nonce"], "signature": sign(account, message)})
+    assert response.status_code == 200, response.text
+    return client
+
+
+def test_no_agent_wallets_without_the_owners_signature(hub):
+    assert hub["client"].post("/api/owners/agent-wallets").status_code == 401
+    assert hub["circle"].wallets == {}
+
+
+def test_a_new_shop_gets_a_gasless_agent_and_a_signer_before_its_contract(hub, owner):
+    client = signed_in_to_create(hub, owner)
+    first = client.post("/api/owners/agent-wallets").json()
+    assert client.post("/api/owners/agent-wallets").json() == first  # asking again: same two
+    kinds = {w.address: w.account_type for w in hub["circle"].wallets.values()}
+    assert kinds == {first["agent"]: "SCA", first["signer"]: "EOA"}
+    hub["chain"]["shops"].append(SHOP)  # the owner created the shop: the next one is new
+    second = client.post("/api/owners/agent-wallets").json()
+    assert {second["agent"], second["signer"]}.isdisjoint({first["agent"], first["signer"]})
+
+
+def test_one_signature_covers_the_owners_shops_only(hub, owner):
+    client = signed_in_to_create(hub, owner)
+    assert client.get(f"/api/shops/{SHOP}").status_code == 200
+    assert client.get(f"/api/shops/{OTHER_SHOP}").status_code == 401
+
+
+def test_a_shop_created_after_signing_in_needs_no_second_signature(owner, clock):
+    from services.hub.auth import ALL_SHOPS
+
+    owned, reads = [], []
+    auth = Auth(lambda wallet: reads.append(wallet) or list(owned),
+                public_url="https://app.embco.xyz", clock=clock)
+    message = auth.challenge(ALL_SHOPS, owner.address)
+    token, _ = auth.sign_in(ALL_SHOPS, message["nonce"], sign(owner, message))
+    with pytest.raises(AuthError, match="does not own"):
+        auth.session(token, SHOP)
+    owned.append(SHOP)  # the owner creates the shop
+    assert auth.session(token, SHOP).owner == owner.address
+    auth.session(token, SHOP)
+    assert len(reads) == 2  # read again only on a miss
+
+
+def test_a_shop_created_with_its_agent_needs_no_erp_to_show_it(hub, owner):
+    client = signed_in_to_create(hub, owner)
+    wallets = client.post("/api/owners/agent-wallets").json()
+    hub["chain"].update(agent=wallets["agent"], shops=[SHOP])
+    assert client.get(f"/api/shops/{SHOP}/agent").json() == {
+        "agent": wallets["agent"], "ours": True, "signer": wallets["signer"], "gasless": True}
+    body = client.post(f"/api/shops/{SHOP}/erp", json=connect_body(secrets.token_hex(16))).json()
+    assert body["agent_wallet"] == wallets["agent"] and body["set_agent_needed"] is False
+    config = hub["store"].config(SHOP)
+    assert config.signer_wallet_address == wallets["signer"]
+    assert hub["circle"].created == 0  # no older single wallet was made
+
+
+def test_an_agent_that_is_not_ours_is_shown_as_such(hub, owner):
+    client = signed_in(hub, owner)
+    assert client.get(f"/api/shops/{SHOP}/agent").json() == {
+        "agent": AGENT_ON_CONTRACT, "ours": False, "signer": None, "gasless": False}
+
+
+def test_new_shop_wallet_names_stay_short():
+    from services.hub.wallets import create_agent_wallets
+
+    names = []
+
+    class Recording(FakeCircle):
+        def create_wallet_set(self, name, *, idempotency_key=None):
+            names.append(name)
+            return super().create_wallet_set(name, idempotency_key=idempotency_key)
+
+        def create_wallet(self, wallet_set_id, name, *, account_type, idempotency_key=None):
+            names.append(name)
+            return super().create_wallet(wallet_set_id, name, account_type=account_type,
+                                         idempotency_key=idempotency_key)
+
+    create_agent_wallets(Recording(), "0x" + "ab" * 20, 11)
+    assert names[0] == "embco 0xabababab #12"
+    assert all(len(name) <= 30 for name in names)  # Circle refused 53 characters
 
 
 # ---- after a reboot

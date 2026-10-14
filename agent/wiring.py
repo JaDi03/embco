@@ -60,7 +60,7 @@ def owner_funds_of(settings: Settings, payer: Payer | None) -> OwnerFunds | None
         return None
     kit = UnifiedBalance(settings.circle_api_key, settings.circle_entity_secret)
     facts = cache(kit.chains)  # one Node run for the chains' facts, then reused
-    return OwnerFunds(kit, payer, OwnerWallets(payer.circle, facts))
+    return OwnerFunds(kit, payer, OwnerWallets(payer.circle, facts), settings.signer_address)
 
 
 def brain_setup(

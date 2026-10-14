@@ -17,22 +17,32 @@ class OwnerFunds:
     kit: UnifiedBalance
     payer: Payer  # knows the shop contract (whose owner receives) and the agent's wallet
     wallets: OwnerWallets | None = None  # the owner's own wallets on other chains
+    # The agent's EOA that signs spends as the owner's delegate: a Circle smart contract account
+    # cannot sign them. None for a shop whose agent wallet is that EOA itself.
+    signer: str | None = None
 
     def _owner(self) -> str:
         return self.payer.chain.owner_of(self.payer.shop)
 
+    def _signer(self) -> str:
+        return self.signer or self.payer.agent_address()
+
     def prepare(self) -> list[str]:
-        """The agent's Circle wallet on every source chain, so it can sign spends there."""
-        return self.kit.prepare(self.payer.agent_address())
+        """The agent's Circle wallets on every source chain: the signer signs spends there, and
+        the agent wallet moves the owner's USDC into the Unified Balance there."""
+        chains = self.kit.prepare(self._signer())
+        if self.signer:
+            self.kit.prepare(self.payer.agent_address())
+        return chains
 
     def chains(self) -> list[ChainFunds]:
-        return self.kit.balances(self._owner(), self.payer.agent_address())
+        return self.kit.balances(self._owner(), self._signer())
 
     def estimate(self, allocations: Sequence[Allocation]) -> Any:
-        return self.kit.estimate(self._owner(), self.payer.agent_address(), allocations)
+        return self.kit.estimate(self._owner(), self._signer(), allocations)
 
     def bring(self, allocations: Sequence[Allocation]) -> Any:
-        return self.kit.spend(self._owner(), self.payer.agent_address(), allocations)
+        return self.kit.spend(self._owner(), self._signer(), allocations)
 
     def in_wallets(self) -> list[WalletFunds]:
         """The owner's USDC in their own wallets on other chains, and what the agent may move."""
