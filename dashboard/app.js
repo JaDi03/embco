@@ -206,6 +206,19 @@ function renderUnified(isOwner, service) {
   select.replaceChildren(...view.rows.map((r) => new Option(r.name, r.chain)));
   if (view.rows.some((r) => r.chain === picked)) select.value = picked;
   $("unified-form").hidden = !isOwner || view.rows.length === 0;
+  const wallets = unified.walletsView(service?.last_run);
+  $("funding-wallets").replaceChildren(
+    ...wallets.map((w) => {
+      const item = document.createElement("li");
+      item.textContent = w.setUp
+        ? `${w.name}: ${formatUsdc(w.inWallet)} USDC in your wallet · the agent may move ${formatUsdc(w.agentMayMove)} now`
+        : `${w.name}: ${formatUsdc(w.inWallet)} USDC in your wallet · not set up for the agent`;
+      return item;
+    }),
+  );
+  const chains = unified.fundingChains();
+  $("funding-chain").replaceChildren(...chains.map((c) => new Option(c.replaceAll("_", " "), c)));
+  $("funding-form").hidden = !isOwner || chains.length === 0;
 }
 
 async function unifiedAct(button, label, run) {
@@ -1064,6 +1077,27 @@ function wireActions() {
       return;
     }
     unifiedAct(button, "Deposit", (provider) => unified.deposit(provider, chain, amount)).then(() => form.reset());
+  });
+
+  onSubmit("funding-form", (data, button, form) => {
+    if (!session.agent) {
+      notify("Set the agent wallet in Settings first.", "error");
+      return;
+    }
+    let maxPerMove;
+    let weeklyCap;
+    try {
+      maxPerMove = parseUsdc(data.get("maxPerMove"));
+      weeklyCap = parseUsdc(data.get("weeklyCap"));
+      if (maxPerMove > weeklyCap) throw new Error("The per-move limit cannot be above the weekly limit.");
+    } catch (error) {
+      notify(describeError(error), "error");
+      return;
+    }
+    const chain = data.get("chain");
+    unifiedAct(button, "Let the agent move USDC (one confirmation if your wallet batches, else three)", (provider) =>
+      unified.setUpChain(provider, chain, { agent: session.agent, maxPerMove, weeklyCap }),
+    ).then(() => form.reset());
   });
 
   $("unified-authorize").addEventListener("click", (event) => {

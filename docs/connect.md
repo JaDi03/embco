@@ -103,12 +103,15 @@ then you approve it in the dashboard (see [What happens next](#what-happens-next
   expect.
 - **When the agent pays**, it records a Payment Entry in ERPNext for that invoice. The
   transaction hash is in **Reference No**, and the wallet paid is in the remarks.
-- **USDC on other chains (optional):** in **Settings > USDC on other chains**, deposit USDC you
-  hold on another chain (Base Sepolia, Arbitrum Sepolia and the other testnets listed there) into
-  your Unified Balance (Circle Gateway), then **Authorize the agent on this chain**. When an
-  invoice needs more than your wallet on Arc holds, the agent can bring it to your wallet on Arc,
-  choosing which chains it comes from. It never sends it anywhere else, and your contract's limits
-  still apply. Each chain asks for its own gas token (for example test ETH on Base Sepolia).
+- **USDC on other chains (optional):** in **Settings > USDC on other chains**, pick a chain (Base
+  Sepolia or Ethereum Sepolia), set how much the agent may move at once and per week, and confirm
+  in your wallet: your funding contract on that chain, its approval, and the agent's authorization
+  in your Unified Balance (Circle Gateway). A wallet that batches calls (MetaMask with its smart
+  account, EIP-5792) asks once; otherwise once per step. Your USDC stays in your wallet there.
+  When an invoice needs more than your wallet on Arc holds, the agent can move it into your
+  Unified Balance and bring it to your wallet on Arc, choosing which chains it comes from. It
+  never sends it anywhere else, and your limits still apply. Each chain asks for its own gas token
+  (test ETH on Base Sepolia and Ethereum Sepolia), for you once and for the agent's wallet.
 - **Telegram (optional):** in the dashboard, **Connect Telegram** gives a code to send to the
   embco bot. Then `/status` says how the agent is, `/pause` pauses payments while the agent keeps
   watching, and `/stop` turns the agent off and pauses the shop contract. Only the dashboard

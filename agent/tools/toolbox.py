@@ -221,7 +221,22 @@ class Toolbox:
             "today": self.today.isoformat(),
             **(self._funds_once() or UNKNOWN_FUNDS),
             "usdc_on_other_chains": self._other_chains(),
+            "usdc_in_owner_wallets_on_other_chains": self._owner_wallets(),
         }
+
+    def _owner_wallets(self) -> list[dict[str, str]] | str:
+        """The owner's own wallets on other chains, and how much the agent may deposit."""
+        if self.owner_funds is None:
+            return "not connected for this shop"
+        try:
+            wallets = self.owner_funds.in_wallets()
+        except (ChainError, CircleError, PaymentSetupError, UnifiedBalanceError) as error:
+            return f"unknown: {error}"
+        rows = [{"chain": w.chain, "in_wallet": fmt(w.in_wallet),
+                 "you_may_deposit_now": fmt(w.can_move) if w.funding
+                 else "no: the owner sets up this chain in the dashboard"}
+                for w in wallets]
+        return rows or "no other chain is set up"
 
     def _other_chains(self) -> list[dict[str, str]] | str:
         """The owner's Unified Balance, chain by chain, and where the agent may spend it."""
@@ -290,6 +305,26 @@ class Toolbox:
             return self.payer.wallet_info()
         except (ChainError, CircleError) as error:
             raise ToolError(f"could not read the agent's wallet: {error}") from None
+
+    def _deposit_to_gateway(self, chain: str, amount: str, reason: str) -> dict[str, Any]:
+        if self.owner_funds is None:
+            raise ToolError("the owner's wallets on other chains are not connected")
+        value = _decimal(amount)
+        if value is None or value <= 0:
+            raise ToolError("amount is USDC above 0, e.g. 120 or 30.5")
+        if not self.can_pay:
+            raise ToolError("payments are paused by the owner; nothing was moved")
+        if len(self.funds_moved) >= MAX_FUND_MOVES:
+            raise ToolError(f"at most {MAX_FUND_MOVES} fund moves per session; look again later")
+        try:
+            done = self.owner_funds.deposit(chain.strip(), value)
+        except (ChainError, CircleError, PaymentSetupError, UnifiedBalanceError,
+                ValueError) as error:
+            raise ToolError(f"nothing was deposited: {error}") from None
+        moved = {"kind": "deposit", "chain": chain.strip(), "amount": fmt(value),
+                 "state": done["state"], "tx": done["tx"], "reason": reason.strip()}
+        self.funds_moved.append(moved)
+        return moved
 
     def _estimate_bring_funds(self, allocations: str) -> dict[str, Any]:
         split = self._allocations(allocations)

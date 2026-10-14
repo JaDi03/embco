@@ -57,7 +57,8 @@ TOOLS: list[dict[str, Any]] = [
     _tool("cash_position",
           "The shop contract's limits, how much it still lets the shop pay this week, what you "
           "chose to pay now in this session, the payments scheduled or due soon, and the USDC "
-          "the owner keeps on other chains (their Unified Balance) with where you may spend it."),
+          "the owner keeps on other chains: in their Unified Balance (with where you may spend "
+          "it) and in their own wallets (with how much you may deposit into it)."),
     _tool("pay_now",
           "Pay this invoice now, for real: the payment goes out right away from the owner's "
           "wallet through the shop contract (simulated first, then sent with your Circle "
@@ -74,6 +75,15 @@ TOOLS: list[dict[str, Any]] = [
     _tool("agent_wallet",
           "Your own wallet: its address, its balance for Arc network fees (paid in USDC), "
           "whether the shop contract has it as its agent, and whether the contract is paused."),
+    _tool("deposit_to_gateway",
+          "Move the owner's USDC from their own wallet on another chain into their Unified "
+          "Balance (Circle Gateway), for real, through the owner's funding contract there: it "
+          "only ever deposits for the owner, within the limits the owner set. cash_position "
+          "says how much you may move on each chain. On Base Sepolia and Ethereum Sepolia the "
+          "deposit is spendable only once the chain is final (15 minutes or more): set an "
+          "alarm, then bring_funds. Returns the transaction, or the real error.",
+          chain=_text("The chain as cash_position lists it, e.g. Base_Sepolia."),
+          amount=_text("USDC to move, e.g. 120 or 30.5."), reason=REASON),
     _tool("estimate_bring_funds",
           "What it would cost to bring USDC from the owner's Unified Balance on other chains to "
           "the owner's wallet on Arc, with the split you give: the fees and what would arrive. "

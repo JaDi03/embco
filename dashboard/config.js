@@ -40,6 +40,13 @@ export function rpcUrl(origin = window.location.origin) {
 
 export const FAUCET_URL = "https://faucet.circle.com";
 
+// ShopFundingFactory on each source chain of the owner's Unified Balance (contracts/script/
+// DeployFunding.s.sol). A chain without one is not offered for the agent to move funds from.
+export const FUNDING_FACTORIES = { Base_Sepolia: "0x69e31Af302Ee222204AA78099D39a2956F5C95d6", Ethereum_Sepolia: "0x69e31Af302Ee222204AA78099D39a2956F5C95d6" };
+
+// Circle Gateway's GatewayWallet, the same address on every EVM testnet (Circle's Gateway docs).
+export const GATEWAY_WALLET_TESTNET = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
+
 // Wallets the agent is waiting to pay, written by the agent on this site.
 export const APPROVALS_PATH = "/pending.json";
 

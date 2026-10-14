@@ -146,6 +146,16 @@ class CircleClient:
         return CircleWallet(id=w["id"], address=w["address"], blockchain=w["blockchain"],
                             wallet_set_id=w["walletSetId"])
 
+    def wallet_on(self, address: str, blockchain: str) -> CircleWallet:
+        """The wallet with this address on this chain (one address, one wallet per chain)."""
+        wallets = self._request(
+            "GET", f"/v1/w3s/wallets?address={address}&blockchain={blockchain}")["wallets"]
+        if not wallets:
+            raise CircleError(f"no Circle wallet {address} on {blockchain}")
+        w = wallets[0]
+        return CircleWallet(id=w["id"], address=w["address"], blockchain=w["blockchain"],
+                            wallet_set_id=w["walletSetId"])
+
     def execute_contract(
         self,
         wallet_id: str,

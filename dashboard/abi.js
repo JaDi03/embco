@@ -41,6 +41,18 @@ export const SHOP_ABI = [
   "error ReentrancyGuardReentrantCall()",
 ];
 
+// contracts/src/ShopFundingFactory.sol: one ShopFunding per owner on each source chain.
+export const FUNDING_FACTORY_ABI = [
+  "function create(address agent, uint256 maxPerMove, uint256 weeklyCap) returns (address)",
+  "function fundingsOf(address owner) view returns (address[])",
+  "function predict(address owner, address agent, uint256 maxPerMove, uint256 weeklyCap) view returns (address)",
+  "error InvalidLimits()",
+  "error InvalidAddress()",
+];
+
+// Circle Gateway's GatewayWallet (circlefin/evm-gateway-contracts, modules/wallet/Delegation.sol).
+export const GATEWAY_WALLET_ABI = ["function addDelegate(address token, address delegate)"];
+
 export const USDC_ABI = [
   "function balanceOf(address) view returns (uint256)",
   "function allowance(address owner, address spender) view returns (uint256)",
