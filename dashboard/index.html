@@ -292,26 +292,16 @@
           </section>
 
           <section class="owner-only" id="unified-section">
-            <h3>USDC on other chains</h3>
+            <h3>Which chains can the agent pay from?</h3>
             <p class="hint">
-              Keep USDC on other chains in your Unified Balance (Circle Gateway). When an invoice needs more than your
-              wallet on Arc holds, the agent can bring it to your wallet on Arc from the chains you authorize it on.
-              It never sends it anywhere else, and the contract's limits still apply.
+              When your wallet on Arc runs short, the agent brings your USDC from these chains. Only to your wallet, and
+              within your shop's limits.
             </p>
-            <p class="hint" id="unified-note"></p>
-            <ul class="list" id="unified-chains"></ul>
-            <ul class="list" id="funding-wallets"></ul>
-            <form id="funding-form" class="stack-form" novalidate hidden>
-              <select name="chain" id="funding-chain" aria-label="Chain to let the agent move USDC from"></select>
-              <input name="maxPerMove" inputmode="decimal" placeholder="Most per move (USDC)" aria-label="Most the agent may move at once" />
-              <input name="weeklyCap" inputmode="decimal" placeholder="Most per week (USDC)" aria-label="Most the agent may move in a week" />
-              <button class="btn btn-primary" type="submit">Let the agent move USDC from this chain</button>
-            </form>
-            <form id="unified-form" class="stack-form" novalidate>
-              <select name="chain" id="unified-chain" aria-label="Chain"></select>
-              <input name="amount" inputmode="decimal" placeholder="Amount to deposit (USDC)" aria-label="Amount to deposit" />
-              <button class="btn btn-primary" type="submit">Deposit</button>
-              <button class="btn btn-ghost" type="button" id="unified-authorize">Authorize the agent on this chain</button>
+            <p class="hint" id="chains-summary"></p>
+            <button class="btn btn-ghost" type="button" id="chains-open" aria-expanded="false" aria-controls="chains-form">Choose chains</button>
+            <form id="chains-form" class="chains-card" novalidate hidden>
+              <ul class="chain-list" id="chain-list"></ul>
+              <button class="btn btn-primary" type="submit">Save</button>
             </form>
           </section>
 

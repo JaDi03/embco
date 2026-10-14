@@ -50,8 +50,21 @@ export const FUNDING_FACTORY_ABI = [
   "error InvalidAddress()",
 ];
 
+// contracts/src/ShopFunding.sol: the owner's limits on what the agent moves on that chain.
+export const FUNDING_ABI = [
+  "function agent() view returns (address)",
+  "function maxPerMove() view returns (uint256)",
+  "function weeklyCap() view returns (uint256)",
+  "function setLimits(uint256 maxPerMove, uint256 weeklyCap)",
+  "function setAgent(address agent)",
+];
+
 // Circle Gateway's GatewayWallet (circlefin/evm-gateway-contracts, modules/wallet/Delegation.sol).
-export const GATEWAY_WALLET_ABI = ["function addDelegate(address token, address delegate)"];
+export const GATEWAY_WALLET_ABI = [
+  "function addDelegate(address token, address delegate)",
+  "function removeDelegate(address token, address delegate)",
+  "function isAuthorizedForBalance(address token, address depositor, address addr) view returns (bool)",
+];
 
 export const USDC_ABI = [
   "function balanceOf(address) view returns (uint256)",
