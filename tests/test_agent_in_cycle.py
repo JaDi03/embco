@@ -7,7 +7,7 @@ import json
 from datetime import timedelta, timezone
 
 from agent.agent import SessionRun
-from agent.models import Autonomy, Choice, Usage
+from agent.models import Autonomy, Choice, Usage, Wake
 from agent.reflexes.cycle import run_cycle
 from agent.think import BrainSetup
 from agent.tools import ToolError
@@ -35,10 +35,13 @@ class OneChoiceBrain:
         return SessionRun(finished=True, steps=1, usage=Usage())
 
 
-def cycle(journal, payer, brain, at, autonomy=Autonomy.ACT):  # noqa: F811
+def cycle(journal, payer, brain, at, autonomy=Autonomy.ACT, wakes=()):  # noqa: F811
     setup = BrainSetup(brain=brain, zone=LAGOS, autonomy=autonomy)
     return run_cycle(payer.ledger, journal, POLICY, "TEST Shop", at=at, payments=payer,
-                     brain=setup)
+                     brain=setup, wakes=list(wakes))
+
+
+AGAIN = (Wake("limits", "The owner changed the limits in the shop contract."),)  # wakes it again
 
 
 def test_what_the_agent_chooses_to_pay_now_is_paid_through_the_contract(journal):  # noqa: F811
@@ -219,11 +222,9 @@ class Spends:
 
 
 def woken_twice(journal, brain):  # noqa: F811
-    from agent.reflexes.wake import HEARTBEAT
-
     payer, _, _ = make_payer(matching_ledger())
     first = cycle(journal, payer, brain, NOW)
-    second = cycle(journal, payer, brain, NOW + HEARTBEAT)  # the heartbeat would wake it
+    second = cycle(journal, payer, brain, NOW + timedelta(hours=1), wakes=AGAIN)
     return first, second
 
 
@@ -292,12 +293,10 @@ def test_the_agent_sees_what_stops_an_invoice_apart_from_what_to_weigh(journal):
 
 
 def test_the_agent_is_told_what_it_already_said_to_the_owner(journal):  # noqa: F811
-    from agent.reflexes.wake import HEARTBEAT
-
     payer, _, _ = make_payer(matching_ledger())
     brain = Reads()
     cycle(journal, payer, brain, NOW)
-    cycle(journal, payer, brain, NOW + HEARTBEAT)
+    cycle(journal, payer, brain, NOW + timedelta(hours=1), wakes=AGAIN)
     assert brain.briefings[0]["already_told_the_owner"] == []
     [told] = brain.briefings[1]["already_told_the_owner"]
     assert told["summary"] == "Summary 1."

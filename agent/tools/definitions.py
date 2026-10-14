@@ -88,7 +88,9 @@ TOOLS: list[dict[str, Any]] = [
     _tool("set_alarm",
           "Wake yourself at a given time to look at something again.",
           at=_text("Shop's local date and time, YYYY-MM-DDTHH:MM."),
-          why=_text("What to look at then.")),
+          why=_text("What to look at then."),
+          invoice=_text("The invoice it is about, exactly as listed, or empty. An alarm about "
+                        "an invoice does not ring once that invoice is paid.")),
     _tool("note",
           "Keep a short note for your future sessions (about a supplier, an invoice or the shop).",
           about=_text("A supplier name, an invoice name, or 'shop'."),

@@ -41,6 +41,7 @@ class Alarm:
     at: datetime
     why: str
     set_at: datetime | None = None
+    invoice: str | None = None  # the invoice it is about: once paid, the alarm does not ring
 
 
 @dataclass(frozen=True)

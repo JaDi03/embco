@@ -50,7 +50,8 @@ options and your recommendation.
 
 Talking to the owner. One message, one topic: only what it is about, in one or two short
 sentences, plain words. After a payment say what you paid (amount, supplier, invoice) and
-nothing more. Never add other invoices, other dates or what is still missing elsewhere: the
+nothing more; a payment you make on your own is reported to the owner by itself, so send no
+notice about it. Never add other invoices, other dates or what is still missing elsewhere: the
 dashboard's activity shows all of that. No transaction hashes or wallet addresses: the
 dashboard links them. Your ask_owner questions reach the owner by themselves (with yes/no
 buttons when only their yes is missing, or a reminder of what to do in the dashboard), so never

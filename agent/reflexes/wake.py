@@ -3,8 +3,10 @@
 Every cycle (every 15 minutes) the reflexes look for a reason: an invoice that is new, changed or
 still without the agent's decision, a payment that failed or was blocked, the day the agent
 planned to pay something, a due date close by with no payment planned before it, an alarm the
-agent set, the daily round, or the heartbeat when the agent has not looked for a while. No
-reason, no session: quiet cycles cost nothing.
+agent set, or the daily round. No reason, no session: quiet cycles cost nothing.
+
+What the agent itself did is not a reason: an invoice it already paid or sent does not wake it
+when it changes, and an alarm about it does not ring.
 
 A one-time reason (an alarm, a due date, the round) fires until a session that finished saw it.
 """
@@ -18,7 +20,6 @@ from agent.memory import Change, ChangeKind
 from agent.models import AgentDecision, Alarm, Choice, Note, Session, Wake, payment_seen_key
 from services.payments import PaymentEvent, PaymentStatus
 
-HEARTBEAT = timedelta(hours=4)
 RETRY_AFTER_FAILURE = timedelta(minutes=30)
 DUE_SOON_DAYS = (3, 1, 0)  # 0: due today or overdue
 RECENT_NOTES = 20
@@ -48,6 +49,8 @@ def wakes_for(
     told = set()
     for change in changes:
         d = change.decision
+        if d.invoice in done:
+            continue  # paid or sent: paying it is what changed it
         if change.kind is ChangeKind.NEW:
             wakes.append(Wake("new", f"New invoice {d.invoice} from {d.supplier}, "
                                      f"{fmt(d.amount)} USDC.", d.invoice))
@@ -73,14 +76,11 @@ def wakes_for(
         wakes.extend(_due_soon(d, standing.get(d.invoice), local.date(), fired))
     for alarm in due_alarms(sessions, now):
         key = _alarm_key(alarm)
-        if key not in fired:
+        if key not in fired and alarm.invoice not in done:
             wakes.append(Wake("alarm", f"Your alarm: {alarm.why}", key=key))
     round_key = f"round:{local.date().isoformat()}"
     if local.hour >= round_hour and round_key not in fired:
         wakes.append(Wake("round", "Daily round: look over everything.", key=round_key))
-    if open_ and last and not wakes and now - last.at >= HEARTBEAT:
-        wakes.append(Wake("heartbeat", f"Heartbeat: you have not looked for "
-                                       f"{int((now - last.at).total_seconds() // 3600)} hours."))
     return wakes
 
 
@@ -94,8 +94,11 @@ def due_alarms(sessions: Sequence[Session], now: datetime) -> list[Alarm]:
     return [a for s in sessions if s.finished for a in s.alarms if a.at <= now]
 
 
-def pending_alarms(sessions: Sequence[Session], now: datetime) -> list[Alarm]:
-    return [a for s in sessions if s.finished for a in s.alarms if a.at > now]
+def pending_alarms(sessions: Sequence[Session], now: datetime,
+                   done: set[str] = frozenset()) -> list[Alarm]:
+    """Alarms still to ring; one about an invoice already paid will not."""
+    return [a for s in sessions if s.finished for a in s.alarms
+            if a.at > now and a.invoice not in done]
 
 
 def recent_notes(sessions: Sequence[Session]) -> list[Note]:
