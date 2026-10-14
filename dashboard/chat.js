@@ -53,3 +53,14 @@ export function bubbleOf(entry) {
   }
   return { side: "system", text: entry.text, meta: ["SERVICE", telegram].filter(Boolean).join(" · ") };
 }
+
+/** "Working · 1m 20s" while the agent is on the owner's last message, so a quiet minute is not
+ * taken for a message that did not arrive. Empty when it is not working. */
+export function workingText(waiting, entries, now = Date.now()) {
+  if (!waiting) return "";
+  const asked = [...entries].reverse().find((e) => e.from === "owner" && !e.local);
+  const since = asked?.at ? Math.max(0, Math.floor((now - new Date(asked.at).getTime()) / 1000)) : 0;
+  const minutes = Math.floor(since / 60);
+  const elapsed = minutes ? `${minutes}m ${since % 60}s` : `${since}s`;
+  return `The agent is working on your message · ${elapsed}`;
+}

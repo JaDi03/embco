@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 POLL_SECONDS = 10  # long poll: Telegram holds the request open until a message or this timeout
+BUSY_POLL_SECONDS = 4  # while the agent works: "typing..." lasts about 5 seconds, so show it again
 
 
 class TelegramError(Exception):
@@ -39,6 +40,10 @@ class TelegramApi:
             params["reply_markup"] = {"inline_keyboard": [
                 [{"text": label, "callback_data": data} for label, data in buttons]]}
         self._call("sendMessage", params)
+
+    def typing(self, chat_id: int) -> None:
+        """Show "typing..." at the top of the chat (Bot API sendChatAction), for about 5 seconds."""
+        self._call("sendChatAction", {"chat_id": chat_id, "action": "typing"})
 
     def answer_button(self, callback_id: str, text: str) -> None:
         """Tell Telegram the button press was handled, with a short note on the screen."""
