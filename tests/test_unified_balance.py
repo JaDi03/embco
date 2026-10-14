@@ -99,6 +99,9 @@ def test_the_money_always_goes_to_the_contracts_owner():
     seen = []
 
     class Kit:
+        def prepare(self, wallet):
+            return []
+
         def spend(self, owner, agent, allocations):
             seen.append((owner, agent))
             return {}
@@ -129,12 +132,39 @@ def test_a_gasless_agent_has_its_spends_signed_by_its_signer():
     payer = SimpleNamespace(shop="0x" + "5c" * 20, agent_address=lambda: AGENT,
                             chain=SimpleNamespace(owner_of=lambda shop: OWNER))
     funds = OwnerFunds(Kit(), payer, signer=signer)
+    assert funds.prepare() == ["Base_Sepolia"]
     funds.bring([Allocation("Base_Sepolia", Decimal(1))])
     funds.chains()
-    assert funds.prepare() == ["Base_Sepolia"]
     # the signer signs spends; both wallets exist on every chain (the agent deposits there)
-    assert seen == [("spend", signer), ("balances", signer), ("prepare", signer),
-                    ("prepare", AGENT)]
+    assert seen == [("prepare", signer), ("prepare", AGENT), ("spend", signer),
+                    ("balances", signer)]
+
+
+def test_wallets_not_prepared_at_start_are_prepared_before_the_first_move():
+    seen = []
+
+    class Kit:
+        def prepare(self, wallet):
+            seen.append("prepare")
+            if len(seen) <= 2:  # at start and on the first retry
+                raise UnifiedBalanceError("API rate limit error")
+            return ["Base_Sepolia"]
+
+        def spend(self, owner, signer, allocations):
+            seen.append("spend")
+            return {}
+
+    payer = SimpleNamespace(shop="0x" + "5c" * 20, agent_address=lambda: AGENT,
+                            chain=SimpleNamespace(owner_of=lambda shop: OWNER))
+    funds = OwnerFunds(Kit(), payer)
+    with pytest.raises(UnifiedBalanceError):
+        funds.prepare()  # at start, while every shop restarts
+    funds.bring([Allocation("Base_Sepolia", Decimal(1))])
+    funds.bring([Allocation("Base_Sepolia", Decimal(1))])
+    # a failed retry does not stop the move; the next move tries again, then never more
+    assert seen == ["prepare", "prepare", "spend", "prepare", "spend"]
+    funds.bring([Allocation("Base_Sepolia", Decimal(1))])
+    assert seen[-1] == "spend"
 
 
 # ---- the agent's tools

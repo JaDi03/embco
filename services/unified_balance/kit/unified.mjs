@@ -75,20 +75,28 @@ async function balances({ owner, agent }, env) {
   return { chains: rows };
 }
 
+/** The source chains where the wallet does not exist yet, from the wallets Circle lists for it. */
+export function missingChains(chains, wallets) {
+  const have = new Set(wallets.map((w) => w.blockchain));
+  return chains.filter((chain) => !have.has(toCircleBlockchain(chain)));
+}
+
 /** The agent's Circle wallet on every source chain, at the same address as on Arc: the
- * Circle wallets adapter signs with the wallet it finds for that address and chain. */
+ * Circle wallets adapter signs with the wallet it finds for that address and chain. One call
+ * lists where it already exists, and only the missing chains are derived, so restarting every
+ * shop at once stays within Circle's rate limit. */
 async function prepare({ agent }, env) {
   const client = initiateDeveloperControlledWalletsClient(circle(env));
-  const ready = [];
-  for (const chain of sourceChains()) {
+  const address = agent.toLowerCase();  // Circle finds the source wallet only in lowercase
+  const listed = await client.listWallets({ address, pageSize: 50 });
+  for (const chain of missingChains(sourceChains(), listed.data?.wallets ?? [])) {
     await client.deriveWalletByAddress({
       sourceBlockchain: toCircleBlockchain(DESTINATION),
-      walletAddress: agent.toLowerCase(),  // Circle finds the source wallet only in lowercase
+      walletAddress: address,
       targetBlockchain: toCircleBlockchain(chain),
     });
-    ready.push(chain);
   }
-  return { chains: ready };
+  return { chains: sourceChains() };
 }
 
 async function estimate(input, env) {

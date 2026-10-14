@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DESTINATION, run, sourceChains, spendParams } from "../unified.mjs";
+import { DESTINATION, missingChains, run, sourceChains, spendParams } from "../unified.mjs";
 
 const OWNER = "0x2471658CD7A7B10d4C92113B0777dA59317e839a";
 const AGENT = "0xeAc91C9491F0D391c80f17C4267A3329Ad7Ba862";
@@ -24,4 +24,10 @@ test("the source chains are EVM testnets the agent's Circle wallet signs on, nev
 
 test("an unknown command is an answer, not a crash", async () => {
   assert.deepEqual(await run("send_anywhere", {}, {}), { error: "unknown command send_anywhere" });
+});
+
+test("only the chains where the agent's wallet does not exist yet are derived", () => {
+  const wallets = [{ blockchain: "ARC-TESTNET" }, { blockchain: "BASE-SEPOLIA" }];
+  assert.deepEqual(missingChains(["Base_Sepolia", "Ethereum_Sepolia"], wallets), ["Ethereum_Sepolia"]);
+  assert.deepEqual(missingChains(["Base_Sepolia"], wallets), []);
 });
