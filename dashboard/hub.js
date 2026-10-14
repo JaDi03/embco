@@ -41,16 +41,48 @@ export function forEthers(typed) {
   return { domain: typed.domain, types, value: typed.message };
 }
 
-/** Sign-In with Ethereum (EIP-4361): the hub writes the message, the wallet signs it as is. */
-export async function signIn(signer, shop, fetchImpl = fetch) {
+/** Sign-In with Ethereum (EIP-4361): the hub writes the message, the wallet signs it as is. One
+ * signature covers every shop of the wallet, and creating a new one. */
+export async function signIn(signer, fetchImpl = fetch) {
   const address = await signer.getAddress();
-  const request = await call(`${shopPath(shop)}/sign-in-request`, { method: "POST", body: { address }, fetchImpl });
+  const request = await call(`${HUB_PATH}/owners/sign-in-request`, { method: "POST", body: { address }, fetchImpl });
   const signature = await signer.signMessage(request.message);
-  return call(`${shopPath(shop)}/sign-in`, {
+  return call(`${HUB_PATH}/owners/sign-in`, {
     method: "POST",
     body: { nonce: request.nonce, signature },
     fetchImpl,
   });
+}
+
+/** The agent wallets of the owner's next shop ({agent, signer}): its contract is created with
+ * them. Signs in first when the owner has not yet. */
+export async function newAgentWallets(signer, fetchImpl = fetch) {
+  const ask = () => call(`${HUB_PATH}/owners/agent-wallets`, { method: "POST", fetchImpl });
+  try {
+    return await ask();
+  } catch (error) {
+    if (!(error instanceof HubError && error.status === 401)) throw error;
+  }
+  await signIn(signer, fetchImpl);
+  return ask();
+}
+
+/** The contract's agent and the wallet that signs the owner's Unified Balance spends; null when
+ * the owner has to sign in first. */
+export async function agentWallets(shop, fetchImpl = fetch) {
+  try {
+    return await call(`${shopPath(shop)}/agent`, { fetchImpl });
+  } catch (error) {
+    if (error instanceof HubError && error.status === 401) return null;
+    throw error;
+  }
+}
+
+/** Who the owner authorizes in Gateway: the agent's signer, or for an agent wallet that is not
+ * ours, the agent itself. */
+export function delegateOf(wallets, contractAgent) {
+  if (!wallets) return null;
+  return wallets.ours ? wallets.signer : contractAgent;
 }
 
 /** The shop as the hub knows it, or null when the owner has to sign in first. */

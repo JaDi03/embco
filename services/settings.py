@@ -63,6 +63,7 @@ class Settings:
     circle_api_key: str | None = field(default=None, repr=False)
     circle_entity_secret: str | None = field(default=None, repr=False)
     agent_wallet_id: str | None = None
+    signer_address: str | None = None  # the agent's EOA for Unified Balance spends
     pay: bool = False
     erpnext_paid_from: str | None = None
     erpnext_wallet_bank: str | None = None  # wallets in Bank Account rows of this bank
@@ -113,6 +114,7 @@ class Settings:
             circle_api_key=env.get("CIRCLE_API_KEY", "").strip() or None,
             circle_entity_secret=env.get("CIRCLE_ENTITY_SECRET", "").strip() or None,
             agent_wallet_id=get("AGENT_WALLET_ID") or None,
+            signer_address=get("SIGNER_ADDRESS") or None,
             pay=pay,
             erpnext_paid_from=get("ERPNEXT_PAID_FROM") or None,
             erpnext_wallet_bank=get("ERPNEXT_WALLET_BANK") or None,

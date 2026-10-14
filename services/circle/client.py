@@ -30,6 +30,7 @@ class CircleWallet:
     address: str
     blockchain: str
     wallet_set_id: str
+    account_type: str = "EOA"  # or "SCA": a smart contract account, whose gas Circle pays
 
 
 @dataclass(frozen=True)
@@ -126,35 +127,53 @@ class CircleClient:
         blockchain: str = ARC_TESTNET,
         idempotency_key: str | None = None,
     ) -> CircleWallet:
+        return self.create_wallet(wallet_set_id, name, account_type="EOA",
+                                  blockchain=blockchain, idempotency_key=idempotency_key)
+
+    def create_wallet(
+        self,
+        wallet_set_id: str,
+        name: str,
+        *,
+        account_type: str,
+        blockchain: str = ARC_TESTNET,
+        idempotency_key: str | None = None,
+    ) -> CircleWallet:
+        """An SCA is deployed by its first transaction, with the gas paid by Gas Station."""
         body = self._signed_body(
             idempotency_key,
             walletSetId=wallet_set_id,
             blockchains=[blockchain],
-            accountType="EOA",
+            accountType=account_type,
             count=1,
             metadata=[{"name": name}],
         )
         wallets = self._request("POST", "/v1/w3s/developer/wallets", body)["wallets"]
         if len(wallets) != 1:
             raise CircleError(f"Circle created {len(wallets)} wallets, expected 1")
-        w = wallets[0]
-        return CircleWallet(id=w["id"], address=w["address"], blockchain=w["blockchain"],
-                            wallet_set_id=w["walletSetId"])
+        return _wallet(wallets[0])
 
     def get_wallet(self, wallet_id: str) -> CircleWallet:
-        w = self._request("GET", f"/v1/w3s/wallets/{wallet_id}")["wallet"]
-        return CircleWallet(id=w["id"], address=w["address"], blockchain=w["blockchain"],
-                            wallet_set_id=w["walletSetId"])
+        return _wallet(self._request("GET", f"/v1/w3s/wallets/{wallet_id}")["wallet"])
+
+    def wallets_in_set(self, wallet_set_id: str,
+                       blockchain: str = ARC_TESTNET) -> list[CircleWallet]:
+        wallets = self._request(
+            "GET", f"/v1/w3s/wallets?walletSetId={wallet_set_id}&blockchain={blockchain}")
+        return [_wallet(w) for w in wallets["wallets"]]
 
     def wallet_on(self, address: str, blockchain: str) -> CircleWallet:
         """The wallet with this address on this chain (one address, one wallet per chain)."""
+        wallet = self.find_wallet(address, blockchain)
+        if wallet is None:
+            raise CircleError(f"no Circle wallet {address} on {blockchain}")
+        return wallet
+
+    def find_wallet(self, address: str, blockchain: str) -> CircleWallet | None:
+        """None when no wallet of this account has the address on this chain."""
         wallets = self._request(
             "GET", f"/v1/w3s/wallets?address={address}&blockchain={blockchain}")["wallets"]
-        if not wallets:
-            raise CircleError(f"no Circle wallet {address} on {blockchain}")
-        w = wallets[0]
-        return CircleWallet(id=w["id"], address=w["address"], blockchain=w["blockchain"],
-                            wallet_set_id=w["walletSetId"])
+        return _wallet(wallets[0]) if wallets else None
 
     def execute_contract(
         self,
@@ -184,6 +203,11 @@ class CircleClient:
         tx = self._request("GET", f"/v1/w3s/transactions/{transaction_id}")["transaction"]
         return CircleTransaction(id=tx["id"], state=tx["state"], tx_hash=tx.get("txHash"),
                                  error_reason=tx.get("errorReason"))
+
+
+def _wallet(w: dict[str, Any]) -> CircleWallet:
+    return CircleWallet(id=w["id"], address=w["address"], blockchain=w["blockchain"],
+                        wallet_set_id=w["walletSetId"], account_type=w.get("accountType", "EOA"))
 
 
 def _error_detail(response: httpx.Response) -> str:

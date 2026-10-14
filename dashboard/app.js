@@ -60,9 +60,8 @@ function accountMenu(open) {
   $("account-button").setAttribute("aria-expanded", String(open));
 }
 
-function readAddress(text, { allowEmpty = false } = {}) {
+function readAddress(text) {
   const value = String(text ?? "").trim();
-  if (!value && allowEmpty) return ZERO_ADDRESS;
   if (!ethers.isAddress(value)) throw new Error("That is not a valid wallet address (0x followed by 40 characters).");
   return ethers.getAddress(value);
 }
@@ -273,6 +272,7 @@ function hideAgent() {
 }
 
 async function renderErp(isOwner, state) {
+  session.signer = null;  // known once the owner is signed in
   if (!isOwner) {
     hideAgent();
     return;
@@ -293,6 +293,7 @@ async function renderErp(isOwner, state) {
     showErp("erp-signin");
     return;
   }
+  session.signer = hub.delegateOf(await hub.agentWallets(session.shop).catch(() => null), state.agent);
   if (!shop.connected) {
     hideAgent();
     showErp("erp-form");
@@ -1047,13 +1048,11 @@ function wireActions() {
       const maxPerPayment = parseUsdc(data.get("maxPerPayment"));
       const weeklyCap = parseUsdc(data.get("weeklyCap"));
       if (maxPerPayment > weeklyCap) throw new Error("The per-payment limit cannot be above the weekly limit.");
-      const agent = readAddress(data.get("agent"), { allowEmpty: true });
-      if (agent.toLowerCase() === session.account.toLowerCase()) {
-        throw new Error("The agent must be a different wallet from yours.");
-      }
-      notify("Create your shop contract: confirm it in MetaMask...");
       const signer = await session.provider.getSigner();
-      const tx = await factory(signer).create(agent, maxPerPayment, weeklyCap);
+      notify("Preparing your shop's agent (sign in if MetaMask asks: it is free)...");
+      const wallets = await hub.newAgentWallets(signer);  // the contract is created with its agent
+      notify("Create your shop contract: confirm it in MetaMask...");
+      const tx = await factory(signer).create(wallets.agent, maxPerPayment, weeklyCap);
       notify("Creating your shop contract on Arc...");
       await tx.wait();
       settings(false);
@@ -1087,8 +1086,8 @@ function wireActions() {
   });
 
   onSubmit("funding-form", (data, button, form) => {
-    if (!session.agent) {
-      notify("Set the agent wallet in Settings first.", "error");
+    if (!session.signer) {
+      notify("Sign in first: it is a signature, not a transaction, and costs nothing.", "error");
       return;
     }
     let maxPerMove;
@@ -1103,17 +1102,17 @@ function wireActions() {
     }
     const chain = data.get("chain");
     unifiedAct(button, "Let the agent move USDC (one confirmation if your wallet batches, else three)", (provider) =>
-      unified.setUpChain(provider, chain, { agent: session.agent, maxPerMove, weeklyCap }),
+      unified.setUpChain(provider, chain, { agent: session.agent, signer: session.signer, maxPerMove, weeklyCap }),
     ).then(() => form.reset());
   });
 
   $("unified-authorize").addEventListener("click", (event) => {
-    if (!session.agent) {
-      notify("Set the agent wallet in Settings first.", "error");
+    if (!session.signer) {
+      notify("Sign in first: it is a signature, not a transaction, and costs nothing.", "error");
       return;
     }
     const chain = $("unified-chain").value;
-    unifiedAct(event.currentTarget, "Authorize the agent", (provider) => unified.authorizeAgent(provider, chain, session.agent));
+    unifiedAct(event.currentTarget, "Authorize the agent", (provider) => unified.authorizeAgent(provider, chain, session.signer));
   });
 
   onSubmit("limits-form", (data, button, form) => {
@@ -1215,7 +1214,7 @@ function wireActions() {
     button.disabled = true;
     try {
       notify("Sign in: confirm the signature in MetaMask (it is free)...");
-      await hub.signIn(await session.provider.getSigner(), session.shop);
+      await hub.signIn(await session.provider.getSigner());
       notify("");
       await renderShop();
     } catch (error) {

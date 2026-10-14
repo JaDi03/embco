@@ -33,15 +33,14 @@ test("ethers gets the types without the domain type", () => {
 });
 
 test("signing in signs the hub's EIP-4361 message as is and sends back its nonce, on this site only", async () => {
-  const shop = SHOP.toLowerCase();
   const OWNER = "0x2137" + "0".repeat(32) + "0379";
   const message = "app.embco.xyz wants you to sign in with your Ethereum account:\n" + OWNER;
   const { impl, calls } = fakeFetch({
-    [`POST /api/shops/${shop}/sign-in-request`]: [200, { message, nonce: "n1n1n1n1" }],
-    [`POST /api/shops/${shop}/sign-in`]: [200, { owner: OWNER }],
+    "POST /api/owners/sign-in-request": [200, { message, nonce: "n1n1n1n1" }],
+    "POST /api/owners/sign-in": [200, { owner: OWNER }],
   });
   const signer = { getAddress: async () => OWNER, signMessage: async (text) => `sig:${text.length}` };
-  assert.deepEqual(await hub.signIn(signer, SHOP, impl), { owner: OWNER });
+  assert.deepEqual(await hub.signIn(signer, impl), { owner: OWNER });
   assert.deepEqual(calls[0].body, { address: OWNER });
   assert.deepEqual(calls[1].body, { nonce: "n1n1n1n1", signature: `sig:${message.length}` });
   assert.ok(calls.every((c) => c.credentials === "same-origin"));
@@ -144,4 +143,33 @@ test("linking Telegram tells the owner exactly what to send, and to which bot", 
   assert.equal(hub.linkInstruction({ code: "ABCD-EFGH", bot: "embco_agent_bot" }),
     "In Telegram, send this to @embco_agent_bot within 10 minutes: /link ABCD-EFGH");
   assert.match(hub.linkInstruction({ code: "ABCD-EFGH", bot: null }), /your embco bot/);
+});
+
+test("a new shop's agent wallets sign the owner in once when needed, and only then", async () => {
+  const OWNER = "0x2137" + "0".repeat(32) + "0379";
+  const wallets = { agent: "0x" + "5c".repeat(20), signer: "0x" + "e0".repeat(20) };
+  let signedIn = false;
+  const signatures = [];
+  const answer = (status, body) => ({ ok: status < 400, status, json: async () => body });
+  const impl = async (path) => {
+    if (path === "/api/owners/sign-in-request") return answer(200, { message: "m", nonce: "n" });
+    if (path === "/api/owners/sign-in") {
+      signedIn = true;
+      return answer(200, { owner: OWNER });
+    }
+    if (path === "/api/owners/agent-wallets") return signedIn ? answer(200, wallets) : answer(401, { error: "sign in" });
+    return answer(404, {});
+  };
+  const signer = { getAddress: async () => OWNER, signMessage: async (text) => signatures.push(text) };
+  assert.deepEqual(await hub.newAgentWallets(signer, impl), wallets);
+  assert.deepEqual(await hub.newAgentWallets(signer, impl), wallets);
+  assert.equal(signatures.length, 1);
+});
+
+test("the owner authorizes the agent's signer in Gateway, or an outside agent itself", () => {
+  const agent = "0x" + "5c".repeat(20);
+  const signer = "0x" + "e0".repeat(20);
+  assert.equal(hub.delegateOf({ ours: true, signer }, agent), signer);
+  assert.equal(hub.delegateOf({ ours: false, signer: null }, agent), agent);
+  assert.equal(hub.delegateOf(null, agent), null);
 });

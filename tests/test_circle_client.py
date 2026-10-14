@@ -75,6 +75,31 @@ def test_create_wallet_set_and_eoa_wallet_on_arc_testnet():
     assert len(set(keys)) == 2
 
 
+def test_a_smart_contract_account_and_the_wallets_of_a_set():
+    sca = {"id": "w-2", "address": "0xdef", "blockchain": "ARC-TESTNET", "walletSetId": "ws-1",
+           "accountType": "SCA"}
+    eoa = {**sca, "id": "w-3", "address": "0x123", "accountType": "EOA"}
+    fake = FakeCircle({
+        ("POST", "/v1/w3s/developer/wallets"): (201, {"data": {"wallets": [sca]}}),
+        ("GET", "/v1/w3s/wallets"): (200, {"data": {"wallets": [sca, eoa]}}),
+    })
+    client, _ = make(fake)
+    wallet = client.create_wallet("ws-1", "agent", account_type="SCA")
+    assert (wallet.id, wallet.account_type) == ("w-2", "SCA")
+    [body] = fake.bodies("/v1/w3s/developer/wallets")
+    assert body["accountType"] == "SCA" and body["blockchains"] == ["ARC-TESTNET"]
+    assert [w.account_type for w in client.wallets_in_set("ws-1")] == ["SCA", "EOA"]
+    assert fake.requests[-1].url.params["walletSetId"] == "ws-1"
+
+
+def test_an_address_that_is_not_ours_is_none_not_an_error():
+    fake = FakeCircle({("GET", "/v1/w3s/wallets"): (200, {"data": {"wallets": []}})})
+    client, _ = make(fake)
+    assert client.find_wallet("0xabc", "ARC-TESTNET") is None
+    with pytest.raises(CircleError, match="no Circle wallet"):
+        client.wallet_on("0xabc", "ARC-TESTNET")
+
+
 def test_errors_carry_circle_code_but_never_the_credentials():
     api_key = "TEST_API_KEY:id:" + secrets.token_hex(16)
     fake = FakeCircle({("POST", "/v1/w3s/developer/walletSets"):
