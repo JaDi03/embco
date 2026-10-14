@@ -1,6 +1,7 @@
-"""The agent's questions reach the owner's chat once, while they stand: with buttons when only the
-owner's yes is missing, as a reminder to use the dashboard when the owner's wallet is needed;
-and never as an answer to a message the owner is still waiting on."""
+"""The agent's questions reach the owner's chat once, while they stand, in the agent's own words:
+the code adds buttons when only the owner's yes is missing and none when the owner's wallet is
+needed first, and never writes the text; never as an answer to a message the owner is still
+waiting on."""
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -33,11 +34,10 @@ def questions(folder, d, agent=None, funds=RICH, room=Decimal("2000"), paused=Fa
                          funds=lambda: funds, room=lambda: room, paused=paused)
 
 
-def test_only_a_yes_missing_comes_with_buttons_short_and_once(tmp_path):
+def test_only_a_yes_missing_comes_with_buttons_in_the_agents_words_and_once(tmp_path):
     d = decision()
     first = questions(tmp_path, d)
-    assert [e["text"] for e in first] == [
-        "Pay 184 USDC to Northern Grains (ACC-PINV-2026-00012)?\nDid the flour arrive?"]
+    assert [e["text"] for e in first] == ["Did the flour arrive?"]
     assert first[0]["buttons"] is True
     chat.append_chat(tmp_path, first)
     assert questions(tmp_path, d, asks(d, "Asked again?")) == []
@@ -48,24 +48,20 @@ def test_what_needs_the_wallet_is_a_reminder_to_use_the_dashboard(tmp_path):
     [entry] = questions(tmp_path, d, funds={"owner_balance": "165.959618",
                                             "available_to_pay": "165.959618"})
     assert entry["buttons"] is False
-    assert entry["text"] == (
-        "Northern Grains, 476 USDC (ACC-PINV-2026-00017): needs you in the dashboard: raise the "
-        "per-payment limit (now 250 USDC), add USDC to your wallet (165.95 there).\n"
-        "Did the flour arrive?")
+    assert entry["text"] == "Did the flour arrive?"  # the agent says what to do; code adds nothing
 
 
-def test_each_wallet_step_is_named(tmp_path):
+def test_anything_only_the_owners_wallet_can_do_means_no_buttons(tmp_path):
     first = decision(action=Action.ASK, findings=(
         Finding("payee_wallet", Outcome.ASK, "first payment to this supplier"),))
-    wallet = questions(tmp_path, first)[0]["text"]
-    assert "needs you in the dashboard: approve its wallet." in wallet
-    assert wallet.count("Northern Grains") == 1
-    week = questions(tmp_path / "w", decision(), room=Decimal("100.004"))[0]["text"]
-    assert "raise the weekly limit or wait for it to renew (100 USDC left)" in week
-    owed = questions(tmp_path / "a", decision(),
-                     funds={"owner_balance": "500", "available_to_pay": "50"})[0]["text"]
-    assert "authorize payments again" in owed
-    assert "resume payments" in questions(tmp_path / "p", decision(), paused=True)[0]["text"]
+    cases = [questions(tmp_path, first),
+             questions(tmp_path / "w", decision(), room=Decimal("100.004")),
+             questions(tmp_path / "a", decision(),
+                       funds={"owner_balance": "500", "available_to_pay": "50"}),
+             questions(tmp_path / "p", decision(), paused=True)]
+    for [entry] in cases:
+        assert entry["buttons"] is False
+        assert entry["text"] == "Did the flour arrive?"
 
 
 def test_when_the_wallet_step_is_done_the_question_comes_again_with_buttons(tmp_path):

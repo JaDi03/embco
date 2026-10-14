@@ -76,18 +76,22 @@ def test_the_session_cannot_end_without_answering_the_owner(tmp_path):
         assert asked.replies == ["It has no goods receipt in ERPNext yet."]
 
 
-def test_what_reaches_the_owner_is_short_and_without_hashes(tmp_path):
+def test_what_reaches_the_owner_has_no_full_address_and_a_safety_cap(tmp_path):
     tx = "0x" + secrets.token_hex(32)
+    wallet = "0x" + secrets.token_hex(20)
     with SqliteJournal(tmp_path / "j.sqlite3") as journal:  # noqa: F811
         asked = box(journal, ["Did you pay it?"])
-        with pytest.raises(ToolError, match="hashes"):
-            asked.call("reply_owner", {"text": f"Paid it, transaction {tx}."})
+        with pytest.raises(ToolError, match="say where instead"):
+            asked.call("notify_owner", {"text": f"Send 1 USDC for fees to {wallet}."})
         with pytest.raises(ToolError, match="too long"):
-            asked.call("reply_owner", {"text": "Paid it. " + "Also other news. " * 30})
-        with pytest.raises(ToolError, match="too long"):
-            asked.call("notify_owner", {"text": "Add USDC. " * 30})
-        asked.call("reply_owner", {"text": "I paid 184 USDC to Northern Grains (00012)."})
-        assert asked.replies == ["I paid 184 USDC to Northern Grains (00012)."]
+            asked.call("notify_owner", {"text": "Add USDC. " * 200})
+        several = ("I paid 184 USDC to Northern Grains (00012). Three bills still wait: Tuyil "
+                   "1,088 and MedOne 53.50 need about 1,118 more USDC in your wallet on Arc, and "
+                   "my own wallet needs 1 USDC for network fees: send it to the agent's wallet "
+                   "shown in the dashboard under Settings > Agent. ") * 2
+        asked.call("reply_owner", {"text": several})  # several topics, in order: the model's call
+        asked.call("notify_owner", {"text": f"Paid it, transaction {tx}."})  # a hash proves it
+        assert asked.replies == [several.strip(), f"Paid it, transaction {tx}."]
 
 
 # ---- the whole way round, in the shop's process

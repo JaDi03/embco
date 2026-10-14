@@ -1,6 +1,6 @@
 """What the agent did itself never wakes it: its own payments are not a change of money, an
 invoice it paid does not wake it when it changes, and an alarm about that invoice does not ring.
-Nothing wakes it only because time passed. A payment it makes on its own is told in one line."""
+Nothing wakes it only because time passed."""
 
 import secrets
 from dataclasses import replace
@@ -17,11 +17,10 @@ from agent.models import AgentDecision, Alarm, Choice, Session, Wake
 from agent.reflexes.cycle import run_cycle
 from agent.reflexes.funds import money_wake
 from agent.reflexes.wake import pending_alarms, wakes_for
-from agent.think import BrainSetup, Thought, think
+from agent.think import BrainSetup, think
 from agent.tools import Toolbox, ToolError
 from services.payments import PaymentEvent, PaymentStatus
 from services.shops import activity
-from services.shops.agent import paid_notices
 from support import WALLET_A, FakeLedger
 
 NOW = datetime(2026, 10, 13, 19, 49, tzinfo=UTC)
@@ -158,14 +157,3 @@ def test_hours_without_news_do_not_wake_the_agent():
     assert wakes_for(now=NOW, zone=LAGOS, decisions=[held], changes=(),
                      sessions=[session(NOW - timedelta(hours=10))], standing=standing,
                      done=set(), payments=[], round_hour=25) == []
-
-
-# ---- a payment it makes on its own is told in one line
-
-
-def test_a_payment_on_its_own_is_told_in_one_short_line():
-    out = Thought(agent={}, payments=(payment(), payment(OPEN, PaymentStatus.BLOCKED)))
-    assert [e["text"] for e in paid_notices(out, owner_waiting=False)] == [
-        "Paid 184 USDC to Northern Grains (ACC-PINV-2026-00012)."]
-    assert paid_notices(out, owner_waiting=True) == []  # its answer to the owner says it
-    assert paid_notices(None, owner_waiting=False) == []

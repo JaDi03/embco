@@ -13,7 +13,6 @@ from decimal import Decimal
 from typing import Any
 
 from agent.cost import estimate, shown
-from agent.guardrails.controls.base import fmt
 from agent.guardrails.rules import PolicyConfig
 from agent.memory import JournalError, SqliteJournal
 from agent.models import Autonomy, Choice, Wake
@@ -32,7 +31,6 @@ from services.payments import (
     Payer,
     PaymentEvent,
     PaymentSetupError,
-    PaymentStatus,
 )
 from services.payments.encoding import ref_scope
 from services.settings import Settings
@@ -48,7 +46,6 @@ from services.unified_balance import OwnerFunds, UnifiedBalanceError
 log = logging.getLogger("embco")
 
 MESSAGE_POLL = 3  # seconds between looks at the inbox while waiting for the next check
-SENT = (PaymentStatus.SUBMITTED, PaymentStatus.COMPLETE, PaymentStatus.RECORDED)
 
 
 def erp_for(settings: Settings) -> ErpnextAdapter:
@@ -130,18 +127,6 @@ def chat_replies(session, owner_waiting: bool) -> list[dict[str, Any]]:
         return [{"from": chat.SYSTEM, "at": at, "text": "The agent could not answer right now "
                  f"({session.error}). It tries again in a few minutes."}]
     return []
-
-
-def paid_notices(thought, owner_waiting: bool) -> list[dict[str, Any]]:
-    """One short line per invoice the agent paid on its own, however many steps its payment
-    went through (sent, confirmed, booked). When the owner wrote, its answer already says what
-    it paid."""
-    if thought is None or owner_waiting:
-        return []
-    last = {e.invoice: e for e in thought.payments}
-    return [{"from": chat.AGENT, "at": e.at.isoformat(),
-             "text": f"Paid {fmt(e.amount)} USDC to {e.supplier} ({e.invoice})."}
-            for e in last.values() if e.status in SENT]
 
 
 def not_woken(folder, thought, owner_waiting: bool, at: datetime) -> list[dict[str, Any]]:
@@ -368,7 +353,6 @@ def run_shop(
             chat.append_chat(folder, on_telegram(folder, [
                 *chat_replies(report.thought.session if report.thought else None, bool(waiting)),
                 *not_woken(folder, report.thought, bool(waiting), report.at),
-                *paid_notices(report.thought, bool(waiting)),
                 *(new_questions(folder, report.decisions, report.thought.agent, report.at,
                                 policy=policy["now"], funds=funds, room=room,
                                 paused=store.payments_paused(shop))

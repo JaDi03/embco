@@ -1,6 +1,7 @@
-"""What reaches the owner is said once: a payment is one line in the chat and in the activity,
-however many steps it went through; a reminder keeps the agent's question; and a hold that only
-lost reasons does not wake the agent. Built on the pilot's 14-Oct checks (Ogun Dairy 00015/00016).
+"""What reaches the owner is said once: a payment is one line in the activity, however many
+steps it went through; a question reaches the owner in the agent's own words; and a hold that
+only lost reasons does not wake the agent. Built on the pilot's 14-Oct checks (Ogun Dairy
+00015/00016).
 """
 
 import secrets
@@ -18,7 +19,6 @@ from agent.reflexes.cycle import run_cycle
 from agent.think import BrainSetup, Thought, think
 from services.payments import PaymentEvent, PaymentStatus
 from services.shops import activity
-from services.shops.agent import paid_notices
 from services.shops.questions import new_questions
 from support import WALLET_A, FakeLedger
 
@@ -41,17 +41,6 @@ STEPS = [payment(PaymentStatus.SUBMITTED), payment(PaymentStatus.COMPLETE),
 
 
 # ---- a payment is one line
-
-
-def test_a_payment_on_its_own_is_one_chat_line_not_one_per_step():
-    out = Thought(agent={}, payments=tuple(STEPS))
-    assert [e["text"] for e in paid_notices(out, owner_waiting=False)] == [
-        "Paid 128 USDC to Ogun Dairy & Provisions (ACC-PINV-2026-00015)."]
-
-
-def test_a_payment_that_failed_after_it_was_sent_is_not_told_as_paid():
-    out = Thought(agent={}, payments=(STEPS[0], payment(PaymentStatus.FAILED)))
-    assert paid_notices(out, owner_waiting=False) == []
 
 
 def test_a_payment_is_one_line_in_the_activity_with_its_transaction():
@@ -106,7 +95,7 @@ QUESTION = ("Ogun Dairy's new payout wallet 0x5487...6e80 was set in the ERP on 
             "Did Ogun ask you to change its wallet?")
 
 
-def test_a_reminder_names_the_supplier_once_and_keeps_the_question(tmp_path):
+def test_a_question_that_needs_the_wallet_reaches_the_owner_in_the_agents_words(tmp_path):
     d = Decision(invoice=PAID, supplier=OGUN, amount=Decimal(128), due_date=date(2026, 10, 23),
                  action=Action.ASK, reasons=(FIRST,),
                  findings=(Finding("payee_wallet", Outcome.ASK, FIRST),))
@@ -114,9 +103,7 @@ def test_a_reminder_names_the_supplier_once_and_keeps_the_question(tmp_path):
     [entry] = new_questions(tmp_path, [d], {PAID: choice}, NOW, policy=POLICY,
                             funds=lambda: {"owner_balance": "165.94",
                                            "available_to_pay": "165.94"})
-    assert entry["text"] == (
-        "Ogun Dairy & Provisions, 128 USDC (ACC-PINV-2026-00015): needs you in the dashboard: "
-        f"approve its wallet.\n{QUESTION}")
+    assert entry["text"] == QUESTION  # nothing added by code
     assert entry["buttons"] is False
 
 

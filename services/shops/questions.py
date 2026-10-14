@@ -1,12 +1,12 @@
 """The agent's questions about invoices, sent to the owner's chat so they reach the phone too.
 
-Each question is written into the chat (and from there to Telegram) once, in one of two forms:
-- only the owner's yes is missing: the question with two quick answers (yes, pay it / no, hold
-  it). An answer is only a message to the agent, the same words the dashboard's buttons send:
-  the agent decides, and the contract still sets the limits.
-- something needs the owner's wallet (approve the supplier's wallet, raise a limit, add money,
-  authorize or resume payments): a short reminder to do it in the dashboard, then the agent's
-  question, with no buttons.
+Each question goes into the chat (and from there to Telegram) once, in the agent's own words: the
+code writes nothing of it, it only decides the form.
+- only the owner's yes is missing: two quick answers are attached (yes, pay it / no, hold it).
+  An answer is only a message to the agent, the same words the dashboard's buttons send: the
+  agent decides, and the contract still sets the limits.
+- something needs the owner's wallet first (approve the supplier's wallet, raise a limit, add
+  money, authorize or resume payments): no buttons, since a yes cannot do that.
 """
 
 from collections.abc import Callable, Iterable, Mapping
@@ -38,7 +38,8 @@ def question_key(agent: AgentDecision, kind: str) -> str:
 
 def wallet_steps(decision: Decision, policy: PolicyConfig, funds: Mapping[str, str] | None,
                  room: Decimal | None, paused: bool) -> list[str]:
-    """What the owner has to do with their wallet in the dashboard before this can be paid."""
+    """What the owner has to do with their wallet in the dashboard before this can be paid. Only
+    whether there is anything decides the form; the owner never reads these words."""
     steps = []
     if any(f.control == "payee_wallet" and f.outcome is Outcome.ASK for f in decision.findings):
         steps.append("approve its wallet")
@@ -79,14 +80,8 @@ def new_questions(folder, decisions: Iterable[Decision], agent: Mapping[str, Age
         kind = "wallet" if steps else "yes"
         if question_key(choice, kind) in sent:
             continue
-        amount = f"{fmt(decision.amount)} USDC"
-        if steps:
-            text = (f"{decision.supplier}, {amount} ({decision.invoice}): needs you in the "
-                    f"dashboard: {', '.join(steps)}.\n{choice.question or choice.reason}")
-        else:
-            text = (f"Pay {amount} to {decision.supplier} ({decision.invoice})?\n"
-                    f"{choice.question or choice.reason}")
-        entries.append({"from": chat.AGENT, "at": at.isoformat(), "text": text,
+        entries.append({"from": chat.AGENT, "at": at.isoformat(),
+                        "text": choice.question or choice.reason,
                         "asks": question_key(choice, kind), "invoice": decision.invoice,
                         "question": choice.question, "buttons": not steps})
     return entries
