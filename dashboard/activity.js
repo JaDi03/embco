@@ -1,4 +1,4 @@
-// The agent's activity as a live terminal: what it checks, decides and pays, as it happens.
+// The agent's activity: what it checks, decides and pays, as it happens.
 // The page asks the hub only for events after the last one it has.
 
 import { HUB_PATH } from "./config.js";
@@ -6,14 +6,6 @@ import { call } from "./hub.js";
 
 export const fetchActivity = (shop, after = 0, fetchImpl = fetch) =>
   call(`${HUB_PATH}/shops/${shop.toLowerCase()}/activity?after=${Number(after) || 0}`, { fetchImpl });
-
-const LABELS = {
-  check: "CHECK", done: "DONE", new: "NEW", changed: "UPDATE", closed: "CLOSED",
-  sending: "SENDING", paid: "PAID", recorded: "ERP", not_paid: "NOT PAID", signature: "SIGNED",
-  answer: "YOU", limits: "LIMITS", error: "ERROR", waiting: "WAITING",
-};
-
-export const labelOf = (kind) => LABELS[kind] ?? String(kind ?? "").toUpperCase();
 
 /** Who did it: the agent (Claude), its reflexes, the owner, a supplier, the contract, the ERP,
  * or a guardrail that stopped something. */
@@ -27,21 +19,7 @@ const ACTOR_OF = {
   not_paid: "GUARD", guard: "GUARD",
   error: "ERROR",
 };
-export const ACTORS = ["AGENT", "REFLEX", "YOU", "SUPPLIER", "CONTRACT", "ERP", "GUARD"];
 export const actorOf = (kind) => ACTOR_OF[kind] ?? "REFLEX";
-
-/** The events one filter chip shows: all, or one actor's. */
-export const byActor = (events, actor) => (actor ? events.filter((e) => actorOf(e.kind) === actor) : events);
-
-/** The chips above the activity, in the owner's words. */
-export const FILTERS = [
-  { label: "All", actors: null },
-  { label: "Agent", actors: ["AGENT"] },
-  { label: "Payments", actors: ["CONTRACT", "ERP"] },
-  { label: "You", actors: ["YOU"] },
-  { label: "Suppliers", actors: ["SUPPLIER"] },
-  { label: "Checks", actors: ["REFLEX", "GUARD", "ERROR"] },
-];
 
 /**
  * The feed as the page shows it: each time Claude was woken becomes one session (what woke it,
@@ -72,14 +50,6 @@ export function choiceLabel(e) {
   if (e.choice === "HOLD") return "Hold";
   if (e.choice === "ASK") return "Asks you";
   return "";
-}
-
-/** Keep what a filter shows: a session counts as the agent's. */
-export function filterTimeline(items, filter) {
-  if (!filter?.actors) return items;
-  return items.filter((it) => (it.type === "session"
-    ? filter.actors.includes("AGENT")
-    : filter.actors.includes(actorOf(it.event.kind))));
 }
 
 /** "Today", "Yesterday" or the date, in the viewer's time. */

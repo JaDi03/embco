@@ -114,6 +114,9 @@ export function taskFor(decision, facts = {}, { waiting = false, answer = null }
   return { decision, steps, decide, weighed, reply: ready ? replyTo(decision) : null, section: sectionOf(decision, steps), payment: paymentText(decision) };
 }
 
+/** The owner's two quick answers, as the agent reads them after the invoice and its question. */
+export const QUICK_ANSWERS = { yes: "yes, go ahead and pay it.", no: "no, hold it for now." };
+
 /** When the agent asks the owner something and only their yes is missing, two quick answers it
  * reads in the chat (with the question, so it knows what the yes answers); the owner can also
  * write anything else there. */
@@ -124,8 +127,8 @@ export function replyTo(decision) {
   return {
     question: agent.question || agent.reason,
     options: [
-      { label: "Yes, pay it", text: `About ${decision.invoice}${asked}: yes, go ahead and pay it.` },
-      { label: "No, hold it", text: `About ${decision.invoice}${asked}: no, hold it for now.` },
+      { label: "Yes, pay it", text: `About ${decision.invoice}${asked}: ${QUICK_ANSWERS.yes}` },
+      { label: "No, hold it", text: `About ${decision.invoice}${asked}: ${QUICK_ANSWERS.no}` },
     ],
   };
 }

@@ -134,7 +134,7 @@ is **draft mode**, and it is on for every new shop.
 - To change it, open **Settings > ERPNext**. Turning draft mode off asks you to confirm a second
   time: from then on each payment is submitted and closes its invoice, even when it was paid in
   test USDC, and your books show those invoices as paid.
-- Turning it back on takes one click. Each change is written in **Agent activity**, and if the
+- Turning it back on takes one click. Each change is written in **Your agent**, and if the
   agent is on, it restarts with the new mode.
 
 ## If something does not work
