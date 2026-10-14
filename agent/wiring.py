@@ -10,6 +10,7 @@ from agent.think import BrainSetup
 from services.payments import ChainError, Payer
 from services.payments.encoding import USDC_DECIMALS
 from services.settings import Settings
+from services.unified_balance import OwnerFunds, UnifiedBalance
 
 
 def room_of(payer: Payer | None) -> Callable[[], Decimal | None] | None:
@@ -51,11 +52,19 @@ def funds_of(payer: Payer | None) -> Callable[[], dict[str, str] | None] | None:
     return funds
 
 
+def owner_funds_of(settings: Settings, payer: Payer | None) -> OwnerFunds | None:
+    """The owner's Unified Balance on other chains, when the agent pays with its Circle wallet."""
+    if payer is None or not (settings.circle_api_key and settings.circle_entity_secret):
+        return None
+    return OwnerFunds(UnifiedBalance(settings.circle_api_key, settings.circle_entity_secret), payer)
+
+
 def brain_setup(
     settings: Settings, room: Callable[[], Decimal | None] | None = None,
     funds: Callable[[], dict[str, str] | None] | None = None,
     mailer: Callable[[str, str, str], str] | None = None,
     wallet_notice: Callable[[str], str] | None = None,
+    owner_funds: OwnerFunds | None = None,
 ) -> BrainSetup | None:
     if not settings.brain:
         return None
@@ -73,4 +82,5 @@ def brain_setup(
         **({"funds": funds} if funds else {}),
         **({"mailer": mailer} if mailer else {}),
         **({"wallet_notice": wallet_notice} if wallet_notice else {}),
+        **({"owner_funds": owner_funds} if owner_funds else {}),
     )

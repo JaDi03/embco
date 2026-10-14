@@ -100,6 +100,7 @@ class Session:
     emails: tuple[str, ...] = ()  # suppliers the agent wrote to in this session
     wallet_notices: tuple[str, ...] = ()  # suppliers sent the notice to confirm their wallet
     seen_payments: tuple[str, ...] = ()  # payment results the agent saw in this session
+    funds_moved: tuple[dict, ...] = ()  # what the agent brought from the owner's other chains
 
 
 def payment_seen_key(event) -> str:

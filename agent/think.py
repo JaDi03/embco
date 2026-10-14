@@ -75,6 +75,7 @@ class BrainSetup:
     funds: Callable[[], dict[str, str] | None] = field(default=lambda: None)
     mailer: Callable[[str, str, str], str] | None = None  # writes to a supplier from the ERP
     wallet_notice: Callable[[str], str] | None = None  # the standard wallet notice, from the ERP
+    owner_funds: Any = None  # the owner's Unified Balance (services.unified_balance.OwnerFunds)
 
 
 @dataclass(frozen=True)
@@ -128,7 +129,7 @@ def think(
     toolbox = Toolbox(decisions=list(decisions), ledger=ledger, journal=journal, policy=policy,
                       now=now, zone=setup.zone, done=set(done), standing=standing,
                       room=setup.room, funds=setup.funds, mailer=setup.mailer,
-                      wallet_notice=setup.wallet_notice,
+                      wallet_notice=setup.wallet_notice, owner_funds=setup.owner_funds,
                       emails_today=emails_today(sessions, setup.zone, now),
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), payer=payer,
@@ -152,6 +153,7 @@ def think(
         emails=tuple(toolbox.emailed),
         wallet_notices=tuple(toolbox.notified_wallets),
         seen_payments=tuple(payment_seen_key(e) for e in toolbox.payments),
+        funds_moved=tuple(toolbox.funds_moved),
         **({"usage": usage} if usage else {}),
     )
     journal.record_session(session)
@@ -189,7 +191,7 @@ def converse(
     toolbox = Toolbox(decisions=list(decisions), ledger=ledger, journal=journal, policy=policy,
                       now=now, zone=setup.zone, done=set(done), standing=standing,
                       room=setup.room, funds=setup.funds, mailer=setup.mailer,
-                      wallet_notice=setup.wallet_notice,
+                      wallet_notice=setup.wallet_notice, owner_funds=setup.owner_funds,
                       emails_today=emails_today(sessions, setup.zone, now),
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), require_all=False, payer=payer,
@@ -214,6 +216,7 @@ def converse(
         emails=tuple(toolbox.emailed),
         wallet_notices=tuple(toolbox.notified_wallets),
         seen_payments=tuple(payment_seen_key(e) for e in toolbox.payments),
+        funds_moved=tuple(toolbox.funds_moved),
         **({"usage": usage} if usage else {}),
     )
     journal.record_session(session)
@@ -223,9 +226,9 @@ def converse(
 
 def money_after(setup: BrainSetup, toolbox: Toolbox,
                 before: dict[str, str] | None) -> dict[str, str] | None:
-    """The money the agent leaves the session knowing: read again when it paid, so its own
-    payments are not a change of money that wakes it in the next check."""
-    if not toolbox.payments:
+    """The money the agent leaves the session knowing: read again when it paid or brought funds,
+    so what it did itself is not a change of money that wakes it in the next check."""
+    if not (toolbox.payments or toolbox.funds_moved):
         return before
     return setup.funds() or before
 

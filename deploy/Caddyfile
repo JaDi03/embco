@@ -23,7 +23,9 @@
 	header {
 		# No HTTP/3 offer: QUIC over UDP breaks on some networks and antivirus, and the page gains nothing
 		-Alt-Svc
-		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://explorer.testnet.arc.io; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
+		# connect-src: Circle Gateway and the public nodes Circle's Unified Balance Kit uses for the
+		# chains where the owner deposits (from the kit's own chain definitions)
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://explorer.testnet.arc.io https://gateway-api-testnet.circle.com https://sepolia.base.org https://sepolia-rollup.arbitrum.io https://ethereum-sepolia-rpc.publicnode.com https://api.avax-test.network https://sepolia.optimism.io https://polygon-amoy-bor-rpc.publicnode.com https://polygon-amoy.drpc.org https://sepolia.unichain.org; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'"
 		X-Content-Type-Options nosniff
 		Referrer-Policy no-referrer
 		Permissions-Policy "camera=(), microphone=(), geolocation=()"

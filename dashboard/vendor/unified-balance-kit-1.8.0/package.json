@@ -1,0 +1,16 @@
+{
+  "name": "embco-vendor-unified-balance-kit",
+  "private": true,
+  "type": "module",
+  "description": "Circle's Unified Balance Kit and its viem adapter, bundled once into index.js for the static dashboard. Rebuild: pnpm install && pnpm build.",
+  "scripts": {
+    "build": "esbuild entry.mjs --bundle --format=esm --platform=browser --minify --legal-comments=external --outfile=index.js"
+  },
+  "devDependencies": {
+    "@circle-fin/adapter-viem-v2": "1.19.0",
+    "@circle-fin/unified-balance-kit": "1.8.0",
+    "esbuild": "0.28.2",
+    "viem": "2.57.1"
+  },
+  "packageManager": "pnpm@11.2.2"
+}

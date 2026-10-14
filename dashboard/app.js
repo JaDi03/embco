@@ -10,6 +10,7 @@ import * as chat from "./chat.js";
 import * as hub from "./hub.js";
 import { agentView, groupTasks, raisedLimits, taskFor } from "./needs.js";
 import * as suppliers from "./suppliers.js";
+import * as unified from "./unified.js";
 import { factory, memoNames, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
 import { AUTHORIZE_ALL, authorizationView, formatUsdc, parseUsdc, shortAddress, ZERO_ADDRESS } from "./units.js";
 import { chooseWallet } from "./picker.js";
@@ -171,6 +172,8 @@ async function renderShop() {
     ? `${today.sessions} session${today.sessions === 1 ? "" : "s"}${today.cost ? ` · ${today.cost} est.` : ""}`
     : "-";
   $("agent-address").replaceChildren(hasAgent ? link(shortAddress(state.agent), addressUrl(state.agent)) : "none");
+  session.agent = hasAgent ? state.agent : null;
+  renderUnified(isOwner, service);
   const telegram = Boolean(service?.telegram_linked);
   $("telegram-state").textContent = !service ? "sign in to the embco service first" : telegram ? "linked: /stop and /pause work from your phone" : "not linked";
   $("telegram-link").hidden = !isOwner || !service?.connected || telegram;
@@ -180,6 +183,44 @@ async function renderShop() {
   $("agent-on").hidden = !isOwner || view.on;
 
   await Promise.all([renderHistory(isOwner), renderApprovals(isOwner), renderErp(isOwner, state)]);
+}
+
+// The owner's Unified Balance on other chains: what the agent last read, and the owner's two
+// actions there, made with their own wallet through Circle's kit.
+
+function renderUnified(isOwner, service) {
+  const view = unified.unifiedView(service?.last_run);
+  $("unified-note").textContent = isOwner ? view.text : "";
+  $("unified-chains").replaceChildren(
+    ...view.rows
+      .filter((r) => r.available || r.arriving || r.authorized)
+      .map((r) => {
+        const item = document.createElement("li");
+        const arriving = r.arriving ? ` (+${formatUsdc(r.arriving)} arriving)` : "";
+        item.textContent = `${r.name}: ${formatUsdc(r.available)} USDC${arriving} · ${r.authorized ? "agent authorized" : "agent not authorized"}`;
+        return item;
+      }),
+  );
+  const select = $("unified-chain");
+  const picked = select.value;
+  select.replaceChildren(...view.rows.map((r) => new Option(r.name, r.chain)));
+  if (view.rows.some((r) => r.chain === picked)) select.value = picked;
+  $("unified-form").hidden = !isOwner || view.rows.length === 0;
+}
+
+async function unifiedAct(button, label, run) {
+  button.disabled = true;
+  try {
+    notify(`${label}: confirm it in your wallet (it switches to that chain)...`);
+    await run(wallet.eip1193());
+    notify(`${label}: done. The agent sees it at its next check.`, "success");
+  } catch (error) {
+    notify(describeError(error), "error");
+  } finally {
+    button.disabled = false;
+    await wallet.switchToArc().catch(() => null);  // the rest of the page works on Arc
+    await render();
+  }
 }
 
 // The shop's own agent on the owner's ERPNext, through the hub API.
@@ -1012,6 +1053,27 @@ function wireActions() {
   $("revoke-button").addEventListener("click", (event) =>
     act(event.currentTarget, "Revoke", (_shop, signer) => usdc(signer).approve(session.shop, 0n)),
   );
+
+  onSubmit("unified-form", (data, button, form) => {
+    const chain = data.get("chain");
+    const amount = String(data.get("amount") ?? "").trim();
+    try {
+      parseUsdc(amount);
+    } catch (error) {
+      notify(describeError(error), "error");
+      return;
+    }
+    unifiedAct(button, "Deposit", (provider) => unified.deposit(provider, chain, amount)).then(() => form.reset());
+  });
+
+  $("unified-authorize").addEventListener("click", (event) => {
+    if (!session.agent) {
+      notify("Set the agent wallet in Settings first.", "error");
+      return;
+    }
+    const chain = $("unified-chain").value;
+    unifiedAct(event.currentTarget, "Authorize the agent", (provider) => unified.authorizeAgent(provider, chain, session.agent));
+  });
 
   onSubmit("limits-form", (data, button, form) => {
     let maxPerPayment;

@@ -37,6 +37,7 @@ finding with its evidence, so the reason on screen is the reason the rule used.
 | Does what was billed make sense? | The AI model | It weighs the notes (receipt, quantities, price history, limits) and pays, holds or asks the owner, with its reason |
 | Is this supplier's wallet safe? | The wallet control, then the owner | A new wallet waits for the supplier's signature and the owner's approval |
 | What is paid now, and what waits for a date? | The AI model | It pays itself and reads the result; the gate refuses anything the rules forbid before it is sent |
+| The owner's wallet on Arc is short: bring money from which chains? | The AI model | It reads the owner's Unified Balance on other chains and the fees of each split, and brings what it chooses. It only ever lands in the owner's own wallet on Arc, from chains where the owner authorized it |
 | A payment did not go out: why, and who fixes it? | The AI model | It looks up the reason with its tools and tells the owner what only they can fix |
 | Is the payment allowed on chain? | The shop contract | Limits, approved payee, once per invoice, pause |
 

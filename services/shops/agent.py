@@ -21,12 +21,19 @@ from agent.reflexes.cycle import CycleReport, run_cycle
 from agent.reflexes.report import format_report
 from agent.reflexes.watch import watch
 from agent.think import BUDGET_USED, converse
-from agent.wiring import brain_setup, funds_of, room_of
-from services.circle import CircleClient
+from agent.wiring import brain_setup, funds_of, owner_funds_of, room_of
+from services.circle import CircleClient, CircleError
 from services.erp import ErpnextAdapter, LedgerError
 from services.erp.erpnext.cache import CachedLedger
 from services.hub.chain import DEFAULT_FACTORY, ShopChain, ShopLimits
-from services.payments import ArcRpc, ChainError, Payer, PaymentEvent, PaymentStatus
+from services.payments import (
+    ArcRpc,
+    ChainError,
+    Payer,
+    PaymentEvent,
+    PaymentSetupError,
+    PaymentStatus,
+)
 from services.payments.encoding import ref_scope
 from services.settings import Settings
 from services.shops import activity, chat
@@ -36,6 +43,7 @@ from services.shops.questions import new_questions
 from services.shops.store import ShopStore
 from services.shops.supplier_view import supplier_view
 from services.telegram import links
+from services.unified_balance import OwnerFunds, UnifiedBalanceError
 
 log = logging.getLogger("embco")
 
@@ -208,6 +216,20 @@ def summarize(
     }
 
 
+def unified_view(owner_funds: OwnerFunds | None) -> dict[str, Any] | None:
+    """The owner's Unified Balance for the dashboard: each chain, the USDC there and whether
+    the owner authorized the agent to spend it. None when it is not connected."""
+    if owner_funds is None:
+        return None
+    try:
+        chains = owner_funds.chains()
+    except (UnifiedBalanceError, ChainError, CircleError, PaymentSetupError) as error:
+        return {"error": str(error)}
+    return {"chains": [{"chain": c.chain, "available": str(c.confirmed),
+                        "arriving": str(c.pending), "agent_authorized": c.agent_can_spend}
+                       for c in chains]}
+
+
 def run_shop(
     store: ShopStore,
     shop: str,
@@ -233,9 +255,17 @@ def run_shop(
     policy = {"now": settings.policy}
     notice = getattr(live, "email_wallet_notice", None)
     room, funds = room_of(payments), funds_of(payments)
+    unified = owner_funds_of(settings, payments)
+    if unified:
+        try:
+            log.info("shop %s: agent wallet ready for the Unified Balance on %s", shop,
+                     ", ".join(unified.prepare()))
+        except (UnifiedBalanceError, ChainError, CircleError, PaymentSetupError) as error:
+            log.warning("shop %s: Unified Balance not ready: %s", shop, error)
     brain = brain_setup(settings, room, funds,
                         getattr(live, "email_supplier", None),
-                        (lambda s: notice(s, settings.supplier_site)) if notice else None)
+                        (lambda s: notice(s, settings.supplier_site)) if notice else None,
+                        unified)
     if brain:
         log.info("shop %s: agent brain on (%s, %s)", shop, brain.brain.model,
                  brain.autonomy.value)
@@ -341,7 +371,8 @@ def run_shop(
                               at=time.monotonic())
             latest = {p.invoice: p for p in journal.latest_payments()}
             today = claude_today(journal.sessions(), brain.zone, report.at) if brain else None
-            store.write_last_run(shop, summarize(report, latest, answers, policy["now"], today))
+            store.write_last_run(shop, {**summarize(report, latest, answers, policy["now"], today),
+                                        "unified_balance": unified_view(unified)})
             store.write_supplier_view(shop, supplier_view(report, journal, settings.company,
                                                           signatures, wallet_of=wallet_of))
             log.info("shop %s: %s", shop, format_report(report))
