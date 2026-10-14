@@ -294,6 +294,23 @@
             </form>
           </section>
 
+          <section class="owner-only" id="unified-section">
+            <h3>USDC on other chains</h3>
+            <p class="hint">
+              Keep USDC on other chains in your Unified Balance (Circle Gateway). When an invoice needs more than your
+              wallet on Arc holds, the agent can bring it to your wallet on Arc from the chains you authorize it on.
+              It never sends it anywhere else, and the contract's limits still apply.
+            </p>
+            <p class="hint" id="unified-note"></p>
+            <ul class="list" id="unified-chains"></ul>
+            <form id="unified-form" class="stack-form" novalidate>
+              <select name="chain" id="unified-chain" aria-label="Chain"></select>
+              <input name="amount" inputmode="decimal" placeholder="Amount to deposit (USDC)" aria-label="Amount to deposit" />
+              <button class="btn btn-primary" type="submit">Deposit</button>
+              <button class="btn btn-ghost" type="button" id="unified-authorize">Authorize the agent on this chain</button>
+            </form>
+          </section>
+
           <section class="owner-only">
             <h3>Limits in your contract</h3>
             <form id="limits-form" class="stack-form" novalidate>

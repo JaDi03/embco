@@ -24,7 +24,8 @@ from agent.tools.definitions import TOOLS
 from services.circle import CircleError
 from services.erp import LedgerAdapter, LedgerError
 from services.payments import ChainError, PaymentEvent, PaymentStatus
-from services.payments.payer import PaymentRefused
+from services.payments.payer import PaymentRefused, PaymentSetupError
+from services.unified_balance import Allocation, UnifiedBalanceError
 
 MAX_ALARMS = 5
 MAX_NOTES = 10
@@ -38,6 +39,8 @@ SEARCH_LIMIT = 50
 MAX_NOTICES = 3
 MAX_EMAILS_PER_DAY = 3
 MAX_PAYMENTS = 10  # per session; the contract's weekly cap is the real limit
+MAX_FUND_MOVES = 3  # bring_funds calls per session
+FORWARDER = "forwarder"  # the fee taken from what is minted on Arc; the others come off the balance
 LINKS = re.compile(r"https?://|www\.|\b[a-z0-9-]+\.(com|net|org|xyz|io|app|link)\b", re.I)
 UNKNOWN_FUNDS = {"weekly_room_resets_at_utc": "unknown", "owner_balance": "unknown",
                  "payments_authorized": "unknown"}  # the chain did not answer: never a guess
@@ -70,6 +73,8 @@ class Toolbox:
     payer: Any = None  # pays one invoice when the agent chooses to (services.payments.Payer)
     can_pay: bool = True  # False while the owner has paused payments
     payments: list[PaymentEvent] = field(default_factory=list)  # what the agent's payments did
+    owner_funds: Any = None  # the owner's Unified Balance (services.unified_balance.OwnerFunds)
+    funds_moved: list[dict[str, Any]] = field(default_factory=list)  # what bring_funds brought
     chosen: dict[str, AgentDecision] = field(default_factory=dict)
     alarms: list[Alarm] = field(default_factory=list)
     notes: list[Note] = field(default_factory=list)
@@ -215,7 +220,22 @@ class Toolbox:
             "payable_due_within_7_days": fmt(sum((d.amount for d in due_soon), Decimal(0))),
             "today": self.today.isoformat(),
             **(self._funds_once() or UNKNOWN_FUNDS),
+            "usdc_on_other_chains": self._other_chains(),
         }
+
+    def _other_chains(self) -> list[dict[str, str]] | str:
+        """The owner's Unified Balance, chain by chain, and where the agent may spend it."""
+        if self.owner_funds is None:
+            return "not connected for this shop"
+        try:
+            chains = self.owner_funds.chains()
+        except (UnifiedBalanceError, ChainError, CircleError, PaymentSetupError) as error:
+            return f"unknown: {error}"
+        rows = [{"chain": c.chain, "available": fmt(c.confirmed), "arriving": fmt(c.pending),
+                 "you_may_spend_it": "yes" if c.agent_can_spend
+                 else "no: the owner authorizes you on this chain in the dashboard"}
+                for c in chains if c.confirmed or c.pending or c.agent_can_spend]
+        return rows or "the owner has no USDC on other chains"
 
     # acting
 
@@ -270,6 +290,47 @@ class Toolbox:
             return self.payer.wallet_info()
         except (ChainError, CircleError) as error:
             raise ToolError(f"could not read the agent's wallet: {error}") from None
+
+    def _estimate_bring_funds(self, allocations: str) -> dict[str, Any]:
+        split = self._allocations(allocations)
+        try:
+            estimate = self.owner_funds.estimate(split)
+        except (UnifiedBalanceError, ChainError, CircleError, PaymentSetupError) as error:
+            raise ToolError(f"could not estimate it: {error}") from None
+        return _moved(split, estimate.get("fees", []))
+
+    def _bring_funds(self, allocations: str, reason: str) -> dict[str, Any]:
+        split = self._allocations(allocations)
+        if not self.can_pay:
+            raise ToolError("payments are paused by the owner; nothing was moved")
+        if len(self.funds_moved) >= MAX_FUND_MOVES:
+            raise ToolError(f"at most {MAX_FUND_MOVES} fund moves per session; look again later")
+        try:
+            result = self.owner_funds.bring(split)
+        except (UnifiedBalanceError, ChainError, CircleError, PaymentSetupError) as error:
+            raise ToolError(f"nothing was brought: {error}") from None
+        moved = {**_moved(split, result.get("fees", [])), "reason": reason.strip(),
+                 "tx": result.get("txHash") or result.get("transferId") or ""}
+        self.funds_moved.append(moved)
+        if hasattr(self, "_funds"):
+            del self._funds  # the owner's balance on Arc changed: read it again when asked
+        return moved
+
+    def _allocations(self, text: str) -> list[Allocation]:
+        """chain:amount pairs, each chain once, each amount positive."""
+        if self.owner_funds is None:
+            raise ToolError("the owner's Unified Balance is not connected for this shop")
+        split: dict[str, Decimal] = {}
+        for part in filter(None, (p.strip() for p in text.split(","))):
+            chain, _, amount = part.partition(":")
+            chain, value = chain.strip(), _decimal(amount)
+            if not chain or value is None or value <= 0 or chain in split:
+                raise ToolError("allocations are chain:amount pairs, each chain once, each "
+                                "amount above 0, e.g. Base_Sepolia:120, Arbitrum_Sepolia:30.5")
+            split[chain] = value
+        if not split:
+            raise ToolError("say how much from which chain, e.g. Base_Sepolia:120")
+        return [Allocation(chain, amount) for chain, amount in split.items()]
 
     def _schedule_payment(self, invoice: str, pay_on: str, reason: str) -> str:
         decision = self._by_invoice.get(invoice)
@@ -534,3 +595,19 @@ def _parse_day(text: str) -> date:
         return date.fromisoformat(text)
     except ValueError:
         raise ToolError("use a date as YYYY-MM-DD") from None
+
+
+def _decimal(text: str) -> Decimal | None:
+    try:
+        return Decimal(text.strip())
+    except (ArithmeticError, ValueError):
+        return None
+
+
+def _moved(split: list[Allocation], fees: list[dict[str, Any]]) -> dict[str, Any]:
+    """What a move takes from each chain, its fees and what reaches the owner's wallet on Arc."""
+    total = sum((a.amount for a in split), Decimal(0))
+    fee = {f.get("type", ""): Decimal(str(f.get("amount", "0"))) for f in fees}
+    return {"from": [{"chain": a.chain, "amount": fmt(a.amount)} for a in split],
+            "total": fmt(total), "fees": {k: fmt(v) for k, v in fee.items()},
+            "arrives_on_arc": fmt(total - fee.get(FORWARDER, Decimal(0)))}

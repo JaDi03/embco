@@ -70,6 +70,14 @@ apt-get update -qq
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git curl caddy polkitd python3 >/dev/null
 command -v uv >/dev/null ||
   curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh >/dev/null
+# Node 22 runs Circle's Unified Balance Kit for the agent; the distribution's own package is
+# older, so it comes from NodeSource, as nodejs.org lists. pnpm comes through corepack.
+node_major=$( (node -v 2>/dev/null || echo v0) | sed -E 's/^v([0-9]+).*/\1/')
+if [ "$node_major" -lt 22 ]; then
+  curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs >/dev/null
+fi
+corepack enable
 
 rpc=$(get "$FROM" ARC_TESTNET_RPC_URL)
 chain=$(curl -s -m 15 -X POST -H 'content-type: application/json' \
@@ -90,6 +98,8 @@ fi
 sudo -u embco git -C "$APP" fetch -q origin
 sudo -u embco git -C "$APP" checkout -q -B "$branch" "origin/$branch"
 (cd "$APP" && sudo -u embco -H uv sync -q --frozen --no-dev)
+(cd "$APP/services/unified_balance/kit" &&
+  sudo -u embco -H env COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm install -s --frozen-lockfile --prod)
 install -d -m 700 -o embco -g embco "$DATA/shops"
 chown -R embco:embco "$DATA/shops"  # shops restored from a backup belong to the agent too
 

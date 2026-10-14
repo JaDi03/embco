@@ -26,6 +26,9 @@ def _text(description: str) -> dict[str, Any]:
 
 INVOICE = _text("The invoice name exactly as listed, e.g. ACC-PINV-2026-00012.")
 REASON = _text("Why, in one or two plain sentences the owner will read.")
+ALLOCATIONS = _text("How much USDC from each chain, as chain:amount separated by commas, e.g. "
+                    "Base_Sepolia:120, Arbitrum_Sepolia:30.5. Chain names as cash_position "
+                    "lists them.")
 
 TOOLS: list[dict[str, Any]] = [
     _tool("list_open_invoices",
@@ -53,7 +56,8 @@ TOOLS: list[dict[str, Any]] = [
           item_code=_text("The item code exactly as on the invoice line.")),
     _tool("cash_position",
           "The shop contract's limits, how much it still lets the shop pay this week, what you "
-          "chose to pay now in this session, and the payments scheduled or due soon."),
+          "chose to pay now in this session, the payments scheduled or due soon, and the USDC "
+          "the owner keeps on other chains (their Unified Balance) with where you may spend it."),
     _tool("pay_now",
           "Pay this invoice now, for real: the payment goes out right away from the owner's "
           "wallet through the shop contract (simulated first, then sent with your Circle "
@@ -70,6 +74,18 @@ TOOLS: list[dict[str, Any]] = [
     _tool("agent_wallet",
           "Your own wallet: its address, its balance for Arc network fees (paid in USDC), "
           "whether the shop contract has it as its agent, and whether the contract is paused."),
+    _tool("estimate_bring_funds",
+          "What it would cost to bring USDC from the owner's Unified Balance on other chains to "
+          "the owner's wallet on Arc, with the split you give: the fees and what would arrive. "
+          "Nothing moves.",
+          allocations=ALLOCATIONS),
+    _tool("bring_funds",
+          "Bring USDC from the owner's Unified Balance on other chains to the owner's own wallet "
+          "on Arc, for real, so the shop contract can pay from it. You choose how much comes "
+          "from each chain; it always arrives at the owner's wallet, never anywhere else. Only "
+          "chains where the owner authorized you. Returns what arrived, the fees and the "
+          "transaction, or the real error.",
+          allocations=ALLOCATIONS, reason=REASON),
     _tool("schedule_payment",
           "Plan to pay this invoice on a later date you choose (shop's local date). Only "
           "invoices the checks allow. On that day you are woken to pay it with pay_now, or to "

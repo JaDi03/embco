@@ -150,6 +150,7 @@ def session_events(session) -> list[dict[str, Any]]:
                              pay_on=d.pay_on.isoformat() if d.pay_on else None))
     events.extend(_event(at, AGENT, f"Will look again on {a.at:%Y-%m-%d %H:%M}: {a.why}")
                   for a in session.alarms)
+    events.extend(_event(at, AGENT, _brought(m), tx=m.get("tx")) for m in session.funds_moved)
     events.extend(_event(at, AGENT, f"Emailed {supplier} from your ERPNext.")
                   for supplier in session.emails)
     events.extend(_event(at, AGENT, f"Sent {supplier} the notice to confirm its wallet.")
@@ -159,6 +160,13 @@ def session_events(session) -> list[dict[str, Any]]:
         events.append(_event(at, AGENT, session.summary, cost=cost,
                              tokens=session.usage.total, steps=session.steps))
     return events
+
+
+def _brought(moved: Mapping[str, Any]) -> str:
+    """A move from the owner's Unified Balance, in the owner's words."""
+    sources = ", ".join(f"{s['chain'].replace('_', ' ')} {s['amount']}" for s in moved["from"])
+    return (f"Brought {moved['arrives_on_arc']} USDC to your wallet on Arc from your Unified "
+            f"Balance ({sources}).")
 
 
 def payment_events(at: datetime, payments) -> list[dict[str, Any]]:

@@ -88,6 +88,12 @@ export async function disconnect() {
     .catch(() => null);
 }
 
+/** The connected wallet's own EIP-1193 provider, for kits that bring their own client. */
+export function eip1193() {
+  if (!chosen) throw new Error("Connect your wallet first.");
+  return chosen.provider;
+}
+
 export function provider() {
   if (!chosen) throw new Error("Connect your wallet first.");
   return new ethers.BrowserProvider(chosen.provider);

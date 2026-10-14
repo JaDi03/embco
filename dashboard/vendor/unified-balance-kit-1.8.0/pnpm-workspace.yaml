@@ -1,0 +1,5 @@
+# esbuild builds the bundle; the others are optional native speedups of the ws library.
+allowBuilds:
+  bufferutil: false
+  esbuild: true
+  utf-8-validate: false

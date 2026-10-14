@@ -172,6 +172,10 @@ class ArcRpc:
                                                     [owner, to_checksum_address(shop)]))
         return balance, allowed
 
+    def owner_of(self, shop: str) -> str:
+        (owner,) = decode(["address"], self._view(shop, "owner()", [], []))
+        return to_checksum_address(owner)
+
     def agent_of(self, shop: str) -> str:
         (agent,) = decode(["address"], self._view(shop, "agent()", [], []))
         return to_checksum_address(agent)
