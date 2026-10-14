@@ -114,11 +114,13 @@ TOOLS: list[dict[str, Any]] = [
     _tool("ask_owner",
           "Ask the owner a question about this invoice; it is not paid until the owner answers. "
           "Ask only what the owner really has to decide, so that yes means pay it and no means "
-          "hold it, and say what you recommend. The question reaches the owner by itself. When "
+          "hold it, and say what you recommend. It reaches the owner as you write it (with "
+          "yes/no buttons when only their yes is missing), so make it stand on its own. When "
           "the owner must first do something in the dashboard (approve a wallet, raise a limit, "
           "add money), their yes cannot do it: ask what they should check before doing it.",
           invoice=INVOICE,
-          question=_text("The question, short and concrete."),
+          question=_text("The question as the owner will read it: the invoice, the amounts, "
+                         "what they need to do and where."),
           recommendation=_text("What you recommend and why, in one sentence.")),
     _tool("set_alarm",
           "Wake yourself at a given time to look at something again.",
@@ -133,14 +135,15 @@ TOOLS: list[dict[str, Any]] = [
     _tool("reply_owner",
           "Answer the owner's message: only what they wrote about, what you did about it. Call "
           "it once per session that has owner messages, before finish.",
-          text=_text("Your answer, one or two short sentences, nothing about other invoices.")),
+          text=_text("Your answer, clear and in order: what they asked, what you did, and "
+                     "what they need to do and where.")),
     _tool("notify_owner",
           "Tell the owner something they should act on, without waiting for them to write: money "
           "that will not reach a coming payment, a deadline, a problem only they can fix. It "
-          "reaches their dashboard and phone. One topic per notice: the date, the numbers and "
-          "what to do. At most 3 per session; never for routine news (the summary is for that) "
-          "and never to repeat a question you asked with ask_owner.",
-          text=_text("The notice, one or two short sentences about one thing.")),
+          "reaches their dashboard and phone, also to tell them what you paid on your own. Say "
+          "the numbers and what to do and where. At most 3 per session; never to repeat a "
+          "question you asked with ask_owner.",
+          text=_text("The notice, clear and complete enough to act on.")),
     _tool("email_supplier",
           "Write to a supplier from the shop's own ERPNext, at the email on its record: for "
           "example that a payment will be late and when it will go out. Only after the owner "

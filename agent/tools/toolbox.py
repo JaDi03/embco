@@ -32,9 +32,10 @@ MAX_NOTES = 10
 MAX_NOTE_CHARS = 600
 MAX_ALARM_DAYS = 60
 MAX_EMAIL_CHARS = 1500  # an email to a supplier
-MAX_REPLY_CHARS = 400  # an answer to the owner: one topic, a couple of sentences
-MAX_NOTICE_CHARS = 280  # a notice the owner did not ask for: one thing, shorter still
-HASHES = re.compile(r"0x[0-9a-fA-F]{40,}")  # full addresses and tx hashes: the dashboard has them
+MAX_OWNER_CHARS = 1500  # a safety cap for the owner's chat and phone; how to write is the model's
+# A full wallet address is a place to send money: one wrong character, or an address planted in
+# an invoice, and the owner pays the wrong one. A transaction hash only proves a payment: allowed.
+ADDRESS = re.compile(r"0x[0-9a-fA-F]{40}(?![0-9a-fA-F])")
 SEARCH_LIMIT = 50
 MAX_NOTICES = 3
 MAX_EMAILS_PER_DAY = 3
@@ -393,6 +394,7 @@ class Toolbox:
         decision = self._decision(invoice)
         if not question.strip():
             raise ToolError("the question is empty")
+        _check_owner_text(question)
         self._choose(decision, Choice.ASK, question, question=question.strip(),
                      recommendation=recommendation.strip())
         return f"{invoice}: the owner will be asked"
@@ -472,7 +474,7 @@ class Toolbox:
         if not text.strip():
             raise ToolError("the notice is empty")
         _refuse_workarounds(text)
-        _keep_it_short(text, MAX_NOTICE_CHARS)
+        _check_owner_text(text)
         self.replies.append(text.strip())
         self.notices += 1
         return "the owner will see it on the dashboard and on their phone"
@@ -483,7 +485,7 @@ class Toolbox:
         if not text.strip():
             raise ToolError("the answer is empty")
         _refuse_workarounds(text)
-        _keep_it_short(text, MAX_REPLY_CHARS)
+        _check_owner_text(text)
         self.replies.append(text.strip())
         return "sent to the owner"
 
@@ -590,16 +592,17 @@ def _refuse_workarounds(*texts: str) -> None:
                             f"(found: {found.group(0)!r}); an invoice over a limit waits")
 
 
-def _keep_it_short(text: str, limit: int) -> None:
-    """What reaches the owner's chat and phone is one topic in a few words: a longer text, or
-    one with a full address or transaction hash, goes back to the model to be rewritten."""
-    if HASHES.search(text):
-        raise ToolError("rewrite this without full addresses or transaction hashes; the "
-                        "dashboard links them")
-    if len(text.strip()) > limit:
-        raise ToolError(f"too long ({len(text.strip())} characters, at most {limit}): say only "
-                        "what this message is about, in one or two short sentences; other "
-                        "invoices and details are in the dashboard")
+def _check_owner_text(text: str) -> None:
+    """Two limits on what reaches the owner, never how it is written: no full wallet address (an
+    address in a message is how people get tricked into paying the wrong one; a transaction hash
+    is fine), and no more than MAX_OWNER_CHARS for their phone."""
+    if ADDRESS.search(text):
+        raise ToolError("rewrite this without full wallet addresses: say where instead (the "
+                        "owner's wallet on Arc, the agent's wallet shown in the dashboard under "
+                        "Settings > Agent, Settings > USDC on other chains)")
+    if len(text.strip()) > MAX_OWNER_CHARS:
+        raise ToolError(f"too long for the owner's phone ({len(text.strip())} characters, at "
+                        f"most {MAX_OWNER_CHARS})")
 
 
 _STATUS = {
