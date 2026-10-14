@@ -225,9 +225,15 @@ def unified_view(owner_funds: OwnerFunds | None) -> dict[str, Any] | None:
         chains = owner_funds.chains()
     except (UnifiedBalanceError, ChainError, CircleError, PaymentSetupError) as error:
         return {"error": str(error)}
+    try:
+        wallets = [{"chain": w.chain, "in_wallet": str(w.in_wallet), "funding": w.funding,
+                    "approved": str(w.approved), "agent_may_move": str(w.can_move)}
+                   for w in owner_funds.in_wallets()]
+    except (ChainError, CircleError, PaymentSetupError) as error:
+        wallets = {"error": str(error)}
     return {"chains": [{"chain": c.chain, "available": str(c.confirmed),
                         "arriving": str(c.pending), "agent_authorized": c.agent_can_spend}
-                       for c in chains]}
+                       for c in chains], "wallets": wallets}
 
 
 def run_shop(

@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from datetime import timezone
 from decimal import Decimal
+from functools import cache
 
 from agent.agent import CHAT_EFFORT, ClaudeBrain
 from agent.guardrails.controls.base import fmt
@@ -11,6 +12,7 @@ from services.payments import ChainError, Payer
 from services.payments.encoding import USDC_DECIMALS
 from services.settings import Settings
 from services.unified_balance import OwnerFunds, UnifiedBalance
+from services.unified_balance.funding import OwnerWallets
 
 
 def room_of(payer: Payer | None) -> Callable[[], Decimal | None] | None:
@@ -56,7 +58,9 @@ def owner_funds_of(settings: Settings, payer: Payer | None) -> OwnerFunds | None
     """The owner's Unified Balance on other chains, when the agent pays with its Circle wallet."""
     if payer is None or not (settings.circle_api_key and settings.circle_entity_secret):
         return None
-    return OwnerFunds(UnifiedBalance(settings.circle_api_key, settings.circle_entity_secret), payer)
+    kit = UnifiedBalance(settings.circle_api_key, settings.circle_entity_secret)
+    facts = cache(kit.chains)  # one Node run for the chains' facts, then reused
+    return OwnerFunds(kit, payer, OwnerWallets(payer.circle, facts))
 
 
 def brain_setup(

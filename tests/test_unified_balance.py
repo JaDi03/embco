@@ -24,12 +24,15 @@ from services.unified_balance import (
     UnifiedBalance,
     UnifiedBalanceError,
 )
+from services.unified_balance.client import ChainFacts
+from services.unified_balance.funding import OwnerWallets, WalletFunds
 
 NOW = datetime(2026, 10, 14, 9, 0, tzinfo=UTC)
 OWNER = "0x2471658CD7A7B10d4C92113B0777dA59317e839a"
 AGENT = "0xeAc91C9491F0D391c80f17C4267A3329Ad7Ba862"
 KEY, SECRET = "fake-circle-key", "fake-entity-secret"
 INVOICE = "ACC-PINV-2026-00017"
+FUNDING = "0x" + "f1" * 20
 FEES = [{"type": "provider", "token": "USDC", "amount": "0.0155"},
         {"type": "gasFee", "token": "USDC", "amount": "0.048274"},
         {"type": "forwarder", "token": "USDC", "amount": "0.014162"}]
@@ -114,7 +117,7 @@ class Funds:
     authorized), 50 on Arbitrum Sepolia (not yet)."""
 
     def __init__(self):
-        self.brought = []
+        self.brought, self.deposited = [], []
 
     def chains(self):
         return [ChainFunds("Base_Sepolia", Decimal(320), Decimal(0), "ready"),
@@ -127,6 +130,16 @@ class Funds:
     def bring(self, allocations):
         self.brought.append(allocations)
         return {"txHash": "0x" + "2" * 64, "fees": FEES}
+
+    def in_wallets(self):
+        return [WalletFunds("Base_Sepolia", Decimal(400), FUNDING, Decimal(1000), Decimal(200),
+                            Decimal(150), False, True),
+                WalletFunds("Ethereum_Sepolia", Decimal(80), None)]
+
+    def deposit(self, chain, amount):
+        self.deposited.append((chain, amount))
+        return {"chain": chain, "amount": str(amount), "state": "complete",
+                "tx": "0x" + "3" * 64, "circle_tx": "c1"}
 
 
 def box(journal, owner_funds, *, can_pay=True, money=None):
@@ -248,3 +261,65 @@ def test_the_dashboard_gets_each_chain_or_the_reason_it_could_not_read_them():
             raise UnifiedBalanceError("the Unified Balance Kit did not run")
 
     assert unified_view(Down()) == {"error": "the Unified Balance Kit did not run"}
+
+
+# ---- the owner's own wallets on other chains
+
+
+def test_cash_position_shows_what_the_agent_may_deposit_on_each_chain(tmp_path):
+    with SqliteJournal(tmp_path / "j.sqlite3") as journal:
+        seen = json.loads(box(journal, Funds()).call("cash_position", {}))
+    assert seen["usdc_in_owner_wallets_on_other_chains"] == [
+        {"chain": "Base_Sepolia", "in_wallet": "400", "you_may_deposit_now": "150"},
+        {"chain": "Ethereum_Sepolia", "in_wallet": "80",
+         "you_may_deposit_now": "no: the owner sets up this chain in the dashboard"}]
+
+
+def test_the_agent_deposits_what_it_chose_and_it_is_told(tmp_path):
+    funds = Funds()
+    with SqliteJournal(tmp_path / "j.sqlite3") as journal:
+        tools = box(journal, funds)
+        moved = json.loads(tools.call("deposit_to_gateway", {
+            "chain": "Base_Sepolia", "amount": "120.5", "reason": "00017 is due in 10 days."}))
+    assert funds.deposited == [("Base_Sepolia", Decimal("120.5"))]
+    assert moved["state"] == "complete" and moved["kind"] == "deposit"
+    session = Session(at=NOW, wakes=(Wake("round", "r"),), finished=True, funds_moved=(moved,))
+    [line] = [e for e in activity.session_events(session) if e.get("tx")]
+    assert line["text"] == ("Moved 120.5 USDC from your wallet on Base Sepolia into your "
+                            "Unified Balance.")
+
+
+@pytest.mark.parametrize("amount", ["0", "-1", "ten", ""])
+def test_a_deposit_needs_an_amount_above_zero(tmp_path, amount):
+    with SqliteJournal(tmp_path / "j.sqlite3") as journal:
+        with pytest.raises(ToolError, match="above 0"):
+            box(journal, Funds()).call("deposit_to_gateway",
+                                       {"chain": "Base_Sepolia", "amount": amount, "reason": "r"})
+
+
+def test_no_deposit_while_payments_are_paused(tmp_path):
+    funds = Funds()
+    with SqliteJournal(tmp_path / "j.sqlite3") as journal:
+        with pytest.raises(ToolError, match="paused"):
+            box(journal, funds, can_pay=False).call(
+                "deposit_to_gateway", {"chain": "Base_Sepolia", "amount": "10", "reason": "r"})
+    assert funds.deposited == []
+
+
+def test_what_the_agent_may_move_is_the_smallest_of_balance_approval_and_limits():
+    w = WalletFunds("Base_Sepolia", Decimal(400), FUNDING, Decimal(1000), Decimal(200),
+                    Decimal(150), False, True)
+    assert w.can_move == Decimal(150)
+    assert WalletFunds("Base_Sepolia", Decimal(400), FUNDING, Decimal(1000), Decimal(200),
+                       Decimal(150), True, True).can_move == 0  # paused
+    assert WalletFunds("Base_Sepolia", Decimal(400), FUNDING, Decimal(1000), Decimal(200),
+                       Decimal(150), False, False).can_move == 0  # another agent
+    assert WalletFunds("Base_Sepolia", Decimal(400), None).can_move == 0
+
+
+def test_a_chain_without_its_factory_is_not_offered():
+    facts = lambda: [ChainFacts("Base_Sepolia", "https://node", "0x" + "11" * 20, "BASE-SEPOLIA")]  # noqa: E731
+    wallets = OwnerWallets(circle=None, facts=facts, factories={"Base_Sepolia": ""})
+    assert wallets.read(OWNER, AGENT) == []
+    with pytest.raises(Exception, match="no ShopFunding factory on Base_Sepolia"):
+        wallets.deposit(OWNER, AGENT, "Base_Sepolia", Decimal(1))

@@ -38,6 +38,16 @@ class ChainFunds:
 
 
 @dataclass(frozen=True)
+class ChainFacts:
+    """A source chain as Circle's kit defines it."""
+
+    chain: str  # the kit's name, e.g. Base_Sepolia
+    rpc: str  # its public node
+    usdc: str  # USDC's address there
+    circle: str  # Circle wallets' name for it, e.g. BASE-SEPOLIA
+
+
+@dataclass(frozen=True)
 class Allocation:
     chain: str
     amount: Decimal
@@ -89,6 +99,10 @@ class UnifiedBalance:
         except (KeyError, InvalidOperation):
             raise UnifiedBalanceError(
                 "the Unified Balance Kit answered in an unknown form") from None
+
+    def chains(self) -> list[ChainFacts]:
+        return [ChainFacts(c["chain"], c["rpc"], c["usdc"], c["circle"])
+                for c in self._call("chains", {})["chains"]]
 
     def prepare(self, agent: str) -> list[str]:
         """Give the agent's Circle wallet the same address on every source chain."""
