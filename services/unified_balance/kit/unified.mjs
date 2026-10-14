@@ -83,7 +83,7 @@ async function prepare({ agent }, env) {
   for (const chain of sourceChains()) {
     await client.deriveWalletByAddress({
       sourceBlockchain: toCircleBlockchain(DESTINATION),
-      walletAddress: agent,
+      walletAddress: agent.toLowerCase(),  // Circle finds the source wallet only in lowercase
       targetBlockchain: toCircleBlockchain(chain),
     });
     ready.push(chain);
