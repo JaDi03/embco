@@ -148,6 +148,7 @@ async function renderShop() {
   $("revoke-button").hidden = !authorization.canRevoke;
   $("max-per-payment").textContent = `${formatUsdc(state.maxPerPayment)} USDC`;
   $("weekly-cap").textContent = `${formatUsdc(state.weeklyCap)} USDC`;
+  session.limits = { maxPerMove: state.maxPerPayment, weeklyCap: state.weeklyCap };  // every chain uses them
   $("remaining").textContent = `${formatUsdc(state.remaining)} USDC`;
 
   const hasAgent = state.agent !== ZERO_ADDRESS;
@@ -172,7 +173,6 @@ async function renderShop() {
     : "-";
   $("agent-address").replaceChildren(hasAgent ? link(shortAddress(state.agent), addressUrl(state.agent)) : "none");
   session.agent = hasAgent ? state.agent : null;
-  renderUnified(isOwner, service);
   const telegram = Boolean(service?.telegram_linked);
   $("telegram-state").textContent = !service ? "sign in to the embco service first" : telegram ? "linked: /stop and /pause work from your phone" : "not linked";
   $("telegram-link").hidden = !isOwner || !service?.connected || telegram;
@@ -181,58 +181,60 @@ async function renderShop() {
   $("agent-off").hidden = !isOwner || !view.on;
   $("agent-on").hidden = !isOwner || view.on;
 
-  await Promise.all([renderHistory(isOwner), renderApprovals(isOwner), renderErp(isOwner, state)]);
+  await Promise.all([renderHistory(isOwner), renderApprovals(isOwner),
+    renderErp(isOwner, state).then(() => renderChains(isOwner))]);
 }
 
-// The owner's Unified Balance on other chains: what the agent last read, and the owner's two
-// actions there, made with their own wallet through Circle's kit.
+// The chains the agent can pay from, read on each chain. The owner turns them on or off and saves:
+// one confirmation in their wallet for each chain that changes.
 
-function renderUnified(isOwner, service) {
-  const view = unified.unifiedView(service?.last_run);
-  $("unified-note").textContent = isOwner ? view.text : "";
-  $("unified-chains").replaceChildren(
-    ...view.rows
-      .filter((r) => r.available || r.arriving || r.authorized)
-      .map((r) => {
-        const item = document.createElement("li");
-        const arriving = r.arriving ? ` (+${formatUsdc(r.arriving)} arriving)` : "";
-        item.textContent = `${r.name}: ${formatUsdc(r.available)} USDC${arriving} · ${r.authorized ? "agent authorized" : "agent not authorized"}`;
-        return item;
-      }),
-  );
-  const select = $("unified-chain");
-  const picked = select.value;
-  select.replaceChildren(...view.rows.map((r) => new Option(r.name, r.chain)));
-  if (view.rows.some((r) => r.chain === picked)) select.value = picked;
-  $("unified-form").hidden = !isOwner || view.rows.length === 0;
-  const wallets = unified.walletsView(service?.last_run);
-  $("funding-wallets").replaceChildren(
-    ...wallets.map((w) => {
-      const item = document.createElement("li");
-      item.textContent = w.setUp
-        ? `${w.name}: ${formatUsdc(w.inWallet)} USDC in your wallet · the agent may move ${formatUsdc(w.agentMayMove)} now`
-        : `${w.name}: ${formatUsdc(w.inWallet)} USDC in your wallet · not set up for the agent`;
-      return item;
-    }),
-  );
-  const chains = unified.fundingChains();
-  $("funding-chain").replaceChildren(...chains.map((c) => new Option(c.replaceAll("_", " "), c)));
-  $("funding-form").hidden = !isOwner || chains.length === 0;
+const chains = { open: false, rows: [] };
+
+// Logos from the networks' own brand kits (brand.base.org, ethereum.org/assets).
+const CHAIN_LOGOS = { Base_Sepolia: "brand/chains/base.svg", Ethereum_Sepolia: "brand/chains/ethereum.svg" };
+
+function chainRow(row) {
+  const toggle = Object.assign(document.createElement("input"), {
+    type: "checkbox", name: row.chain, checked: row.status !== "off", className: "switch",
+  });
+  toggle.setAttribute("role", "switch");
+  toggle.setAttribute("aria-label", `Let the agent pay from ${row.name}`);
+  const note = row.status === "update" ? " · save to use your shop's limits" : "";
+  const label = el("label", { className: "chain-row" },
+    CHAIN_LOGOS[row.chain]
+      ? el("img", { className: "chain-logo", src: CHAIN_LOGOS[row.chain], alt: "", width: 32, height: 32 })
+      : el("span", { className: "chain-badge", textContent: row.name[0], ariaHidden: "true" }),
+    el("span", { className: "chain-name" },
+      el("b", { textContent: row.name }),
+      el("span", { className: "hint", textContent: `${formatUsdc(row.inWallet)} USDC in your wallet${note}` })),
+    toggle);
+  return el("li", {}, label);
 }
 
-async function unifiedAct(button, label, run) {
-  button.disabled = true;
-  try {
-    notify(`${label}: confirm it in your wallet (it switches to that chain)...`);
-    await run(wallet.eip1193());
-    notify(`${label}: done. The agent sees it at its next check.`, "success");
-  } catch (error) {
-    notify(describeError(error), "error");
-  } finally {
-    button.disabled = false;
-    await wallet.switchToArc().catch(() => null);  // the rest of the page works on Arc
-    await render();
+async function renderChains(isOwner) {
+  const open = $("chains-open");
+  $("chains-form").hidden = !chains.open;
+  open.setAttribute("aria-expanded", String(chains.open));
+  if (!isOwner) return;
+  if (!session.signer || !session.agent) {
+    $("chains-summary").textContent = "Sign in to see and choose them. It is a signature, and costs nothing.";
+    open.hidden = true;
+    chains.open = false;
+    $("chains-form").hidden = true;
+    return;
   }
+  open.hidden = false;
+  try {
+    chains.rows = await unified.readChains({
+      owner: session.account, agent: session.agent, signer: session.signer, ...session.limits,
+    });
+  } catch (error) {
+    $("chains-summary").textContent = `Could not read the other chains right now (${describeError(error)}).`;
+    return;
+  }
+  const on = chains.rows.filter((r) => r.status !== "off").map((r) => r.name);
+  $("chains-summary").textContent = on.length ? `On: ${on.join(", ")}.` : "None yet.";
+  $("chain-list").replaceChildren(...chains.rows.map(chainRow));
 }
 
 // The shop's own agent on the owner's ERPNext, through the hub API.
@@ -1073,46 +1075,36 @@ function wireActions() {
     act(event.currentTarget, "Revoke", (_shop, signer) => usdc(signer).approve(session.shop, 0n)),
   );
 
-  onSubmit("unified-form", (data, button, form) => {
-    const chain = data.get("chain");
-    const amount = String(data.get("amount") ?? "").trim();
-    try {
-      parseUsdc(amount);
-    } catch (error) {
-      notify(describeError(error), "error");
-      return;
-    }
-    unifiedAct(button, "Deposit", (provider) => unified.deposit(provider, chain, amount)).then(() => form.reset());
+  $("chains-open").addEventListener("click", () => {
+    chains.open = !chains.open;
+    $("chains-form").hidden = !chains.open;
+    $("chains-open").setAttribute("aria-expanded", String(chains.open));
   });
 
-  onSubmit("funding-form", (data, button, form) => {
-    if (!session.signer) {
-      notify("Sign in first: it is a signature, not a transaction, and costs nothing.", "error");
+  onSubmit("chains-form", async (data, button) => {
+    const changes = chains.rows
+      .map((row) => ({ row, on: data.get(row.chain) === "on" }))
+      .filter(({ row, on }) => (on ? row.status !== "on" : row.status !== "off"));
+    if (!changes.length) {
+      notify("Nothing changed.");
       return;
     }
-    let maxPerMove;
-    let weeklyCap;
+    button.disabled = true;
     try {
-      maxPerMove = parseUsdc(data.get("maxPerMove"));
-      weeklyCap = parseUsdc(data.get("weeklyCap"));
-      if (maxPerMove > weeklyCap) throw new Error("The per-move limit cannot be above the weekly limit.");
+      for (const { row, on } of changes) {
+        notify(`${row.name}: confirm it in your wallet (it switches to that chain)...`);
+        const provider = wallet.eip1193();
+        if (on) await unified.setUpChain(provider, row.chain, { agent: session.agent, signer: session.signer, ...session.limits });
+        else await unified.turnOff(provider, row.chain, { signer: session.signer });
+      }
+      notify("Saved. The agent uses these chains from its next check.", "success");
     } catch (error) {
       notify(describeError(error), "error");
-      return;
+    } finally {
+      button.disabled = false;
+      await wallet.switchToArc().catch(() => null);  // the rest of the page works on Arc
+      await render();
     }
-    const chain = data.get("chain");
-    unifiedAct(button, "Let the agent move USDC (one confirmation if your wallet batches, else three)", (provider) =>
-      unified.setUpChain(provider, chain, { agent: session.agent, signer: session.signer, maxPerMove, weeklyCap }),
-    ).then(() => form.reset());
-  });
-
-  $("unified-authorize").addEventListener("click", (event) => {
-    if (!session.signer) {
-      notify("Sign in first: it is a signature, not a transaction, and costs nothing.", "error");
-      return;
-    }
-    const chain = $("unified-chain").value;
-    unifiedAct(event.currentTarget, "Authorize the agent", (provider) => unified.authorizeAgent(provider, chain, session.signer));
   });
 
   onSubmit("limits-form", (data, button, form) => {

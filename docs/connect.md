@@ -105,16 +105,19 @@ then you approve it in the dashboard (see [What happens next](#what-happens-next
   expect.
 - **When the agent pays**, it records a Payment Entry in ERPNext for that invoice. The
   transaction hash is in **Reference No**, and the wallet paid is in the remarks.
-- **USDC on other chains (optional):** in **Settings > USDC on other chains**, pick a chain (Base
-  Sepolia or Ethereum Sepolia), set how much the agent may move at once and per week, and confirm
-  in your wallet: your funding contract on that chain, its approval, and the agent's authorization
-  in your Unified Balance (Circle Gateway). A wallet that batches calls (MetaMask with its smart
-  account, EIP-5792) asks once; otherwise once per step. Your USDC stays in your wallet there.
-  When an invoice needs more than your wallet on Arc holds, the agent can move it into your
-  Unified Balance and bring it to your wallet on Arc, choosing which chains it comes from. It
-  never sends it anywhere else, and your limits still apply. Your wallet needs that chain's gas
-  token for this setup (test ETH on Base Sepolia and Ethereum Sepolia). The agent needs none: its
-  network fees are paid by Circle Gas Station.
+- **Other chains the agent can pay from (optional):** in **Settings > Which chains can the agent
+  pay from?**, click **Choose chains**, turn on the chains where you keep USDC (Base Sepolia,
+  Ethereum Sepolia) and click **Save**. Your wallet asks once for each chain that changed when it
+  batches calls (MetaMask with its smart account, EIP-5792), otherwise once per step, and it
+  needs that chain's gas token (test ETH). Turning a chain on creates your funding contract there
+  with your shop's limits, approves it, and authorizes the agent in your Unified Balance (Circle
+  Gateway). Your USDC stays in your wallet there. When an invoice needs more than your wallet on
+  Arc holds, the agent moves it into your Unified Balance and brings it to your wallet on Arc,
+  choosing which chains it comes from. It never sends it anywhere else, and your limits still
+  apply. The agent needs no gas: its network fees are paid by Circle Gas Station. After you
+  change your shop's limits, a chain shows "save to use your shop's limits": click **Save**.
+  Turning a chain off removes the approval and the agent's authorization there. What is already
+  in your Unified Balance stays yours.
 - **Telegram (optional):** in the dashboard, **Connect Telegram** gives a code to send to the
   embco bot. Then `/status` says how the agent is, `/pause` pauses payments while the agent keeps
   watching, and `/stop` turns the agent off and pauses the shop contract. Only the dashboard

@@ -1,53 +1,39 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { unifiedView } from "../unified.js";
+import { chainStatus, turnOffCalls } from "../unified.js";
 
-const lastRun = (chains) => ({ unified_balance: { chains } });
+const SHOP = { agent: "0x" + "a9".repeat(20), maxPerMove: 100000000n, weeklyCap: 400000000n };
+const READY = {
+  funding: "0x" + "f1".repeat(20), fundingAgent: SHOP.agent.toUpperCase().replace("0X", "0x"), allowance: 1n,
+  authorized: true, maxPerMove: SHOP.maxPerMove, weeklyCap: SHOP.weeklyCap,
+};
 
-test("each chain the agent read, with what is there and whether it may spend it", () => {
-  const view = unifiedView(lastRun([
-    { chain: "Base_Sepolia", available: "120.500000", arriving: "0.000000", agent_authorized: true },
-    { chain: "Arbitrum_Sepolia", available: "30.000000", arriving: "5.000000", agent_authorized: false },
-    { chain: "Unichain_Sepolia", available: "0.000000", arriving: "0.000000", agent_authorized: false },
-  ]));
-  assert.equal(view.state, "ok");
-  assert.equal(view.text, "150.5 USDC on other chains; the agent may bring 120.5 of it to your wallet on Arc.");
-  assert.deepEqual(view.rows.map((r) => [r.name, r.available, r.arriving, r.authorized]), [
-    ["Base Sepolia", 120500000n, 0n, true],
-    ["Arbitrum Sepolia", 30000000n, 5000000n, false],
-    ["Unichain Sepolia", 0n, 0n, false],
+test("a chain is on only when the agent may really move the owner's USDC there", () => {
+  assert.equal(chainStatus(READY, SHOP), "on");
+  assert.equal(chainStatus({ ...READY, funding: null }, SHOP), "off");
+  assert.equal(chainStatus({ ...READY, allowance: 0n }, SHOP), "off");  // turned off: approval removed
+  assert.equal(chainStatus({ ...READY, authorized: false }, SHOP), "off");  // half set up
+  assert.equal(chainStatus({ ...READY, fundingAgent: "0x" + "b2".repeat(20) }, SHOP), "off");  // another agent
+  assert.equal(chainStatus({ ...READY, maxPerMove: 150000000n }, SHOP), "update");  // the shop's limits changed
+});
+
+test("turning a chain off removes the approval and the agent's signer in Gateway, nothing else", () => {
+  const usdc = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+  const gateway = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
+  const signer = "0x" + "e0".repeat(20);
+  const calls = turnOffCalls({ funding: READY.funding, usdc, gateway, signer });
+  assert.deepEqual(calls.map((c) => [c.to, c.data.slice(0, 10)]), [
+    [usdc, "0x095ea7b3"],  // approve(address,uint256)
+    [gateway, "0x020d308d"],  // removeDelegate(address,address)
   ]);
-});
-
-test("nothing deposited yet says what to do first", () => {
-  const view = unifiedView(lastRun([{ chain: "Base_Sepolia", available: "0.000000", arriving: "0.000000", agent_authorized: false }]));
-  assert.equal(view.text, "No USDC on other chains yet. Deposit on a chain, then authorize the agent there.");
-});
-
-test("not connected or unreadable is said plainly, with no rows", () => {
-  assert.equal(unifiedView(null).state, "off");
-  assert.equal(unifiedView({ unified_balance: null }).rows.length, 0);
-  const failed = unifiedView({ unified_balance: { error: "the Unified Balance Kit did not run" } });
-  assert.equal(failed.state, "error");
-  assert.equal(failed.text, "Could not read it: the Unified Balance Kit did not run");
+  assert.ok(calls[0].data.endsWith("0".repeat(64)));  // approves zero
+  assert.ok(calls[1].data.includes(signer.slice(2)));
+  assert.deepEqual(turnOffCalls({ funding: null, usdc, gateway, signer }).map((c) => c.to), [gateway]);
 });
 
 test("only chains with a funding factory are offered", async () => {
   const { fundingChains } = await import("../unified.js");
   assert.deepEqual(fundingChains({ Base_Sepolia: "0xabc", Ethereum_Sepolia: "" }), ["Base_Sepolia"]);
-});
-
-test("the owner's wallets say whether each chain is set up and what the agent may move", async () => {
-  const { walletsView } = await import("../unified.js");
-  const rows = walletsView({ unified_balance: { wallets: [
-    { chain: "Base_Sepolia", in_wallet: "400", funding: "0xf1", approved: "1000", agent_may_move: "150" },
-    { chain: "Ethereum_Sepolia", in_wallet: "80", funding: null, approved: "0", agent_may_move: "0" },
-  ] } });
-  assert.deepEqual(rows.map((r) => [r.name, r.inWallet, r.setUp, r.agentMayMove]), [
-    ["Base Sepolia", 400000000n, true, 150000000n],
-    ["Ethereum Sepolia", 80000000n, false, 0n],
-  ]);
-  assert.deepEqual(walletsView({ unified_balance: { wallets: { error: "down" } } }), []);
 });
 
 test("setting up a chain is create, approve and authorize, skipping what is done", async () => {
@@ -78,4 +64,31 @@ test("a gasless agent's funding contract is the agent's, and Gateway authorizes 
   });
   assert.ok(create.data.includes(agent.slice(2)) && !create.data.includes(signer.slice(2)));
   assert.ok(authorize.data.includes(signer.slice(2)) && !authorize.data.includes(agent.slice(2)));
+});
+
+test("a chain set up with other limits gets the shop's limits in the same confirmation", async () => {
+  const { setupCalls } = await import("../unified.js");
+  const base = {
+    factory: "0x" + "fa".repeat(20), funding: "0x" + "f1".repeat(20), usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    gateway: "0x0077777d7EBA4688BDeF3E311b846F25870A19B9", agent: "0x" + "a9".repeat(20),
+    maxPerMove: 150000000n, weeklyCap: 600000000n, create: false, delegate: false,
+  };
+  const calls = setupCalls({ ...base, setLimits: true });
+  assert.deepEqual(calls.map((c) => [c.to, c.data.slice(0, 10)]), [
+    [base.funding, "0xc4590d3f"],  // setLimits(uint256,uint256)
+    [base.usdc, "0x095ea7b3"],
+  ]);
+  assert.deepEqual(setupCalls(base).map((c) => c.to), [base.usdc]);  // same limits: nothing to set
+});
+
+test("turning a chain on again gives its funding contract the shop's agent if it had another", async () => {
+  const { setupCalls } = await import("../unified.js");
+  const funding = "0x" + "f1".repeat(20);
+  const calls = setupCalls({
+    factory: "0x" + "fa".repeat(20), funding, usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    gateway: "0x0077777d7EBA4688BDeF3E311b846F25870A19B9", agent: "0x" + "a9".repeat(20),
+    maxPerMove: 1n, weeklyCap: 2n, create: false, delegate: true, setAgent: true, setLimits: true,
+  });
+  assert.deepEqual(calls.map((c) => c.data.slice(0, 10)), ["0xbcf685ed", "0xc4590d3f", "0x095ea7b3", "0xe909ebfa"]);
+  assert.ok(calls.slice(0, 2).every((c) => c.to === funding));
 });
