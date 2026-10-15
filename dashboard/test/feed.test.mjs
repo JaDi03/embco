@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 globalThis.window = { location: { origin: "https://app.embco.xyz" } };
-const { chatOf, feedOf, quickAnswer, quietText } = await import("../feed.js");
+const { activityOf, chatOf, feedOf, quickAnswer, quietText } = await import("../feed.js");
 const { replyTo } = await import("../needs.js");
 
 const TX = "0x" + "10".repeat(32);
@@ -72,4 +72,12 @@ test("the chat shows each payment and move of funds as a receipt, where it happe
   const items = chatOf(chat, EVENTS);
   assert.deepEqual(items.map((i) => i.type), ["message", "money", "money", "message"]);
   assert.match(items[2].event.text, /recorded in ERPNext/);  // one receipt per payment
+});
+
+test("money is said once: in the chat as a receipt, not again in the activity", () => {
+  const activity = activityOf(EVENTS);
+  assert.ok(activity.every((i) => i.type !== "money"));
+  const work = activity.find((i) => i.type === "work");
+  assert.ok(work.session.items.every((e) => !e.tx));  // the move is the chat's receipt
+  assert.equal(work.session.said, "ACC-PINV-2026-00019 is paid.");  // the agent's words stay
 });

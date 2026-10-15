@@ -43,6 +43,10 @@ export function timeline(events) {
   return out;
 }
 
+/** Why a session started, as the owner reads it. Older events said "Woke the agent." */
+export const whyText = (text) =>
+  String(text ?? "").replace(/^(Woke the agent|The agent started working)\.\s*/, "Why: ");
+
 /** The agent's choice on an invoice, as a short label next to its own words. */
 export function choiceLabel(e) {
   if (e.choice === "PAY_NOW") return "Pay now";
