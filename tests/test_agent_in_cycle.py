@@ -254,7 +254,7 @@ def test_the_owner_is_told_once_why_the_agent_was_not_woken(tmp_path):
 
     out = Thought(agent={}, skipped="the agent's daily budget is used up ($1.05 of $1)")
     first = not_woken(tmp_path, out, owner_waiting=False, at=NOW)
-    assert "not woken" in first[0]["text"] and "nothing new is paid" in first[0]["text"]
+    assert "did not start" in first[0]["text"] and "nothing new is paid" in first[0]["text"]
     chat.append_chat(tmp_path, first)
     assert not_woken(tmp_path, out, owner_waiting=True, at=NOW) == []  # said already
     failed = Thought(agent={}, skipped="the last session failed; trying again soon")

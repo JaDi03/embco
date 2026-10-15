@@ -369,11 +369,12 @@ async function pollTerminal() {
   if (finished) renderShop().catch(() => null);  // the agent finished a check: refresh the cards
 }
 
-/** What the agent and the contract did, newest at the bottom: money as cards, the rest folded. */
+/** What the agent did and why, newest at the bottom. Money that moved is in the chat, as receipts,
+ * so it is not repeated here; quiet checks fold into one line. */
 function paintActivity() {
   const box = $("activity-log");
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
-  const items = feed.feedOf(terminal.events);
+  const items = feed.activityOf(terminal.events);
   if (!items.length) {
     box.replaceChildren(el("div", { className: "empty", textContent: "Waiting for the agent's first check..." }));
     return;
@@ -404,15 +405,12 @@ function feedItem(item) {
     return el("div", { className: `feed-note ${item.event.kind === "error" ? "bad" : ""}` },
       el("span", { className: "what" }, ...withLinks(activity.lineText(item.event))), time);
   }
-  // folded: a check run, or a time the agent worked; it stays open across repaints once opened
-  const key = `${item.type}:${item.type === "work" ? item.session.at : item.events[0].seq}`;
-  const s = item.session;
-  const summary = item.type === "work"
-    ? ["The agent worked", s.steps ? `${s.steps} steps` : "", s.cost ? `${s.cost} est.` : "", s.failed ? "did not finish" : ""].filter(Boolean).join(" · ")
-    : feed.quietText(item.events);
-  const box = el("details", { className: `feed-fold ${item.type}`, open: terminal.open.has(key) },
-    el("summary", {}, el("span", { className: "what", textContent: summary }), time),
-    ...(item.type === "work" ? [sessionCard(s)] : item.events.map(timelineLine)));
+  if (item.type === "work") return sessionCard(item.session);  // the agent's reasoning, in full
+  // folded: a run of quiet checks; it stays open across repaints once opened
+  const key = `quiet:${item.events[0].seq}`;
+  const box = el("details", { className: "feed-fold quiet", open: terminal.open.has(key) },
+    el("summary", {}, el("span", { className: "what", textContent: feed.quietText(item.events) }), time),
+    ...item.events.map(timelineLine));
   box.addEventListener("toggle", () => (box.open ? terminal.open.add(key) : terminal.open.delete(key)));
   return box;
 }
@@ -457,7 +455,7 @@ function sessionCard(s) {
       el("span", { className: "mark-c", textContent: "C", ariaHidden: "true" }),
       el("b", { textContent: "Agent session" }),
       el("span", { className: "meta", textContent: meta })),
-    el("span", { className: "hint", textContent: s.woke.replace(/^Woke the agent\.\s*/, "Woke because: ") }));
+    el("span", { className: "hint", textContent: activity.whyText(s.woke) }));
   for (const e of s.items) {
     const kind = CHOICE_CLASS[e.choice] ?? "note";
     const label = activity.choiceLabel(e);

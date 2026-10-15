@@ -93,3 +93,8 @@ test("days read as today, yesterday or the date", () => {
   assert.equal(activity.dayOf("2026-10-08T08:00:00", now), "Yesterday");
   assert.notEqual(activity.dayOf("2026-10-01T08:00:00", now), "Today");
 });
+
+test("a session says why it started, in words that do not sound idle", () => {
+  assert.equal(activity.whyText("The agent started working. Your alarm: bring funds."), "Why: Your alarm: bring funds.");
+  assert.equal(activity.whyText("Woke the agent. The owner wrote to you."), "Why: The owner wrote to you.");  // older events
+});

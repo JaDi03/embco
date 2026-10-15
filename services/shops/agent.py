@@ -144,7 +144,7 @@ def not_woken(folder, thought, owner_waiting: bool, at: datetime) -> list[dict[s
         if entry.get("not_woken") == key:
             return []
     return [{"from": chat.SYSTEM, "at": at.isoformat(), "not_woken": key,
-             "text": f"The agent was not woken: {thought.skipped}. Meanwhile the checks keep "
+             "text": f"The agent did not start: {thought.skipped}. Meanwhile the checks keep "
                      "running and payments already sent are followed and booked; nothing new "
                      "is paid."}]
 

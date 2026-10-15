@@ -52,6 +52,14 @@ export function feedOf(events) {
   return out;
 }
 
+/** The activity beside the chat: everything but the money cards, which are the chat's receipts,
+ * and each session without the moves the chat already shows. */
+export function activityOf(events) {
+  return feedOf(events).filter((i) => i.type !== "money").map((i) => (i.type === "work"
+    ? { ...i, session: { ...i.session, items: i.session.items.filter((e) => !e.tx) } }
+    : i));
+}
+
 /** The chat as the owner reads it: their messages and the agent's, with the money cards of the
  * activity in between, by time. */
 export function chatOf(entries, events) {

@@ -139,7 +139,7 @@ def session_events(session) -> list[dict[str, Any]]:
     woke = " ".join(reasons[:SHOWN_WAKES])
     if len(reasons) > SHOWN_WAKES:
         woke += f" (and {len(reasons) - SHOWN_WAKES} more)"
-    events = [_event(at, REFLEX, f"Woke the agent. {woke}")]
+    events = [_event(at, REFLEX, f"The agent started working. {woke}")]
     if not session.finished:
         events.append(_event(at, ERROR, f"The agent's session did not finish: {session.error}. "
                                         "Nothing new is paid; it tries again soon."))
