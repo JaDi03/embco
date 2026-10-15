@@ -57,26 +57,44 @@ How each part works, with diagrams: [the documentation](https://jadi03.github.io
 embco/
 ├── agent/               the agent: its brain and the checks it cannot skip
 │   ├── agent.py         the brain: the AI model decides, pays and acts on the result
+│   ├── think.py         one session: wake the model, run it, remember the result
+│   ├── plan.py          turns the decisions into the cycle's payment plan
+│   ├── models.py        what the agent decides, and what it keeps for the next session
+│   ├── prompt.py        the briefing the model reads
+│   ├── cost.py          estimates what a session cost
+│   ├── wiring.py        builds the agent from the settings
 │   ├── tools/           what the agent can read and do
 │   ├── reflexes/        what wakes it, and the cycle every 15 minutes
-│   ├── guardrails/      the controls, the fixed PAY / HOLD / ASK rule and the gate
+│   ├── guardrails/      the controls, the fixed rule (HOLD, ASK, notes) and the gate
 │   ├── memory/          the hash-chained journal
 │   └── explain/         plain-language explanations for the owner
 ├── services/            what the agent stands on
 │   ├── erp/             the ERPNext adapter
-│   ├── circle/          Circle wallets and contract calls
+│   ├── circle/          Circle developer-controlled wallets (EOA and smart contract accounts)
+│   ├── unified_balance/ the owner's Unified Balance (Circle Gateway), through Circle's kit
 │   ├── payments/        simulate on Arc, send, follow, record
 │   ├── hub/  shops/     the hosted service behind the dashboard
 │   ├── signing/         supplier wallet signatures
 │   ├── telegram/        the Telegram bot
+│   ├── settings.py      settings from the environment, checked once
 │   └── cli.py           the embco command
-├── contracts/           ShopPayables and its factory (Solidity, Arc Foundry)
+├── contracts/           ShopPayables, ShopFunding and their factories (Solidity, Arc Foundry)
 ├── dashboard/           the owner dashboard and the supplier page (static, MetaMask)
 ├── connector/           prepares an ERPNext instance
 ├── deploy/              install.sh and the server files it sets up
 ├── docs/                the documentation site (MkDocs)
 └── tests/               tests for the agent and the services
 ```
+
+## Circle tools
+
+| Tool | What embco does with it |
+|---|---|
+| Wallets: developer-controlled wallets | Creates each shop's agent wallets (a smart contract account that sends payments, and an EOA that signs Unified Balance spends) and signs every transaction, with idempotency keys |
+| Wallets: Gas Station | Pays the network fees of the agent's smart contract account, so the owner never sends it gas |
+| Unified Balance Kit (`@circle-fin/unified-balance-kit`) | Moves the owner's USDC from other chains into their Unified Balance and brings it to their wallet on Arc, with the fees estimated first |
+| Gateway | Holds the owner's Unified Balance; the `ShopFunding` contract deposits into it for the owner |
+| USDC and Arc | The currency the suppliers are paid in, and the chain where the shop contract runs |
 
 ## Getting started
 

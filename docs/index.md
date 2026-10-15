@@ -5,22 +5,14 @@ invoices, decides what to pay now, what to pay later, what to hold and what to a
 with a written reason, and pays in USDC on Arc through Circle. The AI agent pays and reads the
 result; a smart contract sets how far it can go.
 
-!!! warning "Early, testnet only"
-    The agent reads, checks, decides, pays, remembers and explains against a live ERPNext. With
-    payments turned on, it pays through the shop contract on Arc Testnet during its own session,
-    and acts on what happened: a refusal or an error comes back to it word for word. There is no
-    mainnet deployment.
-
 ## Why it exists
 
-Double entry only proves that debits equal credits, and almost every mistake an agent can make
-with money passes that check. embco puts the controls that catch those mistakes between the
-model and the money:
+embco checks each invoice before it pays:
 
-- a match against the order and the receipt,
-- change control on the payee wallet, with a signature from the supplier,
-- a hard limit per payment and per week, in a contract the agent cannot change,
-- a journal that nobody can rewrite without the chain breaking.
+- it compares the invoice with the order and the receipt,
+- it pays only a wallet that the supplier signed and the owner approved,
+- a contract the agent cannot change limits each payment and each week,
+- every decision goes into a journal: if someone changes an old entry, it shows.
 
 <div class="grid cards" markdown>
 
@@ -56,7 +48,7 @@ model and the money:
 ## Built on
 
 - **Arc and USDC.** Suppliers are paid in USDC, straight from the shop owner's wallet.
-- **Circle** developer-controlled wallets send the agent's transactions with idempotency keys.
+- **Circle** developer-controlled wallets send the agent's transactions with idempotency keys. A new shop's agent is a smart contract account whose network fees Circle Gas Station pays, so the owner never sends it gas.
 - **An AI model** decides which payments to make and when, sends them, reads what happened and
   tells the owner what only they can fix. Its payments pass through the same gate and the same
   contract as everything else. Today it is Claude, by Anthropic

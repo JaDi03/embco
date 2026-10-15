@@ -10,7 +10,7 @@ in `contracts/` (Solidity 0.8.37, Arc Foundry).
 | `ShopPayablesFactory` | [`0x5D455dF984C85abe160E4585E0c1139ded5d2c3b`](https://explorer.testnet.arc.io/address/0x5D455dF984C85abe160E4585E0c1139ded5d2c3b) (source verified on [Sourcify](https://repo.sourcify.dev/5042002/0x5D455dF984C85abe160E4585E0c1139ded5d2c3b)) |
 | USDC (ERC-20 interface) | `0x3600000000000000000000000000000000000000` |
 | Memo (predeployed) | `0x5294E9927c3306DcBaDb03fe70b92e01cCede505` |
-| Agent wallet (Circle EOA) | [`0x2309ed4a43e3b1ab4222f6938538a6c88bd27dd8`](https://explorer.testnet.arc.io/address/0x2309ed4a43e3b1ab4222f6938538a6c88bd27dd8) |
+| Pilot shop's agent wallet (Circle EOA, from before shops got their own gasless agent) | [`0x2309ed4a43e3b1ab4222f6938538a6c88bd27dd8`](https://explorer.testnet.arc.io/address/0x2309ed4a43e3b1ab4222f6938538a6c88bd27dd8) |
 
 ## Who can do what
 
