@@ -85,13 +85,16 @@ def test_what_reaches_the_owner_has_no_full_address_and_a_safety_cap(tmp_path):
             asked.call("notify_owner", {"text": f"Send 1 USDC for fees to {wallet}."})
         with pytest.raises(ToolError, match="too long"):
             asked.call("notify_owner", {"text": "Add USDC. " * 200})
-        several = ("I paid 184 USDC to Northern Grains (00012). Three bills still wait: Tuyil "
-                   "1,088 and MedOne 53.50 need about 1,118 more USDC in your wallet on Arc, and "
-                   "my own wallet needs 1 USDC for network fees: send it to the agent's wallet "
-                   "shown in the dashboard under Settings > Agent. ") * 2
-        asked.call("reply_owner", {"text": several})  # several topics, in order: the model's call
+        retold = ("I paid 184 USDC to Northern Grains (00012). Three bills still wait: Tuyil "
+                  "1,088 and MedOne 53.50 need about 1,118 more USDC in your wallet on Arc, and "
+                  "I checked every chain you keep USDC on, and moved what I could reach. ") * 2
+        with pytest.raises(ToolError, match="details in the activity"):
+            asked.call("reply_owner", {"text": retold})  # a chat message, not the activity again
+        short = ("Paid Northern Grains (00012, 184 USDC). Tuyil and MedOne wait: add about 1,118 "
+                 "USDC to your wallet on Arc.")
+        asked.call("reply_owner", {"text": short})
         asked.call("notify_owner", {"text": f"Paid it, transaction {tx}."})  # a hash proves it
-        assert asked.replies == [several.strip(), f"Paid it, transaction {tx}."]
+        assert asked.replies == [short, f"Paid it, transaction {tx}."]
 
 
 # ---- the whole way round, in the shop's process

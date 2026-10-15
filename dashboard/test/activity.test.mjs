@@ -42,13 +42,7 @@ test("after a check, the countdown runs to the next one", () => {
   assert.equal(activity.nextCheck([ev(1, "done")], 15, done + 20 * 60_000).seconds, 0);
 });
 
-test("every kind reads as a short label", () => {
-  assert.equal(activity.labelOf("paid"), "PAID");
-  assert.equal(activity.labelOf("recorded"), "ERP");
-  assert.equal(activity.labelOf("something_new"), "SOMETHING_NEW");
-});
-
-test("each line says who did it, and a chip shows one actor's lines", () => {
+test("each line says who did it", () => {
   assert.equal(activity.actorOf("agent"), "AGENT");
   assert.equal(activity.actorOf("check"), "REFLEX");
   assert.equal(activity.actorOf("you"), "YOU");
@@ -56,9 +50,6 @@ test("each line says who did it, and a chip shows one actor's lines", () => {
   assert.equal(activity.actorOf("paid"), "CONTRACT");
   assert.equal(activity.actorOf("recorded"), "ERP");
   assert.equal(activity.actorOf("not_paid"), "GUARD");
-  const events = [{ kind: "agent" }, { kind: "paid" }, { kind: "agent" }];
-  assert.equal(activity.byActor(events, "AGENT").length, 2);
-  assert.equal(activity.byActor(events, null).length, 3);
 });
 
 test("each time Claude was woken is one session with its decisions, words and cost", () => {
@@ -77,10 +68,6 @@ test("each time Claude was woken is one session with its decisions, words and co
   assert.equal(session.said, "Nothing was paid.");
   assert.equal(session.cost, "$0.0057");
   assert.equal(session.steps, 27);
-  const agentOnly = activity.filterTimeline(items, activity.FILTERS.find((f) => f.label === "Agent"));
-  assert.deepEqual(agentOnly.map((i) => i.type), ["session"]);
-  const checks = activity.filterTimeline(items, activity.FILTERS.find((f) => f.label === "Checks"));
-  assert.equal(checks.length, 2);
 });
 
 test("the agent's choice is a label next to its own words", () => {

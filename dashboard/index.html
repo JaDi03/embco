@@ -79,8 +79,8 @@
 
         <nav class="mtabs shop-only" aria-label="View">
           <button class="mtab" type="button" data-mview="work" aria-pressed="true">Invoices</button>
-          <button class="mtab" type="button" data-mview="activity" aria-pressed="false">Activity</button>
           <button class="mtab" type="button" data-mview="chat" aria-pressed="false">Chat</button>
+          <button class="mtab" type="button" data-mview="activity" aria-pressed="false">Activity</button>
         </nav>
 
         <div class="panes" id="panes" data-mview="work">
@@ -226,18 +226,9 @@
           </section>
 
           <div class="agent-cols owner-only" id="terminal-card" hidden>
-            <section class="pane activity" aria-label="Agent activity">
+            <section class="pane chat" aria-label="Chat with your agent">
               <div class="pane-head">
-                <h2>Agent activity</h2>
-                <span class="live"><span class="dot" id="live-dot"></span><span id="next-check"></span></span>
-              </div>
-              <div class="chips" id="terminal-filters" role="group" aria-label="Show"></div>
-              <div class="terminal" id="terminal" role="log" aria-live="polite" aria-label="What the agent does"></div>
-            </section>
-            <section class="pane chat" aria-label="Ask your agent">
-              <div class="pane-head">
-                <h2>Ask your agent</h2>
-                <span class="hint">Claude Haiku 5.5</span>
+                <h2>Chat with your agent</h2>
               </div>
               <div class="chat-log" id="chat-log" role="log" aria-live="polite"></div>
               <p class="hint chat-status" id="chat-status"></p>
@@ -247,6 +238,13 @@
                        placeholder="Ask about your invoices, or tell the agent what to do" />
                 <button class="btn btn-primary" type="submit">Send</button>
               </form>
+            </section>
+            <section class="pane activity" aria-label="What the agent did">
+              <div class="pane-head">
+                <h2>Activity</h2>
+                <span class="live"><span class="dot" id="live-dot"></span><span id="next-check"></span></span>
+              </div>
+              <div class="activity-log" id="activity-log" role="log" aria-live="polite"></div>
             </section>
           </div>
         </div>

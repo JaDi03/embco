@@ -33,6 +33,7 @@ MAX_NOTE_CHARS = 600
 MAX_ALARM_DAYS = 60
 MAX_EMAIL_CHARS = 1500  # an email to a supplier
 MAX_OWNER_CHARS = 1500  # a safety cap for the owner's chat and phone; how to write is the model's
+MAX_MESSAGE_CHARS = 300  # a message in the chat and on Telegram: the details are in the activity
 # A full wallet address is a place to send money: one wrong character, or an address planted in
 # an invoice, and the owner pays the wrong one. A transaction hash only proves a payment: allowed.
 ADDRESS = re.compile(r"0x[0-9a-fA-F]{40}(?![0-9a-fA-F])")
@@ -474,7 +475,7 @@ class Toolbox:
         if not text.strip():
             raise ToolError("the notice is empty")
         _refuse_workarounds(text)
-        _check_owner_text(text)
+        _check_owner_text(text, MAX_MESSAGE_CHARS)
         self.replies.append(text.strip())
         self.notices += 1
         return "the owner will see it on the dashboard and on their phone"
@@ -485,7 +486,7 @@ class Toolbox:
         if not text.strip():
             raise ToolError("the answer is empty")
         _refuse_workarounds(text)
-        _check_owner_text(text)
+        _check_owner_text(text, MAX_MESSAGE_CHARS)
         self.replies.append(text.strip())
         return "sent to the owner"
 
@@ -592,17 +593,19 @@ def _refuse_workarounds(*texts: str) -> None:
                             f"(found: {found.group(0)!r}); an invoice over a limit waits")
 
 
-def _check_owner_text(text: str) -> None:
+def _check_owner_text(text: str, limit: int = MAX_OWNER_CHARS) -> None:
     """Two limits on what reaches the owner, never how it is written: no full wallet address (an
     address in a message is how people get tricked into paying the wrong one; a transaction hash
-    is fine), and no more than MAX_OWNER_CHARS for their phone."""
+    is fine), and no more than `limit` characters. A chat message gets the short limit: what
+    happened and what the owner must do; the steps and numbers behind it are in the activity."""
     if ADDRESS.search(text):
         raise ToolError("rewrite this without full wallet addresses: say where instead (the "
                         "owner's wallet on Arc, the agent's wallet shown in the dashboard under "
-                        "Settings > Agent, Settings > USDC on other chains)")
-    if len(text.strip()) > MAX_OWNER_CHARS:
-        raise ToolError(f"too long for the owner's phone ({len(text.strip())} characters, at "
-                        f"most {MAX_OWNER_CHARS})")
+                        "Settings > Agent, Settings > Which chains can the agent pay from?)")
+    if len(text.strip()) > limit:
+        raise ToolError(f"too long ({len(text.strip())} characters, at most {limit}): say only "
+                        "what happened and what the owner must do, if anything; the owner sees "
+                        "the details in the activity")
 
 
 _STATUS = {

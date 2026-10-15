@@ -135,15 +135,17 @@ TOOLS: list[dict[str, Any]] = [
     _tool("reply_owner",
           "Answer the owner's message: only what they wrote about, what you did about it. Call "
           "it once per session that has owner messages, before finish.",
-          text=_text("Your answer, clear and in order: what they asked, what you did, and "
-                     "what they need to do and where.")),
+          text=_text("Your answer in one or two short lines (at most 300 characters): the answer "
+                     "to what they asked, and what they must do and where, if anything. The "
+                     "steps and numbers behind it are in their activity; do not repeat them.")),
     _tool("notify_owner",
           "Tell the owner something they should act on, without waiting for them to write: money "
           "that will not reach a coming payment, a deadline, a problem only they can fix. It "
           "reaches their dashboard and phone, also to tell them what you paid on your own. Say "
           "the numbers and what to do and where. At most 3 per session; never to repeat a "
           "question you asked with ask_owner.",
-          text=_text("The notice, clear and complete enough to act on.")),
+          text=_text("The notice in one or two short lines (at most 300 characters): what "
+                     "happened, and what they must do and where, if anything.")),
     _tool("email_supplier",
           "Write to a supplier from the shop's own ERPNext, at the email on its record: for "
           "example that a payment will be late and when it will go out. Only after the owner "

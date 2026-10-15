@@ -6,6 +6,7 @@ import { ARC_TESTNET, FAUCET_URL } from "./config.js";
 import { describeError } from "./errors.js";
 import { pendingApprovals } from "./approvals.js";
 import * as activity from "./activity.js";
+import * as feed from "./feed.js";
 import * as chat from "./chat.js";
 import * as hub from "./hub.js";
 import { agentView, groupTasks, raisedLimits, taskFor } from "./needs.js";
@@ -328,14 +329,13 @@ async function renderErp(isOwner, state) {
 
 // The agent's activity, live: polled every few seconds while the page is visible.
 
-const terminal = { shop: null, events: [], interval: null, timer: null, ticker: null, loaded: false, chat: [], waiting: false, filter: activity.FILTERS[0] };
+const terminal = { shop: null, events: [], interval: null, timer: null, ticker: null, loaded: false, chat: [], waiting: false, open: new Set() };
 
 function startTerminal() {
   $("terminal-card").hidden = false;
   if (terminal.shop === session.shop && terminal.timer) return;  // already running for this shop
   stopTerminal();
-  Object.assign(terminal, { shop: session.shop, events: [], interval: null, loaded: false, chat: [], waiting: false });
-  paintFilters();
+  Object.assign(terminal, { shop: session.shop, events: [], interval: null, loaded: false, chat: [], waiting: false, open: new Set() });
   pollTerminal();
   terminal.timer = setInterval(pollTerminal, 4000);
   terminal.ticker = setInterval(paintNextCheck, 1000);
@@ -361,38 +361,88 @@ async function pollTerminal() {
   const fresh = body.events ?? [];
   const finished = terminal.loaded && fresh.some((e) => e.kind === "done");
   terminal.events = activity.merge(terminal.events, fresh);
-  if (fresh.length || !terminal.loaded) paintTerminal(fresh.length > 0);
+  if (fresh.length || !terminal.loaded) paintActivity();
+  if (fresh.some((e) => e.tx)) paintChat();  // a new receipt for the chat
   terminal.loaded = true;
   paintNextCheck();
   await pollChat();
   if (finished) renderShop().catch(() => null);  // the agent finished a check: refresh the cards
 }
 
-function paintTerminal(scroll) {
-  const box = $("terminal");
+/** What the agent and the contract did, newest at the bottom: money as cards, the rest folded. */
+function paintActivity() {
+  const box = $("activity-log");
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
-  if (!terminal.events.length) {
-    box.replaceChildren(el("div", { className: "empty", textContent: "Waiting for the agent's first check..." }));
-    return;
-  }
-  const items = activity.filterTimeline(activity.timeline(terminal.events), terminal.filter);
+  const items = feed.feedOf(terminal.events);
   if (!items.length) {
-    box.replaceChildren(el("div", { className: "empty", textContent: "Nothing here yet." }));
+    box.replaceChildren(el("div", { className: "empty", textContent: "Waiting for the agent's first check..." }));
     return;
   }
   const nodes = [];
   let day = null;
   for (const item of items) {
-    const at = item.type === "session" ? item.at : item.event.at;
-    const label = activity.dayOf(at);
-    if (label !== day) {
+    const label = activity.dayOf(item.at);
+    if (label && label !== day) {
       day = label;
       nodes.push(el("div", { className: "day", textContent: label }));
     }
-    nodes.push(item.type === "session" ? sessionCard(item) : timelineLine(item.event));
+    nodes.push(feedItem(item));
   }
   box.replaceChildren(...nodes);
-  if (scroll && (atBottom || !terminal.loaded)) box.scrollTop = box.scrollHeight;
+  if (atBottom || !box.dataset.painted) box.scrollTop = box.scrollHeight;
+  box.dataset.painted = "1";
+}
+
+function feedItem(item) {
+  const time = el("span", { className: "time", textContent: activity.timeOf(item.at).slice(0, 5) });
+  if (item.type === "money") {
+    const text = el("span", { className: "what" }, ...withLinks(item.event.text));
+    if (item.event.tx) text.append(" ", link("tx", txUrl(item.event.tx)));
+    return el("div", { className: "feed-money" }, el("span", { className: "ic", textContent: "✓", ariaHidden: "true" }), text, time);
+  }
+  if (item.type === "note") {
+    return el("div", { className: `feed-note ${item.event.kind === "error" ? "bad" : ""}` },
+      el("span", { className: "what" }, ...withLinks(activity.lineText(item.event))), time);
+  }
+  // folded: a check run, or a time the agent worked; it stays open across repaints once opened
+  const key = `${item.type}:${item.type === "work" ? item.session.at : item.events[0].seq}`;
+  const s = item.session;
+  const summary = item.type === "work"
+    ? ["The agent worked", s.steps ? `${s.steps} steps` : "", s.cost ? `${s.cost} est.` : "", s.failed ? "did not finish" : ""].filter(Boolean).join(" · ")
+    : feed.quietText(item.events);
+  const box = el("details", { className: `feed-fold ${item.type}`, open: terminal.open.has(key) },
+    el("summary", {}, el("span", { className: "what", textContent: summary }), time),
+    ...(item.type === "work" ? [sessionCard(s)] : item.events.map(timelineLine)));
+  box.addEventListener("toggle", () => (box.open ? terminal.open.add(key) : terminal.open.delete(key)));
+  return box;
+}
+
+/** Text with its transaction hashes and addresses linked to the explorer. */
+function withLinks(text) {
+  return chat.linkParts(text).map((p) =>
+    p.tx ? link(shortAddress(p.tx), txUrl(p.tx)) : p.address ? link(shortAddress(p.address), addressUrl(p.address)) : p.text);
+}
+
+/** The chat: what the owner and the agent said, as bubbles, with a receipt for each payment and
+ * each move of funds where it happened, so the owner finds them in the conversation. */
+function paintChat() {
+  const box = $("chat-log");
+  const items = feed.chatOf(terminal.chat, terminal.events);
+  if (!items.length) {
+    box.replaceChildren(el("div", { className: "empty", textContent: "Ask what is due, why something is on hold, or tell the agent what to do." }));
+    return;
+  }
+  box.replaceChildren(...items.map((item) => (item.type === "money" ? feedItem(item) : bubble(item.entry))));
+  box.scrollTop = box.scrollHeight;
+}
+
+function bubble(entry) {
+  const b = chat.bubbleOf(entry);
+  const quick = b.side === "me" ? feed.quickAnswer(b.text) : null;
+  const node = el("div", { className: `bubble ${b.side}` }, ...withLinks(quick ? quick.text : b.text));
+  if (quick) node.append(el("span", { className: "meta", textContent: `↳ on ${quick.invoice}` }));
+  if (b.meta) node.append(el("span", { className: "meta", textContent: b.meta }));
+  return node;
 }
 
 const CHOICE_CLASS = { HOLD: "held", PAY_NOW: "paid", SCHEDULE: "paid", ASK: "ask" };
@@ -457,35 +507,6 @@ async function pollChat() {
       pollChat();
     }, 1000);
   }
-}
-
-function paintChat() {
-  const box = $("chat-log");
-  if (!terminal.chat.length) {
-    box.replaceChildren(el("div", { className: "empty", textContent: "Ask what is due, why something is on hold, or tell the agent what to do." }));
-    return;
-  }
-  box.replaceChildren(...terminal.chat.map((entry) => {
-    const b = chat.bubbleOf(entry);
-    const bubble = el("div", { className: `bubble ${b.side}` }, ...chat.linkParts(b.text).map((p) =>
-      p.tx ? link(shortAddress(p.tx), txUrl(p.tx)) : p.address ? link(shortAddress(p.address), addressUrl(p.address)) : p.text));
-    if (b.meta) bubble.append(el("span", { className: "meta", textContent: b.meta }));
-    return bubble;
-  }));
-  box.scrollTop = box.scrollHeight;
-}
-
-function paintFilters() {
-  $("terminal-filters").replaceChildren(...activity.FILTERS.map((filter) => {
-    const chip = el("button", { className: "chip", type: "button", textContent: filter.label });
-    chip.setAttribute("aria-pressed", String(filter === terminal.filter));
-    chip.addEventListener("click", () => {
-      terminal.filter = filter;
-      paintFilters();
-      paintTerminal(true);
-    });
-    return chip;
-  }));
 }
 
 function paintNextCheck() {
@@ -1149,7 +1170,7 @@ function wireActions() {
     try {
       await chat.sendMessage(session.shop, checked.text);
       input.value = "";
-      terminal.chat = [...terminal.chat, { seq: Number.MAX_SAFE_INTEGER, from: "owner", text: checked.text, local: true }];
+      terminal.chat = [...terminal.chat, { seq: Number.MAX_SAFE_INTEGER, at: new Date().toISOString(), from: "owner", text: checked.text, local: true }];
       paintChat();
       terminal.chat = terminal.chat.filter((e) => !e.local);  // the hub's copy replaces it on the next poll
       terminal.waiting = true;
