@@ -33,6 +33,9 @@ _ERRORS = [
     "PayeeNotApproved(address)", "AlreadyPaid(bytes32)", "OverPaymentLimit(uint256,uint256)",
     "OverWeeklyCap(uint256,uint256)", "InvalidLimits()", "InvalidAddress()", "InvalidPayment()",
     "SafeERC20FailedOperation(address)", "OwnershipFixed()", "ReentrancyGuardReentrantCall()",
+    "OverMoveLimit(uint256,uint256)", "InvalidAmount()", "VaultNotApproved(address)",
+    "InvalidVaultAsset(address,address)", "OverParkLimit(uint256,uint256)",
+    "ZeroShares()", "ZeroAssets()",
 ]
 _KNOWN = {keccak(text=sig)[:4]: sig.split("(")[0] for sig in _ERRORS}
 _MEMO_FAILED = keccak(text="MemoFailed(bytes)")[:4]
