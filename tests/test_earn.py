@@ -2,6 +2,8 @@
 vault positions (both 6-decimal and 18-decimal shares), enforcing the owner's gas cushion, and
 simulating + sending park, unpark and unparkAll calls through Circle."""
 
+import json
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -9,6 +11,8 @@ import pytest
 from eth_abi import encode
 from eth_utils import keccak, to_checksum_address
 
+from agent.guardrails.rules import PolicyConfig
+from agent.tools import Toolbox, ToolError
 from services.circle import CircleError, CircleTransaction
 from services.earn import (
     EARN_FACTORY,
@@ -20,6 +24,8 @@ from services.earn import (
 )
 from services.earn.client import ARC_USDC, resolve_vault
 from services.payments.chain import ChainError, Reverted, revert_reason
+from services.shops.activity import _brought
+from services.shops.agent import earn_view
 
 OWNER = "0x2471658CD7A7B10d4C92113B0777dA59317e839a"
 AGENT = "0xeAc91C9491F0D391c80f17C4267A3329Ad7Ba862"
@@ -282,4 +288,66 @@ def test_resolve_vault_accepts_key_name_or_address_and_rejects_unknown():
     assert resolve_vault(MORPHO.lower()).key == "morpho"
     with pytest.raises(ChainError, match="unknown Earn vault"):
         resolve_vault("unknown_vault")
+
+
+def make_toolbox(owner_earn: OwnerEarn | None = None, *, can_pay: bool = True) -> Toolbox:
+    return Toolbox(
+        decisions=[], ledger=SimpleNamespace(), journal=SimpleNamespace(),
+        policy=PolicyConfig(Decimal(500), Decimal(2000)),
+        now=datetime(2026, 10, 16, 12, 0, tzinfo=UTC),
+        zone=UTC, owner_earn=owner_earn, can_pay=can_pay,
+    )
+
+
+def test_toolbox_earn_position_and_park_and_withdraw():
+    tb = make_toolbox(make_earn())
+    pos = json.loads(tb.call("earn_position", {}))
+    assert pos["in_owner_wallet_on_arc"] == "800"
+    assert pos["you_may_park_now"] == "300"
+    assert pos["vaults"][0]["you_may_withdraw_now"] == "204.5"
+
+    parked = json.loads(tb.call("park_in_earn", {"vault": "morpho", "amount": "120",
+                                                 "reason": "Idle cash for 10 days."}))
+    assert parked["kind"] == "earn_park" and parked["amount"] == "120"
+    unparked = json.loads(tb.call("withdraw_from_earn", {"vault": "morpho", "amount": "all",
+                                                         "reason": "Invoice due tomorrow."}))
+    assert unparked["kind"] == "earn_unpark" and unparked["amount"] == "204.5"
+    assert len(tb.funds_moved) == 2
+
+
+def test_toolbox_earn_guardrails_and_activity_and_earn_view():
+    paused_tb = make_toolbox(make_earn(), can_pay=False)
+    with pytest.raises(ToolError, match="paused by the owner"):
+        paused_tb.call("park_in_earn", {"vault": "morpho", "amount": "50", "reason": "Idle."})
+
+    assert _brought({"kind": "earn_park", "amount": "120", "vault_name": "Morpho USDC Vault"}) == (
+        "Parked 120 USDC from your wallet on Arc into Morpho USDC Vault."
+    )
+    assert _brought({"kind": "earn_unpark", "amount": "80", "vault_name": "Morpho USDC Vault"}) == (
+        "Withdrew 80 USDC from Morpho USDC Vault to your wallet on Arc."
+    )
+    view = earn_view(make_earn())
+    assert view is not None and view["earn"] == EARN and Decimal(view["can_park"]) == Decimal("300")
+    assert view["liquidity_strategy"] == "preserve_yield"
+    assert earn_view(None) is None
+
+
+def test_liquidity_strategy_stored_and_reflected_in_owner_earn(tmp_path):
+    from services.shops.store import ShopError, ShopStore, new_key
+
+    shop = SHOP.lower()
+    store = ShopStore(tmp_path, new_key())
+    assert store.liquidity_strategy(shop) == "preserve_yield"
+    store.set_liquidity_strategy(shop, "instant_zero_fee")
+    assert store.liquidity_strategy(shop) == "instant_zero_fee"
+    with pytest.raises(ShopError, match="liquidity_strategy must be one of"):
+        store.set_liquidity_strategy(shop, "invalid_strategy")
+
+    earn = OwnerEarn(
+        make_earn().payer,
+        strategy=lambda: store.liquidity_strategy(shop),
+        sleep=lambda _: None,
+    )
+    pos = json.loads(make_toolbox(earn).call("earn_position", {}))
+    assert pos["liquidity_strategy"] == "instant_zero_fee"
 

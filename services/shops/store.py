@@ -36,6 +36,9 @@ SUPPLIER_VIEW = "suppliers.json"
 AGENT_OFF = "agent_off"
 PAYMENTS_PAUSED = "payments_paused"
 SUBMIT_PAYMENTS = "submit_payments"
+LIQUIDITY_STRATEGY = "liquidity_strategy"
+DEFAULT_LIQUIDITY_STRATEGY = "preserve_yield"
+LIQUIDITY_STRATEGIES = ("preserve_yield", "instant_zero_fee", "ask_owner")
 _SHOP = re.compile(r"^0x[0-9a-f]{40}$")
 PLATFORM = ("CIRCLE_API_KEY", "CIRCLE_ENTITY_SECRET", "ARC_TESTNET_RPC_URL")
 BRAIN_PLATFORM = ("ANTHROPIC_API_KEY",)  # the platform's model account, for shops with a brain
@@ -217,6 +220,20 @@ class ShopStore:
         else:
             self.folder(shop).mkdir(parents=True, exist_ok=True)
             _write(flag, at.encode())
+
+    def liquidity_strategy(self, shop: str) -> str:
+        """How the agent sources USDC when the owner's Arc wallet is short."""
+        try:
+            raw = (self.folder(shop) / LIQUIDITY_STRATEGY).read_text(encoding="utf-8").strip()
+        except OSError:
+            return DEFAULT_LIQUIDITY_STRATEGY
+        return raw if raw in LIQUIDITY_STRATEGIES else DEFAULT_LIQUIDITY_STRATEGY
+
+    def set_liquidity_strategy(self, shop: str, strategy: str) -> None:
+        if strategy not in LIQUIDITY_STRATEGIES:
+            raise ShopError(f"liquidity_strategy must be one of {', '.join(LIQUIDITY_STRATEGIES)}")
+        self.folder(shop).mkdir(parents=True, exist_ok=True)
+        _write(self.folder(shop) / LIQUIDITY_STRATEGY, strategy.encode())
 
     def shops(self) -> list[str]:
         """Every shop with a folder, connected or not."""

@@ -168,6 +168,12 @@ def _brought(moved: Mapping[str, Any]) -> str:
     if moved.get("kind") == "deposit":
         return (f"Moved {moved['amount']} USDC from your wallet on "
                 f"{moved['chain'].replace('_', ' ')} into your Unified Balance.")
+    if moved.get("kind") == "earn_park":
+        return (f"Parked {moved['amount']} USDC from your wallet on Arc into "
+                f"{moved.get('vault_name') or moved.get('vault')}.")
+    if moved.get("kind") == "earn_unpark":
+        return (f"Withdrew {moved['amount']} USDC from "
+                f"{moved.get('vault_name') or moved.get('vault')} to your wallet on Arc.")
     sources = ", ".join(f"{s['chain'].replace('_', ' ')} {s['amount']}" for s in moved["from"])
     return (f"Brought {moved['arrives_on_arc']} USDC to your wallet on Arc from your Unified "
             f"Balance ({sources}).")

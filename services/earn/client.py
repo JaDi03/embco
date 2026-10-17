@@ -91,6 +91,7 @@ class ShopEarnState:
     paused: bool = False
     agent_is_set: bool = False
     vaults: tuple[EarnPosition, ...] = ()
+    liquidity_strategy: str = "preserve_yield"
 
     @property
     def total_in_earn(self) -> Decimal:
@@ -145,12 +146,14 @@ class OwnerEarn:
         factory: str = EARN_FACTORY,
         usdc: str = ARC_USDC,
         vaults: Sequence[VaultSpec] = VAULTS,
+        strategy: Callable[[], str] = lambda: "preserve_yield",
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.payer = payer
         self._factory = to_checksum_address(factory) if factory else ""
         self._usdc = to_checksum_address(usdc)
         self._vaults = tuple(vaults)
+        self._strategy = strategy
         self._sleep = sleep
 
     @property
@@ -182,7 +185,12 @@ class OwnerEarn:
         earn = to_checksum_address(earns[-1]) if earns else None
         positions = tuple(self._read_vault(spec, owner, earn) for spec in self._vaults)
         if earn is None:
-            return ShopEarnState(in_wallet=_usdc(in_wallet), earn=None, vaults=positions)
+            return ShopEarnState(
+                in_wallet=_usdc(in_wallet),
+                earn=None,
+                vaults=positions,
+                liquidity_strategy=self._strategy(),
+            )
         (usdc_allowed,) = decode(["uint256"], self._view(
             self._usdc, "allowance(address,address)", ["address", "address"], [owner, earn]))
         (per_park,) = decode(["uint256"], self._view(earn, "maxPerPark()"))
@@ -200,6 +208,7 @@ class OwnerEarn:
             paused=paused,
             agent_is_set=to_checksum_address(its_agent) == agent,
             vaults=positions,
+            liquidity_strategy=self._strategy(),
         )
 
     def _read_vault(self, spec: VaultSpec, owner: str, earn: str | None) -> EarnPosition:

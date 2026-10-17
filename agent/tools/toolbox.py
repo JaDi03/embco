@@ -76,6 +76,7 @@ class Toolbox:
     can_pay: bool = True  # False while the owner has paused payments
     payments: list[PaymentEvent] = field(default_factory=list)  # what the agent's payments did
     owner_funds: Any = None  # the owner's Unified Balance (services.unified_balance.OwnerFunds)
+    owner_earn: Any = None  # the owner's Arc Earn vaults (services.earn.OwnerEarn)
     funds_moved: list[dict[str, Any]] = field(default_factory=list)  # what bring_funds brought
     chosen: dict[str, AgentDecision] = field(default_factory=dict)
     alarms: list[Alarm] = field(default_factory=list)
@@ -351,6 +352,72 @@ class Toolbox:
         self.funds_moved.append(moved)
         if hasattr(self, "_funds"):
             del self._funds  # the owner's balance on Arc changed: read it again when asked
+        return moved
+
+    def _earn_position(self) -> dict[str, Any] | str:
+        if self.owner_earn is None:
+            return "not connected for this shop"
+        try:
+            s = self.owner_earn.read()
+        except (ChainError, CircleError, PaymentSetupError) as error:
+            raise ToolError(f"could not read Arc Earn: {error}") from None
+        return {
+            "in_owner_wallet_on_arc": fmt(s.in_wallet),
+            "total_in_earn": fmt(s.total_in_earn),
+            "liquidity_strategy": s.liquidity_strategy,
+            "shop_earn_set_up": bool(s.earn),
+            "paused": s.paused,
+            "agent_authorized": s.agent_is_set,
+            "max_per_park": fmt(s.max_per_park),
+            "weekly_park_cap": fmt(s.weekly_cap),
+            "left_to_park_this_week": fmt(s.left_this_week),
+            "you_may_park_now": fmt(s.can_park),
+            "vaults": [{"vault": v.key, "name": v.name, "balance_usdc": fmt(v.balance_usdc),
+                        "approved_for_parking": v.approved_in_earn,
+                        "you_may_withdraw_now": fmt(s.can_unpark(v.key))} for v in s.vaults],
+        }
+
+    def _park_in_earn(self, vault: str, amount: str, reason: str) -> dict[str, Any]:
+        if self.owner_earn is None:
+            raise ToolError("Arc Earn is not connected for this shop")
+        value = _decimal(amount)
+        if value is None or value <= 0:
+            raise ToolError("amount is USDC above 0, e.g. 200 or 50.5")
+        if not self.can_pay:
+            raise ToolError("payments are paused by the owner; nothing was moved")
+        if len(self.funds_moved) >= MAX_FUND_MOVES:
+            raise ToolError(f"at most {MAX_FUND_MOVES} fund moves per session; look again later")
+        _refuse_workarounds(reason)
+        try:
+            done = self.owner_earn.park(vault.strip(), value)
+        except (ChainError, CircleError, PaymentSetupError, ValueError) as error:
+            raise ToolError(f"nothing was parked in Earn: {error}") from None
+        moved = {**done, "reason": reason.strip()}
+        self.funds_moved.append(moved)
+        if hasattr(self, "_funds"):
+            del self._funds
+        return moved
+
+    def _withdraw_from_earn(self, vault: str, amount: str, reason: str) -> dict[str, Any]:
+        if self.owner_earn is None:
+            raise ToolError("Arc Earn is not connected for this shop")
+        raw = amount.strip().lower()
+        value = None if raw == "all" else _decimal(amount)
+        if raw != "all" and (value is None or value <= 0):
+            raise ToolError("amount is USDC above 0, e.g. 150, or 'all'")
+        if not self.can_pay:
+            raise ToolError("payments are paused by the owner; nothing was moved")
+        if len(self.funds_moved) >= MAX_FUND_MOVES:
+            raise ToolError(f"at most {MAX_FUND_MOVES} fund moves per session; look again later")
+        _refuse_workarounds(reason)
+        try:
+            done = self.owner_earn.unpark(vault.strip(), value)
+        except (ChainError, CircleError, PaymentSetupError, ValueError) as error:
+            raise ToolError(f"nothing was withdrawn from Earn: {error}") from None
+        moved = {**done, "reason": reason.strip()}
+        self.funds_moved.append(moved)
+        if hasattr(self, "_funds"):
+            del self._funds
         return moved
 
     def _allocations(self, text: str) -> list[Allocation]:

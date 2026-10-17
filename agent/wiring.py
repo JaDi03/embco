@@ -8,6 +8,7 @@ from functools import cache
 from agent.agent import CHAT_EFFORT, ClaudeBrain
 from agent.guardrails.controls.base import fmt
 from agent.think import BrainSetup
+from services.earn import OwnerEarn
 from services.payments import ChainError, Payer
 from services.payments.encoding import USDC_DECIMALS
 from services.settings import Settings
@@ -63,12 +64,21 @@ def owner_funds_of(settings: Settings, payer: Payer | None) -> OwnerFunds | None
     return OwnerFunds(kit, payer, OwnerWallets(payer.circle, facts), settings.signer_address)
 
 
+def owner_earn_of(payer: Payer | None,
+                  strategy: Callable[[], str] | None = None) -> OwnerEarn | None:
+    """The owner's Arc Earn vaults and ShopEarn contract, when the agent pays on Arc."""
+    if payer is None:
+        return None
+    return OwnerEarn(payer, **({"strategy": strategy} if strategy else {}))
+
+
 def brain_setup(
     settings: Settings, room: Callable[[], Decimal | None] | None = None,
     funds: Callable[[], dict[str, str] | None] | None = None,
     mailer: Callable[[str, str, str], str] | None = None,
     wallet_notice: Callable[[str], str] | None = None,
     owner_funds: OwnerFunds | None = None,
+    owner_earn: OwnerEarn | None = None,
 ) -> BrainSetup | None:
     if not settings.brain:
         return None
@@ -87,4 +97,5 @@ def brain_setup(
         **({"mailer": mailer} if mailer else {}),
         **({"wallet_notice": wallet_notice} if wallet_notice else {}),
         **({"owner_funds": owner_funds} if owner_funds else {}),
+        **({"owner_earn": owner_earn} if owner_earn else {}),
     )
