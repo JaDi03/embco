@@ -47,6 +47,13 @@ export const FUNDING_FACTORIES = { Base_Sepolia: "0x69e31Af302Ee222204AA78099D39
 // Circle Gateway's GatewayWallet, the same address on every EVM testnet (Circle's Gateway docs).
 export const GATEWAY_WALLET_TESTNET = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
 
+// ShopEarnFactory on Arc Testnet (contracts/script/DeployEarn.s.sol) and verified ERC-4626 vaults.
+export const EARN_FACTORY_ADDRESS = "0xEDF589982F10CCC3c8489726FaB39124b1F683Aa";
+export const EARN_VAULTS = [
+  { key: "morpho", name: "Morpho USDC Vault", address: "0x8f2d33b5d4b9b5f02df635ae308f7b4c9da8d2dc", apy: "4.2% APY" },
+  { key: "earnkit", name: "EarnKit USDC Vault", address: "0xaabbef1d3971c710276ed41ec791bbe14cdb8e88", apy: "ERC-4626" },
+];
+
 // Wallets the agent is waiting to pay, written by the agent on this site.
 export const APPROVALS_PATH = "/pending.json";
 

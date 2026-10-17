@@ -223,3 +223,7 @@ export function lastRunView(lastRun) {
 export function needsSetAgent(agentWallet, contractAgent) {
   return Boolean(agentWallet) && String(agentWallet).toLowerCase() !== String(contractAgent ?? "").toLowerCase();
 }
+
+/** How the agent chooses between idle USDC on other chains and Arc Earn when an invoice is due. */
+export const setLiquidityStrategy = (shop, strategy, fetchImpl = fetch) =>
+  call(`${shopPath(shop)}/liquidity-strategy`, { method: "POST", body: { strategy }, fetchImpl });

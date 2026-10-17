@@ -303,6 +303,38 @@
             </form>
           </section>
 
+          <section class="owner-only" id="earn-section">
+            <label class="chain-row" for="earn-master-switch">
+              <span class="chain-name">
+                <b>Earn on idle USDC</b>
+                <span class="hint">Off by default. When on, the agent may park idle USDC on Arc into ERC-4626 vaults you approve, with shares held in your own wallet.</span>
+              </span>
+              <input type="checkbox" id="earn-master-switch" class="switch" role="switch" aria-label="Earn on idle USDC" />
+            </label>
+            <p class="hint" id="earn-summary"></p>
+            <button class="btn btn-danger btn-small" type="button" id="earn-withdraw-all" hidden>Withdraw all to wallet</button>
+            <form id="earn-form" class="chains-card" novalidate hidden>
+              <ul class="chain-list" id="earn-vault-list"></ul>
+              <label>
+                Most the agent may park in one deposit (USDC)
+                <input name="maxPerPark" inputmode="decimal" placeholder="300" required />
+              </label>
+              <label>
+                Most the agent may park in a week (USDC)
+                <input name="weeklyCap" inputmode="decimal" placeholder="1000" required />
+              </label>
+              <label>
+                When an invoice is due and your wallet on Arc is short
+                <select name="liquidityStrategy" id="liquidity-strategy">
+                  <option value="preserve_yield">Preserve Yield (use 0% idle USDC from other chains first)</option>
+                  <option value="instant_zero_fee">Instant / Zero-fee (withdraw from Arc Earn first)</option>
+                  <option value="ask_owner">Ask me in chat when due in over 24h</option>
+                </select>
+              </label>
+              <button class="btn btn-primary" type="submit">Save Earn settings</button>
+            </form>
+          </section>
+
           <section class="owner-only">
             <h3>Limits in your contract</h3>
             <form id="limits-form" class="stack-form" novalidate>

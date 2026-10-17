@@ -12,6 +12,7 @@ import * as hub from "./hub.js";
 import { agentView, groupTasks, raisedLimits, taskFor } from "./needs.js";
 import * as suppliers from "./suppliers.js";
 import * as unified from "./unified.js";
+import * as earn from "./earn.js";
 import { factory, memoNames, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
 import { AUTHORIZE_ALL, authorizationView, formatUsdc, parseUsdc, shortAddress, ZERO_ADDRESS } from "./units.js";
 import { chooseWallet } from "./picker.js";
@@ -183,7 +184,7 @@ async function renderShop() {
   $("agent-on").hidden = !isOwner || view.on;
 
   await Promise.all([renderHistory(isOwner), renderApprovals(isOwner),
-    renderErp(isOwner, state).then(() => renderChains(isOwner))]);
+    renderErp(isOwner, state).then(() => Promise.all([renderChains(isOwner), renderEarn(isOwner, service)]))]);
 }
 
 // The chains the agent can pay from, read on each chain. The owner turns them on or off and saves:
@@ -236,6 +237,51 @@ async function renderChains(isOwner) {
   const on = chains.rows.filter((r) => r.status !== "off").map((r) => r.name);
   $("chains-summary").textContent = on.length ? `On: ${on.join(", ")}.` : "None yet.";
   $("chain-list").replaceChildren(...chains.rows.map(chainRow));
+}
+
+const earnState = { rows: [], maxPerPark: 0n, weeklyCap: 0n };
+
+function earnVaultRow(row) {
+  const toggle = Object.assign(document.createElement("input"), {
+    type: "checkbox", name: row.key, checked: row.status !== "off", className: "switch",
+  });
+  toggle.setAttribute("role", "switch");
+  toggle.setAttribute("aria-label", `Allow ${row.name}`);
+  return el("li", {}, el("label", { className: "chain-row" },
+    el("span", { className: "chain-badge", textContent: row.name[0], ariaHidden: "true" }),
+    el("span", { className: "chain-name" },
+      el("b", { textContent: `${row.name} (${row.apy})` }),
+      el("span", { className: "hint", textContent: `${formatUsdc(row.assets)} USDC in your wallet` })),
+    toggle));
+}
+
+async function renderEarn(isOwner, service) {
+  if (!isOwner || !session.agent) return;
+  try {
+    const info = await earn.readEarn({ owner: session.account, agent: session.agent, ...session.limits });
+    earnState.rows = info.vaults;
+    earnState.maxPerPark = info.maxPerPark || session.limits.maxPerMove;
+    earnState.weeklyCap = info.weeklyCap || session.limits.weeklyCap;
+  } catch (error) {
+    $("earn-summary").textContent = `Could not read Arc Earn right now (${describeError(error)}).`;
+    return;
+  }
+  const active = earnState.rows.filter((r) => r.status !== "off");
+  const totalAssets = earnState.rows.reduce((sum, r) => sum + r.assets, 0n);
+  const master = $("earn-master-switch");
+  master.checked = active.length > 0;
+  $("earn-form").hidden = !master.checked;
+  $("earn-withdraw-all").hidden = totalAssets === 0n;
+  $("earn-summary").textContent = active.length
+    ? `On (${active.map((r) => r.name).join(", ")}) · ${formatUsdc(totalAssets)} USDC earning yield.`
+    : totalAssets > 0n
+      ? `Off (agent will not park) · ${formatUsdc(totalAssets)} USDC still in vaults.`
+      : "Off. The agent will never deposit into DeFi unless you turn this on.";
+  $("earn-vault-list").replaceChildren(...earnState.rows.map(earnVaultRow));
+  const form = $("earn-form");
+  form.elements.maxPerPark.value = formatUsdc(earnState.maxPerPark);
+  form.elements.weeklyCap.value = formatUsdc(earnState.weeklyCap);
+  $("liquidity-strategy").value = service?.liquidity_strategy ?? "preserve_yield";
 }
 
 // The shop's own agent on the owner's ERPNext, through the hub API.
@@ -1123,6 +1169,78 @@ function wireActions() {
       button.disabled = false;
       await wallet.switchToArc().catch(() => null);  // the rest of the page works on Arc
       await render();
+    }
+  });
+
+  $("earn-master-switch").addEventListener("change", async (event) => {
+    const master = event.currentTarget;
+    if (master.checked) {
+      $("earn-form").hidden = false;
+      return;
+    }
+    const active = earnState.rows.filter((r) => r.status !== "off");
+    if (!active.length) {
+      $("earn-form").hidden = true;
+      return;
+    }
+    master.disabled = true;
+    try {
+      const provider = wallet.eip1193();
+      for (let i = 0; i < active.length; i++) {
+        notify(`Turning off ${active[i].name}: confirm it in MetaMask...`);
+        await earn.turnOffVault(provider, active[i].address, { otherVaultsOn: i < active.length - 1 });
+      }
+      notify("Earn is off. The agent will not park or unpark USDC.", "success");
+    } catch (error) {
+      notify(describeError(error), "error");
+    } finally {
+      master.disabled = false;
+      await renderShop();
+    }
+  });
+
+  $("earn-withdraw-all").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      notify("Withdraw all from Arc Earn to your wallet: confirm in MetaMask...");
+      await earn.withdrawAllFromEarn(wallet.eip1193(), earnState.rows);
+      notify("All your Arc Earn funds are back in your wallet.", "success");
+      await renderShop();
+    } catch (error) {
+      notify(describeError(error), "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  onSubmit("earn-form", async (data, button) => {
+    button.disabled = true;
+    try {
+      const maxPerMove = parseUsdc(data.get("maxPerPark"));
+      const weeklyCap = parseUsdc(data.get("weeklyCap"));
+      if (maxPerMove > weeklyCap) throw new Error("The per-deposit limit cannot be above the weekly limit.");
+      const chosen = earnState.rows.map((row) => ({ row, on: data.get(row.key) === "on" }));
+      if (!chosen.some((c) => c.on)) throw new Error("Choose at least one vault, or turn Earn off with the switch above.");
+      const provider = wallet.eip1193();
+      let remainingOn = chosen.filter((c) => c.on).length;
+      for (const { row, on } of chosen) {
+        if (on) {
+          notify(`${row.name}: confirm in MetaMask...`);
+          await earn.setUpVault(provider, row.address, { agent: session.agent, maxPerMove, weeklyCap });
+        } else if (row.status !== "off") {
+          notify(`Turning off ${row.name}: confirm in MetaMask...`);
+          await earn.turnOffVault(provider, row.address, { otherVaultsOn: remainingOn > 0 });
+          remainingOn = Math.max(0, remainingOn);
+        }
+      }
+      await hub.setLiquidityStrategy(session.shop, String(data.get("liquidityStrategy") || "preserve_yield")).catch(() => null);
+      notify("Saved. Your Earn settings and liquidity strategy are active.", "success");
+      await renderShop();
+    } catch (error) {
+      notify(describeError(error), "error");
+    } finally {
+      button.disabled = false;
     }
   });
 

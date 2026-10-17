@@ -173,3 +173,12 @@ test("the owner authorizes the agent's signer in Gateway, or an outside agent it
   assert.equal(hub.delegateOf({ ours: false, signer: null }, agent), agent);
   assert.equal(hub.delegateOf(null, agent), null);
 });
+
+test("setting the liquidity strategy posts the owner's choice to the shop's endpoint", async () => {
+  const { impl, calls } = fakeFetch({
+    [`POST /api/shops/${SHOP.toLowerCase()}/liquidity-strategy`]: [200, { liquidity_strategy: "instant_zero_fee" }],
+  });
+  assert.deepEqual(await hub.setLiquidityStrategy(SHOP, "instant_zero_fee", impl), { liquidity_strategy: "instant_zero_fee" });
+  assert.deepEqual(calls[0].body, { strategy: "instant_zero_fee" });
+  assert.equal(calls[0].credentials, "same-origin");
+});
