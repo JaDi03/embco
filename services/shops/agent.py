@@ -240,6 +240,7 @@ def earn_view(owner_earn: OwnerEarn | None) -> dict[str, Any] | None:
                     "balance_usdc": str(v.balance_usdc),
                     "approved_in_earn": v.approved_in_earn,
                     "shares_approved": v.shares_approved,
+                    "max_deposit_usdc": str(v.max_deposit_usdc),
                     "can_unpark": str(s.can_unpark(v.key))} for v in s.vaults],
     }
 

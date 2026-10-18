@@ -374,6 +374,7 @@ class Toolbox:
             "you_may_park_now": fmt(s.can_park),
             "vaults": [{"vault": v.key, "name": v.name, "balance_usdc": fmt(v.balance_usdc),
                         "approved_for_parking": v.approved_in_earn,
+                        "accepts_deposits": v.max_deposit_usdc > 0,
                         "you_may_withdraw_now": fmt(s.can_unpark(v.key))} for v in s.vaults],
         }
 

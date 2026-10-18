@@ -96,4 +96,5 @@ export const ERC4626_ABI = [
   "function approve(address spender, uint256 amount) returns (bool)",
   "function convertToAssets(uint256 shares) view returns (uint256)",
   "function redeem(uint256 shares, address receiver, address owner) returns (uint256)",
+  "function maxDeposit(address receiver) view returns (uint256)",
 ];

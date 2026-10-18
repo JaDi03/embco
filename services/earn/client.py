@@ -76,6 +76,7 @@ class EarnPosition:
     max_withdraw_usdc: Decimal  # maxWithdraw(owner) in USDC
     approved_in_earn: bool  # ShopEarn.approvedVault(vault)
     shares_approved: bool  # vault.allowance(owner, shopEarn) >= shares and > 0
+    max_deposit_usdc: Decimal = Decimal(0)  # maxDeposit(owner) in USDC
 
 
 @dataclass(frozen=True)
@@ -103,7 +104,7 @@ class ShopEarnState:
         wallet so the owner is never left without gas on Arc."""
         if not self.earn or self.paused or not self.agent_is_set:
             return Decimal(0)
-        if not any(v.approved_in_earn for v in self.vaults):
+        if not any(v.approved_in_earn and v.max_deposit_usdc > 0 for v in self.vaults):
             return Decimal(0)
         spendable = max(Decimal(0), self.in_wallet - MIN_WALLET_CUSHION)
         return min(spendable, self.usdc_approved, self.max_per_park, self.left_this_week)
@@ -225,11 +226,17 @@ class OwnerEarn:
                                                              ["address"], [owner]))
         except ChainError:
             max_withdraw = assets
+        try:
+            (max_deposit,) = decode(["uint256"], self._view(vault, "maxDeposit(address)",
+                                                            ["address"], [owner]))
+        except ChainError:
+            max_deposit = 0
         if earn is None:
             return EarnPosition(
                 key=spec.key, name=spec.name, vault=vault, shares=shares,
                 balance_usdc=_usdc(assets), max_withdraw_usdc=_usdc(max_withdraw),
                 approved_in_earn=False, shares_approved=False,
+                max_deposit_usdc=_usdc(max_deposit),
             )
         (approved_vault,) = decode(["bool"], self._view(earn, "approvedVault(address)",
                                                         ["address"], [vault]))
@@ -240,6 +247,7 @@ class OwnerEarn:
             key=spec.key, name=spec.name, vault=vault, shares=shares,
             balance_usdc=_usdc(assets), max_withdraw_usdc=_usdc(max_withdraw),
             approved_in_earn=approved_vault, shares_approved=shares_ok,
+            max_deposit_usdc=_usdc(max_deposit),
         )
 
     def park(self, vault_name: str, amount: Decimal) -> dict[str, Any]:
@@ -251,6 +259,10 @@ class OwnerEarn:
         if state.in_wallet - amount < MIN_WALLET_CUSHION:
             raise ChainError(f"keep at least {MIN_WALLET_CUSHION} USDC in the owner's wallet on "
                              f"Arc for network fees (wallet has {state.in_wallet} USDC)")
+        pos = state.find_vault(spec.key)
+        if pos is not None and pos.max_deposit_usdc < amount:
+            raise ChainError(f"vault {spec.name} is not accepting deposits of {amount} USDC "
+                             f"(maxDeposit is {pos.max_deposit_usdc} USDC)")
         vault = to_checksum_address(spec.address)
         units = usdc_units(amount)
         call = (keccak(text="park(address,uint256)")[:4]

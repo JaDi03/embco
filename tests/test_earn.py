@@ -135,6 +135,8 @@ class FakeArcChain:
                 return encode(["uint256"], [assets])
             if sel == _sel("maxWithdraw(address)"):
                 return encode(["uint256"], [assets])
+            if sel == _sel("maxDeposit(address)"):
+                return encode(["uint256"], [MAX_UINT if is_morpho else 0])
             if sel == _sel("allowance(address,address)"):
                 return encode(["uint256"], [allowance])
 
@@ -180,10 +182,12 @@ def test_reads_shop_earn_and_both_6_and_18_decimal_vault_positions():
     morpho, earnkit = state.vaults
     assert morpho.key == "morpho" and morpho.balance_usdc == Decimal("204.5")
     assert morpho.approved_in_earn is True and morpho.shares_approved is True
+    assert morpho.max_deposit_usdc > Decimal("1000000")
     assert state.can_unpark("morpho") == Decimal("204.5")
 
     assert earnkit.key == "earnkit" and earnkit.balance_usdc == Decimal("101.25")
     assert earnkit.approved_in_earn is False and earnkit.shares_approved is False
+    assert earnkit.max_deposit_usdc == Decimal(0)
     assert state.can_unpark("earnkit") == Decimal("0")
 
 
@@ -206,7 +210,7 @@ def test_can_park_always_leaves_gas_cushion_in_owner_wallet():
         paused=False,
         agent_is_set=True,
         vaults=(EarnPosition("morpho", "Morpho USDC Vault", MORPHO, 0, Decimal(0), Decimal(0),
-                             True, True),),
+                             True, True, Decimal("1000")),),
     )
     assert state.can_park == Decimal("50.5") - MIN_WALLET_CUSHION
 
@@ -239,6 +243,13 @@ def test_park_refuses_to_drain_the_owner_gas_cushion():
     earn = make_earn(chain)
     with pytest.raises(ChainError, match="keep at least 1 USDC"):
         earn.park("morpho", Decimal("100"))
+
+
+def test_park_refuses_when_vault_max_deposit_is_zero():
+    chain = FakeArcChain()
+    earn = make_earn(chain)
+    with pytest.raises(ChainError, match="not accepting deposits of 50 USDC"):
+        earn.park("earnkit", Decimal("50"))
 
 
 def test_unpark_partial_amount_calls_unpark_with_6_decimal_units():
