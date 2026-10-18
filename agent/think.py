@@ -76,6 +76,7 @@ class BrainSetup:
     mailer: Callable[[str, str, str], str] | None = None  # writes to a supplier from the ERP
     wallet_notice: Callable[[str], str] | None = None  # the standard wallet notice, from the ERP
     owner_funds: Any = None  # the owner's Unified Balance (services.unified_balance.OwnerFunds)
+    owner_earn: Any = None  # the owner's Arc Earn vaults (services.earn.OwnerEarn)
 
 
 @dataclass(frozen=True)
@@ -130,6 +131,7 @@ def think(
                       now=now, zone=setup.zone, done=set(done), standing=standing,
                       room=setup.room, funds=setup.funds, mailer=setup.mailer,
                       wallet_notice=setup.wallet_notice, owner_funds=setup.owner_funds,
+                      owner_earn=setup.owner_earn,
                       emails_today=emails_today(sessions, setup.zone, now),
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), payer=payer,
@@ -192,6 +194,7 @@ def converse(
                       now=now, zone=setup.zone, done=set(done), standing=standing,
                       room=setup.room, funds=setup.funds, mailer=setup.mailer,
                       wallet_notice=setup.wallet_notice, owner_funds=setup.owner_funds,
+                      owner_earn=setup.owner_earn,
                       emails_today=emails_today(sessions, setup.zone, now),
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), require_all=False, payer=payer,

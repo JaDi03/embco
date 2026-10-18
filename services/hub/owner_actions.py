@@ -23,7 +23,7 @@ from services.shops.activity import (
     switched,
 )
 from services.shops.inbox import answer_waiting, drop_answer
-from services.shops.store import ShopError, ShopStore
+from services.shops.store import LIQUIDITY_STRATEGIES, ShopError, ShopStore
 from services.telegram import links
 
 CHECK_EVERY = timedelta(seconds=30)  # "check now" restarts the agent: not more often than this
@@ -37,6 +37,10 @@ class Switch(BaseModel):
 class DraftMode(BaseModel):
     draft: bool
     confirm: bool = False  # leaving draft mode closes real invoices: the owner must say so
+
+
+class LiquidityStrategy(BaseModel):
+    strategy: str = Field(min_length=1, max_length=40)
 
 
 class Message(BaseModel):
@@ -210,5 +214,16 @@ def owner_action_routes(
             except UnitError as error:
                 raise HubError(500, "saved, but the agent did not restart; try again") from error
         return {"draft_mode": body.draft}
+
+    @router.post("/api/shops/{shop}/liquidity-strategy")
+    def liquidity_strategy(shop: str, body: LiquidityStrategy,
+                           embco_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+        shop = shop_of(shop)
+        owner_session(shop, embco_session)
+        strategy = body.strategy.strip()
+        if strategy not in LIQUIDITY_STRATEGIES:
+            raise HubError(400, f"strategy must be one of {', '.join(LIQUIDITY_STRATEGIES)}")
+        store.set_liquidity_strategy(shop, strategy)
+        return {"liquidity_strategy": strategy}
 
     return router

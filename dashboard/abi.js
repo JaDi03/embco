@@ -71,3 +71,30 @@ export const USDC_ABI = [
   "function allowance(address owner, address spender) view returns (uint256)",
   "function approve(address spender, uint256 amount) returns (bool)",
 ];
+
+// contracts/src/ShopEarnFactory.sol and ShopEarn.sol: zero-custody ERC-4626 vault parking on Arc.
+export const EARN_FACTORY_ABI = [
+  "function create(address agent, uint256 maxPerPark, uint256 weeklyCap) returns (address)",
+  "function earnsOf(address owner) view returns (address[])",
+  "function predict(address owner, address agent, uint256 maxPerPark, uint256 weeklyCap) view returns (address)",
+];
+
+export const EARN_ABI = [
+  "function agent() view returns (address)",
+  "function maxPerPark() view returns (uint256)",
+  "function weeklyCap() view returns (uint256)",
+  "function paused() view returns (bool)",
+  "function approvedVault(address) view returns (bool)",
+  "function setLimits(uint256 maxPerPark, uint256 weeklyCap)",
+  "function setAgent(address agent)",
+  "function setVault(address vault, bool approved)",
+];
+
+export const ERC4626_ABI = [
+  "function balanceOf(address) view returns (uint256)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function convertToAssets(uint256 shares) view returns (uint256)",
+  "function redeem(uint256 shares, address receiver, address owner) returns (uint256)",
+  "function maxDeposit(address receiver) view returns (uint256)",
+];

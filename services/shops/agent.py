@@ -20,8 +20,9 @@ from agent.reflexes.cycle import CycleReport, run_cycle
 from agent.reflexes.report import format_report
 from agent.reflexes.watch import watch
 from agent.think import BUDGET_USED, converse
-from agent.wiring import brain_setup, funds_of, owner_funds_of, room_of
+from agent.wiring import brain_setup, funds_of, owner_earn_of, owner_funds_of, room_of
 from services.circle import CircleClient, CircleError
+from services.earn import OwnerEarn
 from services.erp import ErpnextAdapter, LedgerError
 from services.erp.erpnext.cache import CachedLedger
 from services.hub.chain import DEFAULT_FACTORY, ShopChain, ShopLimits
@@ -221,6 +222,29 @@ def unified_view(owner_funds: OwnerFunds | None) -> dict[str, Any] | None:
                        for c in chains], "wallets": wallets}
 
 
+def earn_view(owner_earn: OwnerEarn | None) -> dict[str, Any] | None:
+    """The owner's Arc Earn vaults and ShopEarn contract for the dashboard."""
+    if owner_earn is None:
+        return None
+    try:
+        s = owner_earn.read()
+    except (ChainError, CircleError, PaymentSetupError) as error:
+        return {"error": str(error)}
+    return {
+        "earn": s.earn, "in_wallet": str(s.in_wallet), "total_in_earn": str(s.total_in_earn),
+        "liquidity_strategy": s.liquidity_strategy,
+        "usdc_approved": str(s.usdc_approved), "max_per_park": str(s.max_per_park),
+        "weekly_cap": str(s.weekly_cap), "left_this_week": str(s.left_this_week),
+        "paused": s.paused, "agent_is_set": s.agent_is_set, "can_park": str(s.can_park),
+        "vaults": [{"key": v.key, "name": v.name, "vault": v.vault,
+                    "balance_usdc": str(v.balance_usdc),
+                    "approved_in_earn": v.approved_in_earn,
+                    "shares_approved": v.shares_approved,
+                    "max_deposit_usdc": str(v.max_deposit_usdc),
+                    "can_unpark": str(s.can_unpark(v.key))} for v in s.vaults],
+    }
+
+
 def run_shop(
     store: ShopStore,
     shop: str,
@@ -247,6 +271,7 @@ def run_shop(
     notice = getattr(live, "email_wallet_notice", None)
     room, funds = room_of(payments), funds_of(payments)
     unified = owner_funds_of(settings, payments)
+    earn = owner_earn_of(payments, lambda: store.liquidity_strategy(shop))
     if unified:
         try:
             log.info("shop %s: agent wallet ready for the Unified Balance on %s", shop,
@@ -256,7 +281,7 @@ def run_shop(
     brain = brain_setup(settings, room, funds,
                         getattr(live, "email_supplier", None),
                         (lambda s: notice(s, settings.supplier_site)) if notice else None,
-                        unified)
+                        unified, earn)
     if brain:
         log.info("shop %s: agent brain on (%s, %s)", shop, brain.brain.model,
                  brain.autonomy.value)
@@ -362,7 +387,8 @@ def run_shop(
             latest = {p.invoice: p for p in journal.latest_payments()}
             today = claude_today(journal.sessions(), brain.zone, report.at) if brain else None
             store.write_last_run(shop, {**summarize(report, latest, answers, policy["now"], today),
-                                        "unified_balance": unified_view(unified)})
+                                        "unified_balance": unified_view(unified),
+                                        "earn": earn_view(earn)})
             store.write_supplier_view(shop, supplier_view(report, journal, settings.company,
                                                           signatures, wallet_of=wallet_of))
             log.info("shop %s: %s", shop, format_report(report))

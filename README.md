@@ -71,6 +71,7 @@ embco/
 ├── services/            what the agent stands on
 │   ├── erp/             the ERPNext adapter
 │   ├── circle/          Circle developer-controlled wallets (EOA and smart contract accounts)
+│   ├── earn/            Arc Earn integration: zero-custody idle USDC yield in ERC-4626 vaults
 │   ├── unified_balance/ the owner's Unified Balance (Circle Gateway), through Circle's kit
 │   ├── payments/        simulate on Arc, send, follow, record
 │   ├── hub/  shops/     the hosted service behind the dashboard
@@ -78,7 +79,7 @@ embco/
 │   ├── telegram/        the Telegram bot
 │   ├── settings.py      settings from the environment, checked once
 │   └── cli.py           the embco command
-├── contracts/           ShopPayables, ShopFunding and their factories (Solidity, Arc Foundry)
+├── contracts/           ShopPayables, ShopFunding, ShopEarn and their factories (Solidity, Arc Foundry)
 ├── dashboard/           the owner dashboard and the supplier page (static, MetaMask)
 ├── connector/           prepares an ERPNext instance
 ├── deploy/              install.sh and the server files it sets up
@@ -94,6 +95,7 @@ embco/
 | Wallets: Gas Station | Pays the network fees of the agent's smart contract account, so the owner never sends it gas |
 | Unified Balance Kit (`@circle-fin/unified-balance-kit`) | Moves the owner's USDC from other chains into their Unified Balance and brings it to their wallet on Arc, with the fees estimated first |
 | Gateway | Holds the owner's Unified Balance; the `ShopFunding` contract deposits into it for the owner |
+| Arc Earn (ERC-4626) | Parks the owner's idle USDC on Arc into owner-approved vaults (e.g. Morpho) and unparks it to pay invoices, zero custody |
 | USDC and Arc | The currency the suppliers are paid in, and the chain where the shop contract runs |
 
 ## Getting started

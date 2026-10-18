@@ -193,7 +193,8 @@ def create_app(
         try:
             config = store.config(shop)
         except ShopError:
-            return {"shop": shop, "connected": False}
+            return {"shop": shop, "connected": False,
+                    "liquidity_strategy": store.liquidity_strategy(shop)}
         return {
             "shop": shop,
             "connected": connected,
@@ -206,6 +207,7 @@ def create_app(
             "agent_on": store.agent_on(shop),
             "payments_paused": store.payments_paused(shop),
             "draft_mode": store.draft_payments(shop),
+            "liquidity_strategy": store.liquidity_strategy(shop),
             "telegram_linked": links.link_of(store.folder(shop)) is not None,
             "last_run": (last_run := store.last_run(shop)),
             "answers_waiting": waiting_answers(store, shop, last_run),

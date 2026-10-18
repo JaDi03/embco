@@ -9,12 +9,12 @@ MAX_STRICT_TOOLS = 20  # the Claude API refuses a request with more strict tools
 
 
 def _tool(name: str, description: str, **properties: dict[str, Any]) -> dict[str, Any]:
-    """Strict only when it takes inputs: strict checks the inputs, and the API allows at most
-    MAX_STRICT_TOOLS strict tools per request."""
+    """Strict when it takes more than one input: strict checks the inputs, and the API allows at
+    most MAX_STRICT_TOOLS strict tools per request."""
     return {
         "name": name,
         "description": description,
-        "strict": bool(properties),
+        "strict": len(properties) > 1,
         "input_schema": {
             "type": "object",
             "properties": properties,
@@ -103,6 +103,23 @@ TOOLS: list[dict[str, Any]] = [
           "its balance on top of the amount, so leave room for them (estimate first). Returns "
           "what arrived, the fees and the transaction, or the real error.",
           allocations=ALLOCATIONS, reason=REASON),
+    _tool("earn_position",
+          "The owner's USDC in Arc Earn vaults (Morpho and EarnKit) and their ShopEarn contract "
+          "limits: how much is in each vault, what you may withdraw back to the owner's wallet "
+          "on Arc now, and how much idle USDC you may park into an approved vault now."),
+    _tool("park_in_earn",
+          "Park idle USDC from the owner's wallet on Arc into an approved Arc Earn vault through "
+          "the owner's ShopEarn contract: shares go straight to the owner's wallet, within the "
+          "per-park and weekly limits the owner set, leaving 1 USDC in the wallet for Arc fees.",
+          vault=_text("The vault key: morpho or earnkit."),
+          amount=_text("USDC to park, e.g. 200 or 50.5."), reason=REASON),
+    _tool("withdraw_from_earn",
+          "Withdraw the owner's USDC from an Arc Earn vault back to the owner's wallet on Arc "
+          "through ShopEarn, for real and with no cross-chain fee, so the shop contract can pay "
+          "invoices from it. Use 'all' to redeem the full vault balance.",
+          vault=_text("The vault key: morpho or earnkit."),
+          amount=_text("USDC to withdraw, e.g. 150, or 'all' for the whole vault balance."),
+          reason=REASON),
     _tool("schedule_payment",
           "Plan to pay this invoice on a later date you choose (shop's local date). Only "
           "invoices the checks allow. On that day you are woken to pay it with pay_now, or to "
