@@ -28,6 +28,8 @@
       <nav class="nav-links" aria-label="Sections">
         <a href="#week">What it catches</a>
         <a href="#how">How it works</a>
+        <a href="#cash">Your cash</a>
+        <a href="#think">Watch it think</a>
         <a href="#control">Your control</a>
         <a href="#faq">Questions</a>
       </nav>
@@ -143,6 +145,70 @@
         </div>
       </section>
 
+      <section id="cash" class="section">
+        <div class="wrap">
+          <h2>Your cash keeps working</h2>
+          <p class="section-lead">
+            The agent knows what is due and when. Money that waits can earn, and money on other
+            chains can pay. Both are off until you turn them on.
+          </p>
+          <div class="cards cards-2">
+            <article class="card">
+              <span class="card-tag">Arc Earn</span>
+              <h3>Idle cash earns while it waits</h3>
+              <p>
+                The agent can put USDC that no bill needs soon into a yield vault you approve, and
+                take it back to your wallet when a bill needs it, with no fee. The vault shares
+                stay in your own wallet, within deposit limits only you set.
+              </p>
+            </article>
+            <article class="card">
+              <span class="card-tag">Circle Unified Balance</span>
+              <h3>Pays from the chains you allow</h3>
+              <p>
+                Short on Arc? If you keep USDC on Base or Ethereum, the agent brings what a bill
+                needs to your wallet on Arc, with the fees estimated first. Only to your wallet, and
+                within your shop's limits.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="think" class="section section-alt">
+        <div class="wrap think">
+          <div>
+            <h2>Watch it think</h2>
+            <p class="section-lead">
+              The agent is an AI model that works your bills out the way you would: it looks things
+              up, weighs them and decides. You see every step as it happens, in its own words, and
+              every dollar it moves comes with a public receipt.
+            </p>
+            <ul class="trust">
+              <li>What woke it</li>
+              <li>Each lookup and what came back</li>
+              <li>What it decided, and why</li>
+            </ul>
+          </div>
+          <figure class="terminal" aria-label="Example of the agent's activity">
+            <div class="terminal-bar">
+              <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="terminal-title">embco agent · live</span>
+              <span class="feed-note">example</span>
+            </div>
+            <div class="terminal-log landing-log">
+              <div class="t-line wake"><span class="t-time">09:10:26</span><span class="t-tag">WAKE</span><span class="t-text">A bill is due on Friday and nothing is planned.</span></div>
+              <div class="t-line tool"><span class="t-time">09:10:29</span><span class="t-tag">TOOL</span><span class="t-text">cash_position() -&gt; done</span></div>
+              <div class="t-line tool"><span class="t-time">09:10:33</span><span class="t-tag">TOOL</span><span class="t-text">earn_position() -&gt; done</span></div>
+              <div class="t-line tool"><span class="t-time">09:10:38</span><span class="t-tag">TOOL</span><span class="t-text">withdraw_from_earn(amount=213.30, vault=morpho) -&gt; done, tx 0x4f1c…</span></div>
+              <div class="t-line tool"><span class="t-time">09:10:44</span><span class="t-tag">TOOL</span><span class="t-text">pay_now(invoice=ACC-PINV-2026-00017) -&gt; done, tx 0x9ab2…</span></div>
+              <div class="t-line ok"><span class="t-time">09:10:44</span><span class="t-tag">DECIDE</span><span class="t-text">PAY NOW · ACC-PINV-2026-00017: order, delivery and bill match. Took the 213.30 missing from Earn: no fee, and paid on time.</span></div>
+              <div class="t-line say"><span class="t-time">09:10:44</span><span class="t-tag">SAYS</span><span class="t-text">Paid Adeyemi Foods 476.00. I took 213.30 from your Earn vault to cover it.</span></div>
+            </div>
+          </figure>
+        </div>
+      </section>
+
       <section id="control" class="section">
         <div class="wrap control">
           <div>
@@ -215,6 +281,10 @@
           <details>
             <summary>What if it gets something wrong?</summary>
             <p>When something does not add up, it holds the bill and asks you. It can never pay more than your limits, and you can stop it at any time.</p>
+          </details>
+          <details>
+            <summary>Is my money at risk to earn yield?</summary>
+            <p>Only if you turn Earn on and approve a vault. The shares stay in your wallet, the agent deposits only within the limits you set, and it can only withdraw back to you. A vault lends to others, so it carries the risk of that lending: approve only the ones you trust.</p>
           </details>
           <details>
             <summary>Does it change my books?</summary>

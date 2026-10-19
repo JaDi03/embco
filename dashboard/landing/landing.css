@@ -54,6 +54,18 @@ main .card p { color: var(--muted); margin-top: 10px; }
 .steps p { color: var(--muted); margin-top: 10px; }
 .step-n { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-weight: 800; margin-bottom: 16px; }
 
+.cards-2 { grid-template-columns: repeat(2, 1fr); }
+.card-tag { display: inline-block; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.04em; color: var(--accent-ink); background: var(--accent-soft); border-radius: 999px; padding: 3px 10px; margin-bottom: 14px; }
+
+/* Watch it think: the console of the app, with an example session */
+.think { display: grid; grid-template-columns: 0.85fr 1.15fr; gap: 48px; align-items: center; }
+.think .trust { flex-direction: column; }
+.think .terminal { margin: 0; }
+.landing-log { height: auto; min-height: 0; }
+.landing-log .t-line { grid-template-columns: 5.4em 4.8em minmax(0, 1fr); }
+.terminal .feed-note { color: #6e7681; margin-left: 0; }
+.terminal .terminal-title { white-space: nowrap; }
+
 .control { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 56px; align-items: start; }
 .points { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 26px 32px; }
 .points li { border-left: 3px solid var(--accent); padding-left: 16px; }
@@ -78,14 +90,15 @@ main .card p { color: var(--muted); margin-top: 10px; }
 .footer nav a:hover { color: var(--text); }
 
 @media (max-width: 960px) {
-  .hero-inner, .control { grid-template-columns: 1fr; gap: 40px; }
+  .hero-inner, .control, .think { grid-template-columns: 1fr; gap: 40px; }
   .cards { grid-template-columns: 1fr 1fr; }
   .nav-links { display: none; }
 }
 @media (max-width: 640px) {
   .hero { padding: 44px 0 56px; }
   .section { padding: 64px 0; }
-  .cards, .cards-3, .steps, .points { grid-template-columns: 1fr; }
+  .cards, .cards-2, .cards-3, .steps, .points { grid-template-columns: 1fr; }
+  .landing-log .t-line { grid-template-columns: 1fr; gap: 0; }
   .feed-list li { grid-template-columns: 1fr; gap: 6px; }
   .landing-top .pill { display: none; }
 }
