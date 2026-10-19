@@ -88,6 +88,7 @@ class Toolbox:
     notified_wallets: list[str] = field(default_factory=list)  # suppliers sent the wallet notice
     summary: str | None = None
     trace: list[dict[str, Any]] = field(default_factory=list)  # every tool call, in order
+    on_step: Callable[[dict[str, Any]], None] | None = None  # told of each call as it happens
 
     def __post_init__(self) -> None:
         self._by_invoice = {d.invoice: d for d in self.decisions}
@@ -105,10 +106,15 @@ class Toolbox:
         try:
             result = self._run(name, args)
         except ToolError as error:
-            self.trace.append(tool_trace.step(name, args, refused=str(error)))
+            self._keep(tool_trace.step(name, args, refused=str(error)))
             raise
-        self.trace.append(tool_trace.step(name, args, result=result))
+        self._keep(tool_trace.step(name, args, result=result))
         return result
+
+    def _keep(self, step: dict[str, Any]) -> None:
+        self.trace.append(step)
+        if self.on_step:
+            self.on_step(step)
 
     def _run(self, name: str, args: Mapping[str, Any]) -> str:
         if name not in INPUTS:
