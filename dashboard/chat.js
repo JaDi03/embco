@@ -48,7 +48,7 @@ export function bubbleOf(entry) {
   }
   const telegram = entry.telegram ? "sent to Telegram" : "";
   if (entry.from === "agent") {
-    const meta = ["AGENT", entry.model ? "Claude" : "", entry.cost ? `${entry.cost} est.` : "", telegram];
+    const meta = ["AGENT", entry.model ? "Claude" : "", telegram];
     return { side: "agent", text: entry.text, meta: meta.filter(Boolean).join(" · ") };
   }
   return { side: "system", text: entry.text, meta: ["SERVICE", telegram].filter(Boolean).join(" · ") };

@@ -12,10 +12,10 @@ test("a message is trimmed, and an empty or too long one is not sent", () => {
   assert.match(chat.checkMessage("x".repeat(chat.MAX_TEXT + 1)).error, /At most/);
 });
 
-test("the owner's words go right, the agent's left with what it cost", () => {
+test("the owner's words go right, the agent's left, without what it cost", () => {
   assert.equal(chat.bubbleOf({ from: "owner", text: "hi" }).side, "me");
   const reply = chat.bubbleOf({ from: "agent", text: "Nothing is due.", cost: "$0.0012", model: "claude-haiku-5-5" });
-  assert.deepEqual(reply, { side: "agent", text: "Nothing is due.", meta: "AGENT · Claude · $0.0012 est." });
+  assert.deepEqual(reply, { side: "agent", text: "Nothing is due.", meta: "AGENT · Claude" });
   assert.equal(chat.bubbleOf({ from: "system", text: "could not answer" }).meta, "SERVICE");
 });
 
@@ -23,7 +23,7 @@ test("what came from Telegram, and what went there, says so", () => {
   assert.equal(chat.bubbleOf({ from: "owner", text: "pay it", by: chat.VIA_TELEGRAM }).meta, "via Telegram");
   assert.equal(chat.bubbleOf({ from: "owner", text: "pay it", by: "owner 0xabc" }).meta, "");
   const reply = chat.bubbleOf({ from: "agent", text: "Paid.", cost: "$0.0014", model: "m", telegram: true });
-  assert.equal(reply.meta, "AGENT · Claude · $0.0014 est. · sent to Telegram");
+  assert.equal(reply.meta, "AGENT · Claude · sent to Telegram");
   assert.equal(chat.bubbleOf({ from: "system", text: "x", telegram: true }).meta, "SERVICE · sent to Telegram");
 });
 
