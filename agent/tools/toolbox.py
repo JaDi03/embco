@@ -106,9 +106,9 @@ class Toolbox:
         try:
             result = self._run(name, args)
         except ToolError as error:
-            self._keep(tool_trace.step(name, args, refused=str(error)))
+            self._keep(tool_trace.step(name, args, refused=str(error), at=datetime.now(UTC)))
             raise
-        self._keep(tool_trace.step(name, args, result=result))
+        self._keep(tool_trace.step(name, args, result=result, at=datetime.now(UTC)))
         return result
 
     def _keep(self, step: dict[str, Any]) -> None:

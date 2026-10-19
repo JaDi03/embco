@@ -8,6 +8,7 @@ decision, the message or the summary they belong to.
 
 import json
 from collections.abc import Mapping
+from datetime import datetime
 from typing import Any
 
 MAX_VALUE = 60
@@ -30,10 +31,12 @@ def _tx(result: str) -> str:
 
 
 def step(name: str, args: Mapping[str, Any], *, result: str | None = None,
-         refused: str | None = None) -> dict[str, Any]:
-    """One call: {"tool", "args", "ok", "tx"?, "refused"?}."""
+         refused: str | None = None, at: datetime | None = None) -> dict[str, Any]:
+    """One call: {"tool", "args", "ok", "tx"?, "refused"?, "at"?}; `at` is when it returned."""
     shown = {k: _clip(v, MAX_VALUE) for k, v in sorted(args.items()) if k not in WORDS}
     out: dict[str, Any] = {"tool": name, "args": shown, "ok": refused is None}
+    if at is not None:
+        out["at"] = at.isoformat(timespec="seconds")
     if refused is not None:
         out["refused"] = _clip(refused, MAX_REFUSAL)
     elif tx := _tx(result or ""):
