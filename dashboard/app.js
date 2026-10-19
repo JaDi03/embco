@@ -9,6 +9,9 @@ import * as activity from "./activity.js";
 import * as feed from "./feed.js";
 import * as chat from "./chat.js";
 import * as hub from "./hub.js";
+import * as ledger from "./ledger.js";
+import * as console_ from "./terminal.js";
+import * as nav from "./nav.js";
 import { agentView, groupTasks, raisedLimits, taskFor } from "./needs.js";
 import * as suppliers from "./suppliers.js";
 import * as unified from "./unified.js";
@@ -109,15 +112,13 @@ function setShopMode(hasShop) {
   $("no-shop").hidden = hasShop;
   $("create-section").hidden = hasShop;
   for (const el of document.querySelectorAll(".shop-only")) el.hidden = !hasShop;
-  if (!hasShop) {
-    for (const id of ["tab-invoices", "tab-suppliers", "tab-payments"]) $(id).hidden = true;
-  } else if (work.current === null) {
-    $("tab-invoices").hidden = false;  // as the page loads, before the tabs are painted
-  }
+  for (const id of ["tab-invoices", "tab-suppliers", "tab-payments"]) $(id).hidden = !hasShop;
+  if (!hasShop) $("bill-numbers").hidden = true;
 }
 
 async function renderNoShop() {
   stopTerminal();
+  signedOut(false);
   $("panes").dataset.mview = "work";
   for (const el of document.querySelectorAll(".owner-only")) el.hidden = true;
   $("not-owner").hidden = true;
@@ -169,10 +170,6 @@ async function renderShop() {
     badge.className = `${mode.badgeClass} owner-only`;
     badge.title = mode.note;
   }
-  const today = service?.last_run?.brain?.today;
-  $("claude-today").textContent = today
-    ? `${today.sessions} session${today.sessions === 1 ? "" : "s"}${today.cost ? ` · ${today.cost} est.` : ""}`
-    : "-";
   $("agent-address").replaceChildren(hasAgent ? link(shortAddress(state.agent), addressUrl(state.agent)) : "none");
   session.agent = hasAgent ? state.agent : null;
   const telegram = Boolean(service?.telegram_linked);
@@ -185,6 +182,47 @@ async function renderShop() {
 
   await Promise.all([renderHistory(isOwner), renderApprovals(isOwner),
     renderErp(isOwner, state).then(() => Promise.all([renderChains(isOwner), renderEarn(isOwner, service)]))]);
+  renderTreasury(state, service);
+}
+
+// Treasury: where the owner's USDC is and what the planned payments leave in the wallet, from
+// the chain (the wallet) and from what the agent read in its last check (Earn, other chains).
+
+function renderTreasury(state, service) {
+  const lastRun = service?.last_run;
+  const rows = ledger.moneyRows({ wallet: state.balance, earn: lastRun?.earn, unified: lastRun?.unified_balance });
+  const totals = ledger.moneyTotals(rows);
+  $("treasury-at").textContent = lastRun?.at ? `Balances as of ${new Date(lastRun.at).toLocaleString()}` : "";
+  $("treasury-total").textContent = `${formatUsdc(totals.total)} USDC`;
+  $("treasury-earn").textContent = `${formatUsdc(totals.inEarn)} USDC`;
+  $("treasury-earn-note").textContent = totals.inEarn ? "Withdrawn to your wallet when a bill needs it." : "Nothing in Earn.";
+  $("money-rows").replaceChildren(...rows.map((r) => el("tr", { className: r.muted ? "muted" : "" },
+    el("td", { textContent: r.name }),
+    el("td", { className: "num", textContent: formatUsdc(r.units) }),
+    el("td", { className: "why", textContent: r.note }))));
+
+  const plan = ledger.cashPlan(lastRun?.ok ? lastRun.decisions : [], state.balance, ledger.today());
+  $("treasury-out").textContent = `${formatUsdc(plan.out)} USDC`;
+  $("treasury-out-note").textContent = plan.held.count
+    ? `Plus ${formatUsdc(plan.held.units)} USDC waiting for you or on hold.`
+    : `${plan.rows.length} planned by the agent.`;
+  const start = el("tr", {}, el("td", { textContent: "Today" }), el("td", { textContent: "Your wallet on Arc" }),
+    el("td", { className: "num" }), el("td", { className: "num", textContent: formatUsdc(state.balance) }));
+  $("plan-rows").replaceChildren(start, ...plan.rows.map((r) => el("tr", {},
+    el("td", { textContent: shortDay(r.day) }),
+    el("td", {}, r.supplier, el("span", { className: "ref", textContent: r.invoice })),
+    el("td", { className: "num", textContent: `-${formatUsdc(r.units)}` }),
+    el("td", { className: `num${r.left < 0n ? " short" : ""}`, textContent: formatUsdc(r.left) }))));
+  $("plan-note").textContent = !plan.rows.length
+    ? "The agent has no payments planned in the next two weeks."
+    : plan.short
+      ? `Your wallet is ${formatUsdc(plan.short)} USDC short for these. The agent covers it from Earn or your other chains, as your rules below say, or asks you to add funds.`
+      : "Your wallet covers every planned payment.";
+}
+
+/** "2026-10-20" -> "Oct 20". */
+function shortDay(day) {
+  return new Date(`${day}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 // The chains the agent can pay from, read on each chain. The owner turns them on or off and saves:
@@ -284,6 +322,11 @@ async function renderEarn(isOwner, service) {
   $("liquidity-strategy").value = service?.liquidity_strategy ?? "preserve_yield";
 }
 
+/** Signed out of the hub (never signed in, or the 12-hour sign-in ended): a bar on every page. */
+function signedOut(on) {
+  $("signin-bar").hidden = !on;
+}
+
 // The shop's own agent on the owner's ERPNext, through the hub API.
 
 function showErp(part) {
@@ -322,6 +365,7 @@ function hideAgent() {
 
 async function renderErp(isOwner, state) {
   session.signer = null;  // known once the owner is signed in
+  signedOut(false);
   if (!isOwner) {
     hideAgent();
     return;
@@ -336,6 +380,7 @@ async function renderErp(isOwner, state) {
     erpError(`The embco service is not reachable right now (${error.message}).`);
     return;
   }
+  signedOut(!shop);
   if (!shop) {
     hideAgent();
     renderChecks(null);
@@ -350,6 +395,7 @@ async function renderErp(isOwner, state) {
   }
   renderChecks(null);
   showErp("erp-connected");
+  $("shop-name").textContent = shop.company || "Your shop";
   $("drawer-erp").append($("erp-card"));  // connected: its details live in Settings
   $("erp-url").textContent = shop.erp_url;
   $("erp-company").textContent = shop.company;
@@ -381,7 +427,7 @@ function startTerminal() {
   $("terminal-card").hidden = false;
   if (terminal.shop === session.shop && terminal.timer) return;  // already running for this shop
   stopTerminal();
-  Object.assign(terminal, { shop: session.shop, events: [], interval: null, loaded: false, chat: [], waiting: false, open: new Set() });
+  Object.assign(terminal, { shop: session.shop, events: [], interval: null, loaded: false, chat: [], waiting: false, open: new Set(), shown: null });
   pollTerminal();
   terminal.timer = setInterval(pollTerminal, 4000);
   terminal.ticker = setInterval(paintNextCheck, 1000);
@@ -400,7 +446,10 @@ async function pollTerminal() {
   try {
     body = await activity.fetchActivity(terminal.shop, after);
   } catch (error) {
-    if (error.status === 401) stopTerminal();  // signed out: the ERP card asks to sign in again
+    if (error.status === 401) {  // the sign-in ended while the page was open: say so on every page
+      stopTerminal();
+      signedOut(true);
+    }
     return;
   }
   terminal.interval = body.interval_minutes ?? terminal.interval;
@@ -415,29 +464,63 @@ async function pollTerminal() {
   if (finished) renderShop().catch(() => null);  // the agent finished a check: refresh the cards
 }
 
-/** What the agent did and why, newest at the bottom. Money that moved is in the chat, as receipts,
- * so it is not repeated here; quiet checks fold into one line. */
+/** The agent's console: one line per thing it did, newest at the bottom. Lines that arrive while
+ * the page is open are typed out, so the owner sees the agent working. */
 function paintActivity() {
   const box = $("activity-log");
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
-  const items = feed.activityOf(terminal.events);
-  if (!items.length) {
-    box.replaceChildren(el("div", { className: "empty", textContent: "Waiting for the agent's first check..." }));
+  const lines = console_.linesOf(terminal.events);
+  if (!lines.length) {
+    box.replaceChildren(el("div", { className: "t-line dim", textContent: "Waiting for the agent's first check..." }));
     return;
   }
+  const first = !terminal.shown;
+  terminal.shown ??= new Set();
   const nodes = [];
   let day = null;
-  for (const item of items) {
-    const label = activity.dayOf(item.at);
+  for (const line of lines) {
+    const label = activity.dayOf(line.at);
     if (label && label !== day) {
       day = label;
-      nodes.push(el("div", { className: "day", textContent: label }));
+      nodes.push(el("div", { className: "t-day", textContent: `── ${label} ──` }));
     }
-    nodes.push(feedItem(item));
+    const text = el("span", { className: "t-text" });
+    const node = el("div", { className: `t-line ${line.tone}` },
+      el("span", { className: "t-time", textContent: console_.clock(line.at) }),
+      el("span", { className: "t-tag", textContent: line.tag }), text);
+    const fresh = !first && !terminal.shown.has(line.key);
+    terminal.shown.add(line.key);
+    if (fresh) typeOut(text, line);
+    else fillLine(text, line);
+    nodes.push(node);
   }
   box.replaceChildren(...nodes);
   if (atBottom || !box.dataset.painted) box.scrollTop = box.scrollHeight;
   box.dataset.painted = "1";
+}
+
+function fillLine(node, line) {
+  node.replaceChildren(...withLinks(line.text));
+  if (line.tx) node.append(" ", link(`tx ${shortAddress(line.tx)}`, txUrl(line.tx)));
+}
+
+/** A new line appears letter by letter, then gets its links. */
+function typeOut(node, line) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    fillLine(node, line);
+    return;
+  }
+  let shown = 0;
+  node.classList.add("typing");
+  const timer = setInterval(() => {
+    shown = Math.min(line.text.length, shown + 3);
+    node.textContent = line.text.slice(0, shown);
+    if (shown >= line.text.length) {
+      clearInterval(timer);
+      node.classList.remove("typing");
+      fillLine(node, line);
+    }
+  }, 16);
 }
 
 function feedItem(item) {
@@ -492,9 +575,9 @@ function bubble(entry) {
 const CHOICE_CLASS = { HOLD: "held", PAY_NOW: "paid", SCHEDULE: "paid", ASK: "ask" };
 const CHOICE_ICON = { held: "■", paid: "✓", ask: "?", note: "•" };
 
-/** One time Claude was woken: why, what it decided, what it said, what it cost. */
+/** One time Claude was woken: why, what it decided, what it said. */
 function sessionCard(s) {
-  const meta = [activity.timeOf(s.at).slice(0, 5), s.steps ? `${s.steps} steps` : "", s.cost ? `${s.cost} est.` : ""]
+  const meta = [activity.timeOf(s.at).slice(0, 5), s.steps ? `${s.steps} steps` : ""]
     .filter(Boolean).join(" · ");
   const card = el("div", { className: "session" },
     el("div", { className: "session-head" },
@@ -548,7 +631,7 @@ async function pollChat() {
   if (terminal.waiting && !terminal.fastChat) {  // waiting for an answer: look every second
     terminal.fastChat = setTimeout(() => {
       terminal.fastChat = null;
-      pollChat();
+      pollTerminal();  // the activity first, then the chat: the agent's work shows before its answer
     }, 1000);
   }
 }
@@ -596,43 +679,87 @@ async function renderTasks(shop, state, list) {
   $("tasks-card").hidden = false;
   $("tasks-checked").textContent = `Last check ${new Date(lastRun.at).toLocaleTimeString()}`;
   const needs = tasks.filter((t) => t.section === "needs").length;
-  $("tasks-summary").textContent = !tasks.length
-    ? "No unpaid invoices. The agent checks your ERPNext every 15 minutes."
-    : needs
-      ? `${needs} invoice${needs > 1 ? "s need" : " needs"} you. Follow the steps in order; each button is right next to its step.`
-      : "Nothing needs you right now.";
+  $("tasks-summary").textContent = tasks.length ? "" : "No unpaid bills. The agent checks your ERPNext every 15 minutes.";
+  $("nav-needs").textContent = String(needs);
+  $("nav-needs").hidden = !needs;
+  renderNumbers(lastRun, state);
   work.context = { company: shop.company, site: list?.site, state };
   work.groups = groupTasks(tasks);
   paintWork();
 }
 
-// The left pane: one tab per invoice state, then the suppliers and the payments.
+/** Due this week, overdue, and what the owner can pay with (the wallet on Arc plus Earn). */
+function renderNumbers(lastRun, state) {
+  const { dueWeek, overdue } = ledger.billsSummary(lastRun.decisions, ledger.today());
+  const inEarn = ledger.units(lastRun.earn?.total_in_earn);
+  const count = (n) => (n ? `${n} bill${n > 1 ? "s" : ""}` : "None");
+  $("due-week").textContent = `${formatUsdc(dueWeek.units)} USDC`;
+  $("due-week-note").textContent = count(dueWeek.count);
+  $("overdue").textContent = `${formatUsdc(overdue.units)} USDC`;
+  $("overdue").className = overdue.count ? "status-off" : "";
+  $("overdue-note").textContent = count(overdue.count);
+  $("available").textContent = `${formatUsdc(state.balance + inEarn)} USDC`;
+  $("available-note").textContent = inEarn
+    ? `${formatUsdc(state.balance)} in your wallet · ${formatUsdc(inEarn)} in Earn`
+    : `In your wallet · ${formatUsdc(state.remaining)} left of this week's limit`;
+  $("bill-numbers").hidden = false;
+}
 
-const work = { groups: [], current: null, context: null };
+// Bills: one tab per state, one row per bill with the agent's reason; a row opens its details.
+
+const work = { groups: [], current: null, context: null, open: null };
 
 function paintWork() {
-  const tabs = [
-    ...work.groups.map((g) => ({ key: g.key, label: g.title, n: g.tasks.length, urgent: g.key === "needs" })),
-    { key: "suppliers", label: "Suppliers" },
-    { key: "payments", label: "Payments" },
-  ];
-  if (!tabs.some((t) => t.key === work.current)) work.current = tabs[0].key;
+  const tabs = work.groups.map((g) => ({ key: g.key, label: g.title, n: g.tasks.length, urgent: g.key === "needs" }));
+  if (!tabs.some((t) => t.key === work.current)) work.current = tabs[0]?.key ?? null;
   $("work-tabs").replaceChildren(...tabs.map((t) => {
     const button = el("button", { className: `tab${t.urgent && t.n ? " urgent" : ""}`, type: "button", textContent: t.label });
     button.setAttribute("role", "tab");
     button.setAttribute("aria-selected", String(t.key === work.current));
-    if (t.n !== undefined) button.append(el("span", { className: "n", textContent: String(t.n) }));
+    button.append(el("span", { className: "n", textContent: String(t.n) }));
     button.addEventListener("click", () => { work.current = t.key; paintWork(); });
     return button;
   }));
   const group = work.groups.find((g) => g.key === work.current);
-  $("tab-invoices").hidden = !group;
-  $("tab-suppliers").hidden = work.current !== "suppliers";
-  $("tab-payments").hidden = work.current !== "payments";
-  if (group) {
-    $("tasks").replaceChildren(el("p", { className: "hint", textContent: group.hint }),
-      ...group.tasks.map((task) => taskCard(task, work.context)));
+  $("tasks").replaceChildren(...(group ? [billTable(group)] : []));
+  paintBill();
+}
+
+function billTable(group) {
+  const head = el("tr", {}, ...["Supplier", "Due", "Amount", "Agent's reason", ""].map((text, i) =>
+    el("th", { className: i === 2 ? "num" : "", textContent: text })));
+  const rows = group.tasks.map((task) => {
+    const d = task.decision;
+    const late = d.due_date && d.due_date < ledger.today() && !task.payment?.tx;
+    const row = el("tr", { className: work.open === d.invoice ? "selected" : "", tabIndex: 0 },
+      el("td", {}, d.supplier, el("span", { className: "ref", textContent: d.invoice })),
+      el("td", { className: late ? "status-off" : "", textContent: d.due_date ? shortDay(d.due_date) : "-" }),
+      el("td", { className: "num", textContent: suppliers.formatAmount(d.amount) }),
+      el("td", { className: "why", textContent: ledger.reasonOf(task) }),
+      el("td", { className: "num" }, el("span", { className: group.key === "needs" ? "btn btn-primary btn-small" : "open-link",
+        textContent: group.key === "needs" ? "Review" : "Details" })));
+    const open = () => { work.open = d.invoice; paintWork(); };
+    row.addEventListener("click", open);
+    row.addEventListener("keydown", (event) => { if (event.key === "Enter") open(); });
+    return row;
+  });
+  return el("div", { className: "table-wrap" },
+    el("p", { className: "hint group-hint", textContent: group.hint }),
+    el("table", { className: "grid-table bills-table" }, el("thead", {}, head), el("tbody", {}, ...rows)));
+}
+
+/** The open bill's details: what the agent decided and why, each step with its button. */
+function paintBill() {
+  const task = work.groups.flatMap((g) => g.tasks).find((t) => t.decision.invoice === work.open);
+  $("bill-drawer").hidden = !task;
+  if (!task) {
+    work.open = null;
+    return;
   }
+  const d = task.decision;
+  $("bill-title").textContent = d.supplier;
+  $("bill-ref").textContent = `${d.invoice} · ${suppliers.formatAmount(d.amount)} USDC${d.due_date ? ` · due ${shortDay(d.due_date)}` : ""}`;
+  $("bill-body").replaceChildren(taskCard(task, work.context));
 }
 
 const MARKS = { done: "✓", todo: "✗", waiting: "…" };
@@ -1070,10 +1197,19 @@ function onSubmit(formId, handler) {
   });
 }
 
+/** Settings is a page now: opening it goes there, closing it goes back to the bills. */
 function settings(open) {
-  $("settings-drawer").hidden = !open;
-  $("settings-scrim").hidden = !open;
-  if (open) $("close-settings").focus();
+  nav.go(open ? "settings" : "bills");
+}
+
+function chatPanel(open) {
+  $("chat-panel").hidden = !open;
+  $("chat-launch").setAttribute("aria-expanded", String(open));
+  $("chat-launch").hidden = open;
+  if (open) {
+    $("chat-log").scrollTop = $("chat-log").scrollHeight;
+    $("chat-input").focus();
+  }
 }
 
 function wireActions() {
@@ -1258,20 +1394,18 @@ function wireActions() {
     act(button, "Change limits", (shop) => shop.setLimits(maxPerPayment, weeklyCap)).then((ok) => ok && form.reset());
   });
 
-  $("open-settings").addEventListener("click", () => settings(true));
   $("open-create").addEventListener("click", () => {
     settings(true);
     $("create-form").elements.maxPerPayment.focus();
   });
-  $("close-settings").addEventListener("click", () => settings(false));
-  $("settings-scrim").addEventListener("click", () => settings(false));
-  $("settings-drawer").addEventListener("keydown", (event) => { if (event.key === "Escape") settings(false); });
-  for (const button of document.querySelectorAll(".mtab")) {
-    button.addEventListener("click", () => {
-      $("panes").dataset.mview = button.dataset.mview;
-      for (const other of document.querySelectorAll(".mtab")) other.setAttribute("aria-pressed", String(other === button));
-    });
-  }
+  $("chat-launch").addEventListener("click", () => chatPanel(true));
+  $("chat-close").addEventListener("click", () => chatPanel(false));
+  $("bill-close").addEventListener("click", () => { work.open = null; paintWork(); });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (!$("bill-drawer").hidden) { work.open = null; paintWork(); } else if (!$("chat-panel").hidden) chatPanel(false);
+  });
+  nav.onPage(() => { if (work.open) { work.open = null; paintWork(); } });
 
   $("chat-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1338,7 +1472,7 @@ function wireActions() {
     act(button, "Change the agent", (shop) => shop.setAgent(agent)).then((ok) => ok && form.reset());
   });
 
-  $("erp-signin-button").addEventListener("click", async (event) => {
+  const signInAgain = async (event) => {
     const button = event.currentTarget;
     button.disabled = true;
     try {
@@ -1351,7 +1485,9 @@ function wireActions() {
     } finally {
       button.disabled = false;
     }
-  });
+  };
+  $("erp-signin-button").addEventListener("click", signInAgain);
+  $("signin-again").addEventListener("click", signInAgain);
 
   onSubmit("erp-form", async (data, button, form) => {
     let request;
@@ -1431,6 +1567,7 @@ function start() {
   $("faucet-link").href = FAUCET_URL;
   $("explorer-link").href = ARC_TESTNET.explorer;
   wireActions();
+  nav.start();
   wallet.onWalletChange(() => render().catch((error) => notify(describeError(error), "error")));
   wallet.onWallets(() => { if (!$("view-welcome").hidden) showWelcome(); });  // a wallet announced late
   // Reconnecting to the wallet used last time: the start page shows meanwhile, never an empty page.

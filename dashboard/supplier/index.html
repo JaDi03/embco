@@ -28,46 +28,33 @@
     <main class="container">
       <p class="notice" id="notice" role="status" aria-live="polite" hidden></p>
 
-      <section id="view-welcome" class="view" hidden>
-        <p class="eyebrow">For suppliers</p>
-        <h1>Your payments from shops that use Embco</h1>
-        <p class="lead">
-          Sign in with the wallet you are paid to. You will see your invoices and payments with each shop, and you can
-          confirm your wallet when a shop asks you to.
-        </p>
-        <button class="btn btn-primary" id="sign-in" type="button">Sign in with your wallet</button>
-        <div class="wallet-list" id="wallet-list" role="group" aria-label="Choose your wallet" hidden></div>
-        <div id="no-wallet" hidden>
-          <p class="hint">There is no wallet in this browser.</p>
-          <div class="row">
-            <a class="btn btn-primary" id="open-in-metamask" rel="noopener">Open in the MetaMask app</a>
-            <a class="btn btn-ghost" href="https://metamask.io/download/" target="_blank" rel="noopener">Install MetaMask</a>
+      <section id="view-welcome" class="view auth" hidden>
+        <div class="auth-card">
+          <img class="auth-logo" src="../brand/logo.svg" alt="" width="40" height="40" />
+          <span class="eyebrow">For suppliers</span>
+          <h1>Your payments from shops that use Embco</h1>
+          <p class="lead">
+            Sign in with the wallet you are paid to. You see your invoices and payments with each shop, and you confirm
+            your wallet when a shop asks you to.
+          </p>
+          <button class="btn btn-primary btn-block" id="sign-in" type="button">Sign in with your wallet</button>
+          <div class="wallet-list" id="wallet-list" role="group" aria-label="Choose your wallet" hidden></div>
+          <div id="no-wallet" hidden>
+            <p class="hint">There is no wallet in this browser.</p>
+            <div class="row">
+              <a class="btn btn-primary" id="open-in-metamask" rel="noopener">Open in the MetaMask app</a>
+              <a class="btn btn-ghost" href="https://metamask.io/download/" target="_blank" rel="noopener">Install MetaMask</a>
+            </div>
           </div>
+          <ul class="auth-facts">
+            <li>Always type <b>app.embco.xyz/supplier</b> yourself. Never sign from a link in an email or a message.</li>
+            <li>Signing in and confirming your wallet move no money and cost nothing.</li>
+            <li>Nobody from Embco or the shop will ever ask for your private key or recovery phrase.</li>
+          </ul>
         </div>
-      </section>
-
-      <section id="view-page" class="view" hidden>
-        <div class="shop-head">
-          <h1>Your payments</h1>
-          <p class="hint">Signed in as <span class="mono" id="wallet"></span></p>
-        </div>
-        <div class="grid" id="shops"></div>
-        <p class="hint" id="no-shops" hidden>
-          No shop has this wallet on file for you. If a shop pays you through Embco, ask it to check the wallet it has
-          for you in its records.
-        </p>
-      </section>
-
-      <article class="card safety">
-        <h2>Stay safe</h2>
-        <ul class="hint">
-          <li>Always type <b>app.embco.xyz/supplier</b> yourself. Do not use links in emails or messages that ask you to sign.</li>
-          <li>Signing in and confirming your wallet are signatures, not payments: they move no money and cost nothing.</li>
-          <li>Nobody from Embco or the shop will ever ask for your private key or recovery phrase.</li>
-        </ul>
-        <details>
+        <details class="auth-help">
           <summary>How to sign, step by step</summary>
-          <ol class="hint">
+          <ol>
             <li>Install MetaMask on your computer, or open this page inside the MetaMask app on your phone.</li>
             <li>In MetaMask, choose the wallet you are paid to.</li>
             <li>Press <b>Sign in with your wallet</b>. MetaMask asks to add or switch to the Arc test network: accept.</li>
@@ -76,7 +63,25 @@
               name and your wallet. Sign only if that wallet is yours.</li>
           </ol>
         </details>
-      </article>
+      </section>
+
+      <section id="view-page" class="view supplier-page" hidden>
+        <header class="page-head">
+          <div>
+            <h1>Your payments</h1>
+            <p class="hint">Signed in as <span class="mono" id="wallet"></span></p>
+          </div>
+        </header>
+        <div class="page" id="shops"></div>
+        <p class="hint" id="no-shops" hidden>
+          No shop has this wallet on file for you. If a shop pays you through Embco, ask it to check the wallet it has
+          for you in its records.
+        </p>
+        <p class="hint">
+          Stay safe: always type <b>app.embco.xyz/supplier</b> yourself, and never share your private key or recovery
+          phrase. Signing moves no money.
+        </p>
+      </section>
     </main>
 
     <footer class="footer">

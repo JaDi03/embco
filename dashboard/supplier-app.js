@@ -57,33 +57,43 @@ async function render() {
   $("shops").replaceChildren(...page.shops.map(shopCard));
 }
 
+/** A table with its header row, or one line saying it is empty. */
+function table(headers, rows, empty) {
+  if (!rows.length) return el("p", { className: "hint card-foot", textContent: empty });
+  const head = el("tr", {}, ...headers.map((h) => el("th", { className: h.num ? "num" : "", textContent: h.text })));
+  return el("table", { className: "grid-table" }, el("thead", {}, head), el("tbody", {}, ...rows));
+}
+
 function shopCard(entry) {
-  const card = el("article", { className: "card wide" });
-  card.append(el("h2", { textContent: entry.company || "A shop" }));
-  card.append(el("p", { className: "hint", textContent: `You are ${entry.supplier} for this shop.` }));
+  const card = el("article", { className: "card shop-card" });
+  card.append(el("div", { className: "card-head" },
+    el("h2", { textContent: entry.company || "A shop" }),
+    el("span", { className: "hint", textContent: `You are ${entry.supplier} for this shop.` })));
   if (entry.challenge) card.append(confirmBox(entry));
   const note = suppliers.signatureNote(entry);
   if (note) card.append(el("p", { className: `notice ${note.kind}`, textContent: note.text }));
 
   card.append(el("h3", { textContent: "Open invoices" }));
-  const invoices = entry.invoices.map((i) => {
-    const status = suppliers.invoiceStatus(i.status);
-    const badge = el("span", { className: `badge badge-${status.kind}`, textContent: status.label });
-    const due = i.due_date ? ` · due ${i.due_date}` : "";
-    return el("li", {}, el("span", {}, `${i.invoice}${due}`), el("span", {}, badge,
-      el("span", { className: "amount", textContent: `${suppliers.formatAmount(i.amount)} USDC` })));
-  });
-  card.append(el("ul", { className: "list" }, ...(invoices.length ? invoices
-    : [el("li", { className: "empty", textContent: "No open invoices." })])));
+  card.append(table([{ text: "Invoice" }, { text: "Due" }, { text: "Status" }, { text: "Amount (USDC)", num: true }],
+    entry.invoices.map((i) => {
+      const status = suppliers.invoiceStatus(i.status);
+      return el("tr", {},
+        el("td", { className: "mono", textContent: i.invoice }),
+        el("td", { textContent: i.due_date || "-" }),
+        el("td", {}, el("span", { className: `badge badge-${status.kind}`, textContent: status.label })),
+        el("td", { className: "num", textContent: suppliers.formatAmount(i.amount) }));
+    }), "No open invoices."));
 
   card.append(el("h3", { textContent: "Payments" }));
-  const payments = entry.payments.map((p) => el("li", {},
-    el("span", {}, `${p.invoice} · ${new Date(p.paid_at).toLocaleDateString()}`),
-    el("span", {}, el("span", { className: "amount", textContent: `${suppliers.formatAmount(p.amount)} USDC ` }),
-      el("a", { href: txUrl(p.tx_hash), target: "_blank", rel: "noopener", textContent: "See on the explorer" }))));
-  card.append(el("ul", { className: "list" }, ...(payments.length ? payments
-    : [el("li", { className: "empty", textContent: "No payments yet." })])));
-  if (entry.network) card.append(el("p", { className: "hint", textContent: `Payments on ${entry.network}.` }));
+  card.append(table([{ text: "Invoice" }, { text: "Paid on" }, { text: "Amount (USDC)", num: true }, { text: "" }],
+    entry.payments.map((p) => el("tr", {},
+      el("td", { className: "mono", textContent: p.invoice }),
+      el("td", { textContent: new Date(p.paid_at).toLocaleDateString() }),
+      el("td", { className: "num", textContent: suppliers.formatAmount(p.amount) }),
+      el("td", { className: "num" },
+        el("a", { href: txUrl(p.tx_hash), target: "_blank", rel: "noopener", textContent: "See on the explorer" })))),
+    "No payments yet."));
+  if (entry.network) card.append(el("p", { className: "hint card-foot", textContent: `Payments on ${entry.network}.` }));
   return card;
 }
 

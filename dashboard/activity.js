@@ -10,7 +10,7 @@ export const fetchActivity = (shop, after = 0, fetchImpl = fetch) =>
 /** Who did it: the agent (Claude), its reflexes, the owner, a supplier, the contract, the ERP,
  * or a guardrail that stopped something. */
 const ACTOR_OF = {
-  agent: "AGENT",
+  agent: "AGENT", tool: "AGENT",
   reflex: "REFLEX", check: "REFLEX", done: "REFLEX", new: "REFLEX", changed: "REFLEX", waiting: "REFLEX",
   you: "YOU", answer: "YOU",
   signature: "SUPPLIER",
@@ -31,9 +31,10 @@ export function timeline(events) {
   for (const e of events) {
     const last = out.at(-1);
     if (e.kind === "reflex") {
-      out.push({ type: "session", at: e.at, woke: e.text, items: [], said: null, cost: null, failed: null });
-    } else if (last?.type === "session" && last.at === e.at && (e.kind === "agent" || e.kind === "error")) {
-      if (e.kind === "error") last.failed = e.text;
+      out.push({ type: "session", at: e.at, woke: e.text, tools: [], items: [], said: null, cost: null, failed: null });
+    } else if (last?.type === "session" && last.at === e.at && ["agent", "error", "tool"].includes(e.kind)) {
+      if (e.kind === "tool") last.tools.push(e);
+      else if (e.kind === "error") last.failed = e.text;
       else if (e.cost !== undefined) Object.assign(last, { said: e.text, cost: e.cost || null, steps: e.steps ?? null });
       else last.items.push(e);
     } else {

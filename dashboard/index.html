@@ -33,58 +33,80 @@
     <main class="container">
       <p class="notice" id="notice" role="status" aria-live="polite" hidden></p>
 
-      <section id="view-welcome" class="view" hidden>
-        <h1>Pay your suppliers in USDC, within limits only you can change.</h1>
-        <p class="lead">
-          Your money stays in your own wallet. The Embco agent can only pay suppliers you approved, once
-          per invoice, up to the limits you set here. You can pause it at any time.
-        </p>
-        <button class="btn btn-primary" id="connect-button">Connect wallet</button>
-        <div class="wallet-list" id="wallet-list" role="group" aria-label="Choose your wallet" hidden></div>
-        <p class="hint" id="no-wallet" hidden>
-          There is no wallet in this browser.
-          <a href="https://metamask.io/download/" target="_blank" rel="noopener">Install MetaMask</a>, then reload this page.
-        </p>
+      <section id="view-welcome" class="view auth" hidden>
+        <div class="auth-card">
+          <img class="auth-logo" src="brand/logo.svg" alt="" width="40" height="40" />
+          <h1>Sign in to Embco</h1>
+          <p class="lead">Your shop's payables: bills, payments to suppliers and your treasury, run by an agent within your limits.</p>
+          <button class="btn btn-primary btn-block" id="connect-button">Connect wallet</button>
+          <div class="wallet-list" id="wallet-list" role="group" aria-label="Choose your wallet" hidden></div>
+          <p class="hint" id="no-wallet" hidden>
+            There is no wallet in this browser.
+            <a href="https://metamask.io/download/" target="_blank" rel="noopener">Install MetaMask</a>, then reload this page.
+          </p>
+          <ul class="auth-facts">
+            <li>Your money stays in your own wallet.</li>
+            <li>The agent pays only suppliers you approved, within the limits you set.</li>
+            <li>You can stop it at any time.</li>
+          </ul>
+        </div>
       </section>
 
-      <section id="view-network" class="view" hidden>
-        <h1>Switch to Arc Testnet</h1>
-        <p class="lead">Embco runs on Arc Testnet. Your wallet will add the network if it does not have it yet.</p>
-        <button class="btn btn-primary" id="switch-button">Switch network</button>
+      <section id="view-network" class="view auth" hidden>
+        <div class="auth-card">
+          <img class="auth-logo" src="brand/logo.svg" alt="" width="40" height="40" />
+          <h1>Switch to Arc Testnet</h1>
+          <p class="lead">Embco runs on Arc Testnet. Your wallet adds the network if it does not have it yet.</p>
+          <button class="btn btn-primary btn-block" id="switch-button">Switch network</button>
+        </div>
       </section>
 
       <section id="view-shop" class="view console" hidden>
-        <div class="console-head">
-          <div class="shop-id">
-            <span class="eyebrow">Shop contract</span>
-            <a class="mono" id="shop-link" target="_blank" rel="noopener" title="Open your shop contract in the Arc explorer"></a>
+        <nav class="side" aria-label="Pages">
+          <div class="side-shop">
+            <b id="shop-name">Your shop</b>
           </div>
-          <div class="agent-switch shop-only">
+          <a class="side-link" href="#bills" data-page="bills">Bills <span class="count" id="nav-needs" hidden></span></a>
+          <a class="side-link shop-only" href="#payments" data-page="payments">Payments</a>
+          <a class="side-link shop-only" href="#suppliers" data-page="suppliers">Suppliers</a>
+          <a class="side-link owner-only" href="#treasury" data-page="treasury">Treasury</a>
+          <a class="side-link owner-only" href="#activity" data-page="activity">Agent activity <span class="live-mark" aria-hidden="true"></span></a>
+          <span class="side-group owner-only">Circle tools</span>
+          <button class="side-link owner-only" type="button" data-modal="earn-modal">Earn</button>
+          <button class="side-link owner-only" type="button" data-modal="chains-modal">Cross-chain funds</button>
+          <span class="side-group">Shop</span>
+          <button class="side-link" type="button" data-modal="erp-modal">Connections</button>
+          <a class="side-link" href="#settings" data-page="settings" id="open-settings">Settings</a>
+          <div class="side-foot agent-switch shop-only">
             <span class="state" id="agent-status"></span>
             <span class="tag-mode owner-only" id="draft-badge" hidden></span>
-            <button class="btn btn-danger btn-small owner-only" id="agent-off" type="button">Turn the agent off</button>
+            <button class="btn btn-ghost btn-small owner-only" id="agent-off" type="button">Turn the agent off</button>
             <button class="btn btn-primary btn-small owner-only" id="agent-on" type="button">Turn the agent on</button>
           </div>
-          <dl class="figures">
-            <div><dt>In your wallet <span class="tag-testnet" title="Test network: test dollars with no real value">Testnet</span></dt><dd id="balance"></dd></div>
-            <div><dt>Payments</dt><dd id="allowance"></dd></div>
-            <div><dt>Left this week</dt><dd><span id="remaining"></span> <span class="of shop-only">/ <span id="weekly-cap"></span></span></dd></div>
-            <div><dt>Per payment</dt><dd id="max-per-payment"></dd></div>
-            <div class="owner-only"><dt>Claude today</dt><dd id="claude-today">-</dd></div>
-          </dl>
-          <button class="btn btn-ghost btn-small" id="open-settings" type="button" aria-controls="settings-drawer">Settings</button>
-        </div>
-        <p class="hint agent-note" id="agent-note"></p>
-        <p class="hint" id="not-owner" hidden>You are viewing this shop with a wallet that is not its owner.</p>
-
-        <nav class="mtabs shop-only" aria-label="View">
-          <button class="mtab" type="button" data-mview="work" aria-pressed="true">Invoices</button>
-          <button class="mtab" type="button" data-mview="chat" aria-pressed="false">Chat</button>
-          <button class="mtab" type="button" data-mview="activity" aria-pressed="false">Activity</button>
         </nav>
 
-        <div class="panes" id="panes" data-mview="work">
-          <section class="pane work" aria-label="Invoices">
+        <div class="pages" id="panes">
+          <div class="signin-bar" id="signin-bar" role="status" hidden>
+            <span><b>You are signed out.</b> A sign-in lasts 12 hours. The agent keeps working; sign in to see your
+              bills and its activity again. It is a signature, not a transaction.</span>
+            <button class="btn btn-primary btn-small" id="signin-again" type="button">Sign in</button>
+          </div>
+          <p class="hint agent-note" id="agent-note"></p>
+          <p class="hint" id="not-owner" hidden>You are viewing this shop with a wallet that is not its owner.</p>
+
+          <section class="page" data-page="bills" aria-label="Bills">
+            <header class="page-head">
+              <h1>Bills to pay</h1>
+              <div class="row owner-only">
+                <span class="hint" id="tasks-checked"></span>
+                <button class="btn btn-ghost btn-small" id="check-now" type="button">Check now</button>
+              </div>
+            </header>
+            <dl class="numbers" id="bill-numbers" hidden>
+              <div><dt>Due this week</dt><dd id="due-week"></dd><span class="hint" id="due-week-note"></span></div>
+              <div><dt>Overdue</dt><dd id="overdue"></dd><span class="hint" id="overdue-note"></span></div>
+              <div><dt>Available to pay <span class="tag-testnet" title="Test network: test dollars with no real value">Testnet</span></dt><dd id="available"></dd><span class="hint" id="available-note"></span></div>
+            </dl>
             <article class="card wide" id="no-shop" hidden>
               <h2>No shop contract yet</h2>
               <p class="hint">
@@ -179,24 +201,18 @@
               <ul class="list" id="approvals"></ul>
             </article>
 
-            <div class="pane-tabs shop-only">
-              <div class="tabs" id="work-tabs" role="tablist" aria-label="Invoices by state"></div>
-            </div>
-
-            <div id="tab-invoices">
+            <div class="card bills shop-only" id="tab-invoices">
+              <div class="tabs" id="work-tabs" role="tablist" aria-label="Bills by state"></div>
               <article class="owner-only" id="tasks-card" hidden>
-                <div class="tasks-head">
-                  <p class="hint" id="tasks-summary"></p>
-                  <div class="row">
-                    <span class="hint" id="tasks-checked"></span>
-                    <button class="btn btn-ghost btn-small" id="check-now" type="button">Check now</button>
-                  </div>
-                </div>
+                <p class="hint" id="tasks-summary"></p>
                 <div id="tasks"></div>
               </article>
             </div>
+          </section>
 
-            <div id="tab-suppliers" hidden>
+          <section class="page" data-page="suppliers" aria-label="Suppliers" hidden>
+            <header class="page-head"><h1>Suppliers</h1></header>
+            <div id="tab-suppliers">
               <article class="card wide owner-only" id="suppliers-card" hidden>
                 <h2>Your suppliers</h2>
                 <p class="hint">
@@ -217,44 +233,137 @@
               </article>
             </div>
 
-            <div id="tab-payments" hidden>
+          </section>
+
+          <section class="page" data-page="payments" aria-label="Payments" hidden>
+            <header class="page-head"><h1>Payments</h1></header>
+            <div id="tab-payments">
               <article class="card wide">
-                <h2>Payments</h2>
+                <p class="hint">Every payment made through your shop contract on Arc, newest first.</p>
                 <ul class="list" id="payments"></ul>
               </article>
             </div>
           </section>
 
-          <div class="agent-cols owner-only" id="terminal-card" hidden>
-            <section class="pane chat" aria-label="Chat with your agent">
-              <div class="pane-head">
-                <h2>Chat with your agent</h2>
+          <section class="page" data-page="treasury" aria-label="Treasury" hidden>
+            <header class="page-head">
+              <h1>Treasury</h1>
+              <span class="hint" id="treasury-at"></span>
+            </header>
+            <dl class="numbers">
+              <div><dt>Total</dt><dd id="treasury-total">-</dd><span class="hint">All of it stays in your name.</span></div>
+              <div><dt>Earning in Earn</dt><dd id="treasury-earn">-</dd><span class="hint" id="treasury-earn-note"></span></div>
+              <div><dt>Bills in the next 14 days</dt><dd id="treasury-out">-</dd><span class="hint" id="treasury-out-note"></span></div>
+            </dl>
+            <article class="card table-card">
+              <h2 class="card-title">Where your money is</h2>
+              <table class="grid-table">
+                <thead><tr><th>Account</th><th class="num">Balance</th><th>What it is for</th></tr></thead>
+                <tbody id="money-rows"></tbody>
+              </table>
+            </article>
+            <article class="card table-card">
+              <h2 class="card-title">Cash plan · next 14 days</h2>
+              <table class="grid-table">
+                <thead><tr><th>Date</th><th>Payment</th><th class="num">Amount</th><th class="num">Left in your wallet</th></tr></thead>
+                <tbody id="plan-rows"></tbody>
+              </table>
+              <p class="hint card-foot" id="plan-note"></p>
+            </article>
+            <div class="row">
+              <button class="btn btn-ghost" type="button" data-modal="earn-modal">Earn settings</button>
+              <button class="btn btn-ghost" type="button" data-modal="chains-modal">Cross-chain funds</button>
+            </div>
+          </section>
+
+          <dialog class="modal" id="chains-modal" aria-label="Cross-chain funds">
+              <div class="modal-head">
+                <div><span class="eyebrow">Circle Unified Balance</span><h2>Cross-chain funds</h2></div>
+                <button class="btn btn-ghost btn-small" type="button" data-close>Close</button>
               </div>
-              <div class="chat-log" id="chat-log" role="log" aria-live="polite"></div>
-              <p class="hint chat-status" id="chat-status"></p>
-              <form class="chat-form" id="chat-form" novalidate>
-                <label class="sr-only" for="chat-input">Message to the agent</label>
-                <input id="chat-input" name="text" maxlength="1000" autocomplete="off"
-                       placeholder="Ask about your invoices, or tell the agent what to do" />
-                <button class="btn btn-primary" type="submit">Send</button>
-              </form>
-            </section>
-            <section class="pane activity" aria-label="What the agent did">
-              <div class="pane-head">
-                <h2>Activity</h2>
+              <article id="unified-section">
+                <p class="hint">
+                  When your wallet on Arc runs short, the agent brings your USDC from these chains. Only to your wallet, and
+                  within your shop's limits.
+                </p>
+                <p class="hint" id="chains-summary"></p>
+                <button class="btn btn-ghost" type="button" id="chains-open" aria-expanded="false" aria-controls="chains-form">Choose chains</button>
+                <form id="chains-form" class="chains-card" novalidate hidden>
+                  <ul class="chain-list" id="chain-list"></ul>
+                  <button class="btn btn-primary" type="submit">Save</button>
+                </form>
+              </article>
+          </dialog>
+
+          <dialog class="modal" id="earn-modal" aria-label="Earn">
+              <div class="modal-head">
+                <div><span class="eyebrow">Arc Earn · Circle App Kit</span><h2>Earn on idle USDC</h2></div>
+                <button class="btn btn-ghost btn-small" type="button" data-close>Close</button>
+              </div>
+              <article id="earn-section">
+                <label class="chain-row" for="earn-master-switch">
+                  <span class="chain-name">
+                    <b>Earn on idle USDC</b>
+                    <span class="hint">Off by default. When on, the agent may put idle USDC on Arc into vaults you approve. The shares stay in your own wallet.</span>
+                  </span>
+                  <input type="checkbox" id="earn-master-switch" class="switch" role="switch" aria-label="Earn on idle USDC" />
+                </label>
+                <p class="hint" id="earn-summary"></p>
+                <button class="btn btn-danger btn-small" type="button" id="earn-withdraw-all" hidden>Withdraw all to my wallet</button>
+                <form id="earn-form" class="chains-card" novalidate hidden>
+                  <ul class="chain-list" id="earn-vault-list"></ul>
+                  <label>
+                    Most the agent may deposit at once (USDC)
+                    <input name="maxPerPark" inputmode="decimal" placeholder="300" required />
+                  </label>
+                  <label>
+                    Most the agent may deposit in a week (USDC)
+                    <input name="weeklyCap" inputmode="decimal" placeholder="1000" required />
+                  </label>
+                  <label>
+                    When a bill is due and your wallet on Arc is short
+                    <select name="liquidityStrategy" id="liquidity-strategy">
+                      <option value="preserve_yield">Keep the yield: bring USDC from other chains first</option>
+                      <option value="instant_zero_fee">Withdraw from Earn first: instant, no fee</option>
+                      <option value="ask_owner">Ask me when the bill is due in more than 24 hours</option>
+                    </select>
+                  </label>
+                  <button class="btn btn-primary" type="submit">Save</button>
+                </form>
+              </article>
+          </dialog>
+
+          <dialog class="modal" id="erp-modal" aria-label="Connections">
+            <div class="modal-head">
+              <div><span class="eyebrow">Your shop</span><h2>Connections</h2></div>
+              <button class="btn btn-ghost btn-small" type="button" data-close>Close</button>
+            </div>
+            <dl class="facts">
+              <div><dt>Shop contract on Arc</dt><dd><a class="mono" id="shop-link" target="_blank" rel="noopener" title="Open your shop contract in the Arc explorer"></a></dd></div>
+            </dl>
+            <h3 class="owner-only">ERPNext</h3>
+            <div class="owner-only" id="drawer-erp"></div>
+          </dialog>
+
+          <section class="page" data-page="activity" aria-label="Agent activity" hidden>
+            <header class="page-head">
+              <div>
+                <h1>Agent activity</h1>
+                <p class="hint page-sub">Every check, every decision the AI model made and why, and every dollar it moved. Live.</p>
+              </div>
+            </header>
+            <article class="terminal">
+              <div class="terminal-bar">
+                <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="terminal-title">embco agent · live</span>
                 <span class="live"><span class="dot" id="live-dot"></span><span id="next-check"></span></span>
               </div>
-              <div class="activity-log" id="activity-log" role="log" aria-live="polite"></div>
-            </section>
-          </div>
-        </div>
+              <div class="activity-log terminal-log" id="activity-log" role="log" aria-live="polite"></div>
+            </article>
+          </section>
 
-        <div class="scrim" id="settings-scrim" hidden></div>
-        <aside class="drawer" id="settings-drawer" aria-label="Settings" hidden>
-          <div class="drawer-head">
-            <h2>Settings</h2>
-            <button class="btn btn-ghost btn-small" id="close-settings" type="button">Close</button>
-          </div>
+          <section class="page settings-page" data-page="settings" id="settings-drawer" aria-label="Settings" hidden>
+            <header class="page-head"><h1>Settings</h1></header>
 
           <section id="create-section" hidden>
             <h3>Shop contract</h3>
@@ -277,6 +386,10 @@
 
           <section class="shop-only">
             <h3>Payments from your wallet</h3>
+            <dl class="facts">
+              <div><dt>In your wallet on Arc</dt><dd id="balance"></dd></div>
+              <div><dt>Payments</dt><dd id="allowance"></dd></div>
+            </dl>
             <p class="hint">
               Your money stays in your wallet until a payment is made. Authorize once: the contract may then pay
               approved suppliers up to your weekly budget, every week, and never more. Revoke stops every payment at
@@ -289,55 +402,14 @@
             </form>
           </section>
 
-          <section class="owner-only" id="unified-section">
-            <h3>Which chains can the agent pay from?</h3>
-            <p class="hint">
-              When your wallet on Arc runs short, the agent brings your USDC from these chains. Only to your wallet, and
-              within your shop's limits.
-            </p>
-            <p class="hint" id="chains-summary"></p>
-            <button class="btn btn-ghost" type="button" id="chains-open" aria-expanded="false" aria-controls="chains-form">Choose chains</button>
-            <form id="chains-form" class="chains-card" novalidate hidden>
-              <ul class="chain-list" id="chain-list"></ul>
-              <button class="btn btn-primary" type="submit">Save</button>
-            </form>
-          </section>
-
-          <section class="owner-only" id="earn-section">
-            <label class="chain-row" for="earn-master-switch">
-              <span class="chain-name">
-                <b>Earn on idle USDC</b>
-                <span class="hint">Off by default. When on, the agent may park idle USDC on Arc into ERC-4626 vaults you approve, with shares held in your own wallet.</span>
-              </span>
-              <input type="checkbox" id="earn-master-switch" class="switch" role="switch" aria-label="Earn on idle USDC" />
-            </label>
-            <p class="hint" id="earn-summary"></p>
-            <button class="btn btn-danger btn-small" type="button" id="earn-withdraw-all" hidden>Withdraw all to wallet</button>
-            <form id="earn-form" class="chains-card" novalidate hidden>
-              <ul class="chain-list" id="earn-vault-list"></ul>
-              <label>
-                Most the agent may park in one deposit (USDC)
-                <input name="maxPerPark" inputmode="decimal" placeholder="300" required />
-              </label>
-              <label>
-                Most the agent may park in a week (USDC)
-                <input name="weeklyCap" inputmode="decimal" placeholder="1000" required />
-              </label>
-              <label>
-                When an invoice is due and your wallet on Arc is short
-                <select name="liquidityStrategy" id="liquidity-strategy">
-                  <option value="preserve_yield">Preserve Yield (use 0% idle USDC from other chains first)</option>
-                  <option value="instant_zero_fee">Instant / Zero-fee (withdraw from Arc Earn first)</option>
-                  <option value="ask_owner">Ask me in chat when due in over 24h</option>
-                </select>
-              </label>
-              <button class="btn btn-primary" type="submit">Save Earn settings</button>
-            </form>
-          </section>
-
-          <section class="owner-only">
+          <section class="shop-only">
             <h3>Limits in your contract</h3>
-            <form id="limits-form" class="stack-form" novalidate>
+            <dl class="facts">
+              <div><dt>Per payment</dt><dd id="max-per-payment"></dd></div>
+              <div><dt>Per week</dt><dd id="weekly-cap"></dd></div>
+              <div><dt>Left this week</dt><dd id="remaining"></dd></div>
+            </dl>
+            <form id="limits-form" class="stack-form owner-only" novalidate>
               <input name="maxPerPayment" inputmode="decimal" placeholder="Per payment (USDC)" aria-label="New per-payment limit" />
               <input name="weeklyCap" inputmode="decimal" placeholder="Per week (USDC)" aria-label="New weekly limit" />
               <button class="btn btn-primary" type="submit">Change limits</button>
@@ -361,11 +433,37 @@
             </form>
           </section>
 
-          <section class="owner-only">
-            <h3>ERPNext</h3>
-            <div id="drawer-erp"></div>
           </section>
+        </div>
+
+        <aside class="bill-drawer" id="bill-drawer" aria-label="Bill" hidden>
+          <div class="drawer-head">
+            <div>
+              <h2 id="bill-title"></h2>
+              <span class="hint mono" id="bill-ref"></span>
+            </div>
+            <button class="btn btn-ghost btn-small" id="bill-close" type="button">Close</button>
+          </div>
+          <div id="bill-body"></div>
         </aside>
+
+        <div class="chat-dock owner-only" id="terminal-card" hidden>
+          <section class="chat-panel" id="chat-panel" aria-label="Ask the agent" hidden>
+            <div class="chat-head">
+              <h2>Ask the agent</h2>
+              <button class="btn btn-ghost btn-small" id="chat-close" type="button">Close</button>
+            </div>
+            <div class="chat-log" id="chat-log" role="log" aria-live="polite"></div>
+            <p class="hint chat-status" id="chat-status"></p>
+            <form class="chat-form" id="chat-form" novalidate>
+              <label class="sr-only" for="chat-input">Message to the agent</label>
+              <input id="chat-input" name="text" maxlength="1000" autocomplete="off"
+                     placeholder="Ask about a bill, or tell the agent what to do" />
+              <button class="btn btn-primary" type="submit">Send</button>
+            </form>
+          </section>
+          <button class="chat-launch" id="chat-launch" type="button" aria-expanded="false" aria-controls="chat-panel">Ask the agent</button>
+        </div>
       </section>
     </main>
 
