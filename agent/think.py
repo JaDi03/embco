@@ -77,6 +77,25 @@ class BrainSetup:
     wallet_notice: Callable[[str], str] | None = None  # the standard wallet notice, from the ERP
     owner_funds: Any = None  # the owner's Unified Balance (services.unified_balance.OwnerFunds)
     owner_earn: Any = None  # the owner's Arc Earn vaults (services.earn.OwnerEarn)
+    live: Any = None  # told what the agent does as it does it: started(at, wakes), step(at, step)
+
+
+def live_hooks(setup: BrainSetup, at: datetime, wakes: Sequence[Wake]) -> Any:
+    """Tell the shop the session started and give the toolbox what tells it each step. Telling
+    must never stop a session: a failure is logged and the session goes on."""
+    if setup.live is None:
+        return None
+    try:
+        setup.live.started(at, wakes)
+    except Exception:
+        log.exception("could not tell the session started")
+
+    def step(s: dict[str, Any]) -> None:
+        try:
+            setup.live.step(at, s)
+        except Exception:
+            log.exception("could not tell a step of the session")
+    return step
 
 
 @dataclass(frozen=True)
@@ -135,7 +154,8 @@ def think(
                       emails_today=emails_today(sessions, setup.zone, now),
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), payer=payer,
-                      can_pay=setup.autonomy is Autonomy.ACT)
+                      can_pay=setup.autonomy is Autonomy.ACT,
+                      on_step=live_hooks(setup, now, wakes))
     text = briefing(toolbox, wakes, pending_alarms(sessions, now, done), recent_notes(sessions),
                     conversation, already_told(sessions, setup.zone, now))
     try:
@@ -191,6 +211,7 @@ def converse(
     if spent := over_budget(setup, sessions, now):
         return Thought(agent=standing, last=last, skipped=spent)
     brain = setup.chat_brain or setup.brain
+    wakes = (Wake("message", f"The owner wrote to you ({len(messages)} message(s))."),)
     toolbox = Toolbox(decisions=list(decisions), ledger=ledger, journal=journal, policy=policy,
                       now=now, zone=setup.zone, done=set(done), standing=standing,
                       room=setup.room, funds=setup.funds, mailer=setup.mailer,
@@ -199,7 +220,8 @@ def converse(
                       emails_today=emails_today(sessions, setup.zone, now),
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), require_all=False, payer=payer,
-                      can_pay=setup.autonomy is Autonomy.ACT)
+                      can_pay=setup.autonomy is Autonomy.ACT,
+                      on_step=live_hooks(setup, now, wakes))
     text = chat_briefing(toolbox, pending_alarms(sessions, now, done), recent_notes(sessions),
                          conversation, already_told(sessions, setup.zone, now))
     try:
@@ -209,7 +231,7 @@ def converse(
         log.exception("agent chat session crashed")
         finished, error, steps, usage = False, "the session crashed", 0, None
     session = Session(
-        at=now, wakes=(Wake("message", f"The owner wrote to you ({len(messages)} message(s))."),),
+        at=now, wakes=wakes,
         finished=finished, summary=toolbox.summary or "",
         money=money_after(setup, toolbox, None),
         decisions=tuple(toolbox.chosen.values()) if finished else (),

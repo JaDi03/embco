@@ -285,6 +285,7 @@ def run_shop(
     if brain:
         log.info("shop %s: agent brain on (%s, %s)", shop, brain.brain.model,
                  brain.autonomy.value)
+        brain = replace(brain, live=activity.LiveActivity(store.folder(shop)))
 
     def wallet_of(supplier: str) -> str | None:
         try:
@@ -323,8 +324,9 @@ def run_shop(
                                done=last_check["done"], now=now,
                                messages=[m["text"] for m in waiting],
                                conversation=chat.read_chat(folder, limit=12), payer=payments)
-            activity.append_activity(folder, [*activity.session_events(thought.session),
-                                              *activity.payment_events(now, thought.payments)])
+            activity.append_activity(folder, [
+                *activity.session_events(thought.session, streamed=True),
+                *activity.payment_events(now, thought.payments)])
             chat.append_chat(folder, on_telegram(folder, [
                 *chat_replies(thought.session, True), *not_woken(folder, thought, True, now)]))
             if thought.session and any(d.choice is Choice.PAY_NOW
@@ -373,7 +375,7 @@ def run_shop(
                                             "error": str(error)})
                 activity.append_activity(folder, [activity.check_failed(datetime.now(UTC), error)])
                 raise
-            activity.end_check(folder, [*activity.agent_events(report),
+            activity.end_check(folder, [*activity.agent_events(report, streamed=True),
                                         *activity.cycle_events(report, minutes)])
             chat.append_chat(folder, on_telegram(folder, [
                 *chat_replies(report.thought.session if report.thought else None, bool(waiting)),

@@ -127,24 +127,46 @@ def inbox_events(at: datetime, signatures: Mapping[str, Mapping[str, str]],
     return events
 
 
-def agent_events(report: CycleReport) -> list[dict[str, Any]]:
+def agent_events(report: CycleReport, *, streamed: bool = False) -> list[dict[str, Any]]:
     """The agent's session in this cycle: why it woke, what it decided, its word to the owner."""
-    return session_events(report.thought.session if report.thought else None)
+    return session_events(report.thought.session if report.thought else None, streamed=streamed)
 
 
-def session_events(session) -> list[dict[str, Any]]:
-    """One session of the agent as activity, from a check or from a chat."""
-    if session is None:
-        return []
-    at = session.at
-    reasons = [w.text for w in session.wakes]
+def _started(at: datetime, wakes) -> dict[str, Any]:
+    reasons = [w.text for w in wakes]
     woke = " ".join(reasons[:SHOWN_WAKES])
     if len(reasons) > SHOWN_WAKES:
         woke += f" (and {len(reasons) - SHOWN_WAKES} more)"
-    events = [_event(at, REFLEX, f"The agent started working. {woke}")]
-    events.extend(_event(at, TOOL, tool_trace.line(s), tool=s.get("tool"),
-                         refused=not s.get("ok", True))
-                  for s in session.trace)
+    return _event(at, REFLEX, f"The agent started working. {woke}")
+
+
+def _tool(at: datetime, step: Mapping[str, Any]) -> dict[str, Any]:
+    return _event(at, TOOL, tool_trace.line(step), tool=step.get("tool"),
+                  refused=not step.get("ok", True))
+
+
+class LiveActivity:
+    """Writes the agent's session into the feed as it happens: why it started, then each tool
+    call the moment it returns. What it decided and said is written when it finishes."""
+
+    def __init__(self, folder: Path) -> None:
+        self.folder = folder
+
+    def started(self, at: datetime, wakes) -> None:
+        append_activity(self.folder, [_started(at, wakes)])
+
+    def step(self, at: datetime, step: Mapping[str, Any]) -> None:
+        append_activity(self.folder, [_tool(at, step)])
+
+
+def session_events(session, *, streamed: bool = False) -> list[dict[str, Any]]:
+    """One session of the agent as activity, from a check or from a chat. `streamed`: its start
+    and its tool calls are already in the feed (LiveActivity), so they are not written again."""
+    if session is None:
+        return []
+    at = session.at
+    events = [] if streamed else [_started(at, session.wakes),
+                                  *(_tool(at, s) for s in session.trace)]
     if not session.finished:
         events.append(_event(at, ERROR, f"The agent's session did not finish: {session.error}. "
                                         "Nothing new is paid; it tries again soon."))
