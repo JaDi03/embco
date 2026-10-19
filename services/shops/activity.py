@@ -19,6 +19,7 @@ from agent.guardrails.controls.base import fmt
 from agent.guardrails.rules import Action, PolicyConfig
 from agent.memory import ChangeKind
 from agent.reflexes.cycle import CycleReport
+from agent.tools import trace as tool_trace
 from services.payments import PaymentStatus
 
 ACTIVITY = "activity.jsonl"
@@ -28,6 +29,7 @@ CHECK, DONE, NEW, CHANGED, CLOSED = "check", "done", "new", "changed", "closed"
 SENDING, PAID, RECORDED, NOT_PAID = "sending", "paid", "recorded", "not_paid"
 SIGNATURE, ANSWER, LIMITS, ERROR, WAITING = "signature", "answer", "limits", "error", "waiting"
 AGENT, REFLEX = "agent", "reflex"  # what the agent decided; what woke it
+TOOL = "tool"  # one tool the model called in a session, with what came back
 YOU = "you"  # what the owner did from the dashboard
 SHOWN_WAKES = 3
 
@@ -140,6 +142,9 @@ def session_events(session) -> list[dict[str, Any]]:
     if len(reasons) > SHOWN_WAKES:
         woke += f" (and {len(reasons) - SHOWN_WAKES} more)"
     events = [_event(at, REFLEX, f"The agent started working. {woke}")]
+    events.extend(_event(at, TOOL, tool_trace.line(s), tool=s.get("tool"),
+                         refused=not s.get("ok", True))
+                  for s in session.trace)
     if not session.finished:
         events.append(_event(at, ERROR, f"The agent's session did not finish: {session.error}. "
                                         "Nothing new is paid; it tries again soon."))
