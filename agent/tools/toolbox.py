@@ -20,6 +20,7 @@ from agent.guardrails.gate import pay_refusal, schedule_refusal
 from agent.guardrails.rules import Action, Decision, PolicyConfig, fingerprint
 from agent.memory import DecisionJournal
 from agent.models import AgentDecision, Alarm, Choice, Note
+from agent.tools import trace as tool_trace
 from agent.tools.definitions import TOOLS
 from services.circle import CircleError
 from services.erp import LedgerAdapter, LedgerError
@@ -86,6 +87,7 @@ class Toolbox:
     emailed: list[str] = field(default_factory=list)
     notified_wallets: list[str] = field(default_factory=list)  # suppliers sent the wallet notice
     summary: str | None = None
+    trace: list[dict[str, Any]] = field(default_factory=list)  # every tool call, in order
 
     def __post_init__(self) -> None:
         self._by_invoice = {d.invoice: d for d in self.decisions}
@@ -98,7 +100,17 @@ class Toolbox:
         return self.now.astimezone(self.zone).date()
 
     def call(self, name: str, args: Mapping[str, Any]) -> str:
-        """Run one tool. Raises ToolError for a call the agent must correct."""
+        """Run one tool and keep it in the session's trace. Raises ToolError for a call the
+        agent must correct."""
+        try:
+            result = self._run(name, args)
+        except ToolError as error:
+            self.trace.append(tool_trace.step(name, args, refused=str(error)))
+            raise
+        self.trace.append(tool_trace.step(name, args, result=result))
+        return result
+
+    def _run(self, name: str, args: Mapping[str, Any]) -> str:
         if name not in INPUTS:
             raise ToolError(f"there is no tool called {name}")
         if set(args) != INPUTS[name] or not all(isinstance(v, str) for v in args.values()):

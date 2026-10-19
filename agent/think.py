@@ -156,6 +156,7 @@ def think(
         wallet_notices=tuple(toolbox.notified_wallets),
         seen_payments=tuple(payment_seen_key(e) for e in toolbox.payments),
         funds_moved=tuple(toolbox.funds_moved),
+        trace=tuple(toolbox.trace),
         **({"usage": usage} if usage else {}),
     )
     journal.record_session(session)
@@ -220,6 +221,7 @@ def converse(
         wallet_notices=tuple(toolbox.notified_wallets),
         seen_payments=tuple(payment_seen_key(e) for e in toolbox.payments),
         funds_moved=tuple(toolbox.funds_moved),
+        trace=tuple(toolbox.trace),
         **({"usage": usage} if usage else {}),
     )
     journal.record_session(session)
