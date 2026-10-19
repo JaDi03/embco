@@ -41,7 +41,8 @@ def build_app(env: Mapping[str, str]) -> FastAPI:
     public_url = (env.get("EMBCO_PUBLIC_URL") or PUBLIC_URL).rstrip("/")
     return create_app(
         store=store,
-        auth=Auth(chain.shops_of, public_url=public_url),
+        auth=Auth(chain.shops_of, public_url=public_url,
+                  sessions_file=store.root.parent / "owner_sessions.json"),
         limits_of=chain.limits,
         units=SystemdUnits(),
         circle=circle,

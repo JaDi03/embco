@@ -14,8 +14,10 @@ import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
+from services.hub import session_file
 from services.hub.siwe_sign_in import VerificationError, generate_nonce, sign_in_text, signer_of
 from services.signing.wallet_ownership import ARC_TESTNET_CHAIN_ID
 
@@ -47,13 +49,15 @@ class Auth:
     def __init__(self, shops_of: Callable[[str], list[str]], *,
                  public_url: str,
                  chain_id: int = ARC_TESTNET_CHAIN_ID,
-                 clock: Clock = lambda: datetime.now(UTC)) -> None:
+                 clock: Clock = lambda: datetime.now(UTC),
+                 sessions_file: Path | None = None) -> None:
         self._shops_of = shops_of
+        self._file = sessions_file
         self._public_url = public_url
         self._chain_id = chain_id
         self._clock = clock
         self._nonces: dict[str, tuple[str, str, datetime]] = {}  # nonce: (shop, message, expiry)
-        self._sessions: dict[str, Session] = {}
+        self._sessions: dict[str, Session] = self._read()  # token hash: session
         self._owned: dict[str, set[str]] = {}  # owner: shops seen on chain, read again on a miss
 
     def challenge(self, shop: str, address: str) -> dict[str, Any]:
@@ -81,11 +85,12 @@ class Auth:
             raise AuthError("this wallet does not own the shop")
         token = secrets.token_urlsafe(32)
         session = Session(shop=shop, owner=signer, expires_at=self._clock() + SESSION_LIFETIME)
-        self._sessions[token] = session
+        self._sessions[session_file.token_key(token)] = session
+        self._write()
         return token, session
 
     def session(self, token: str | None, shop: str) -> Session:
-        session = self._sessions.get(token or "")
+        session = self._sessions.get(session_file.token_key(token or ""))
         if session is None or session.expires_at < self._clock():
             raise AuthError("sign in with the shop owner's wallet")
         if session.shop == shop:
@@ -99,9 +104,34 @@ class Auth:
         return session
 
     def sign_out(self, token: str | None) -> None:
-        self._sessions.pop(token or "", None)
+        if self._sessions.pop(session_file.token_key(token or ""), None):
+            self._write()
 
     def _forget_expired(self) -> None:
         now = self._clock()
         self._nonces = {n: v for n, v in self._nonces.items() if v[2] >= now}
-        self._sessions = {t: s for t, s in self._sessions.items() if s.expires_at >= now}
+        kept = {t: s for t, s in self._sessions.items() if s.expires_at >= now}
+        if len(kept) != len(self._sessions):
+            self._sessions = kept
+            self._write()
+
+    def _read(self) -> dict[str, Session]:
+        if self._file is None:
+            return {}
+        now = self._clock()
+        sessions = {}
+        for key, e in session_file.load(self._file).items():
+            try:
+                session = Session(shop=e["shop"], owner=e["owner"],
+                                  expires_at=datetime.fromisoformat(e["expires_at"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+            if session.expires_at >= now:
+                sessions[key] = session
+        return sessions
+
+    def _write(self) -> None:
+        if self._file is not None:
+            session_file.save(self._file, {
+                key: {"shop": s.shop, "owner": s.owner, "expires_at": s.expires_at.isoformat()}
+                for key, s in self._sessions.items()})
