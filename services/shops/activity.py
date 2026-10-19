@@ -142,7 +142,7 @@ def _started(at: datetime, wakes) -> dict[str, Any]:
 
 def _tool(at: datetime, step: Mapping[str, Any]) -> dict[str, Any]:
     return _event(at, TOOL, tool_trace.line(step), tool=step.get("tool"),
-                  refused=not step.get("ok", True))
+                  refused=not step.get("ok", True), done_at=step.get("at"))
 
 
 class LiveActivity:

@@ -49,6 +49,23 @@ def test_each_step_is_in_the_feed_while_the_session_runs_and_only_once(journal, 
     assert len(circle.sent) == 1
 
 
+def test_each_step_says_when_it_returned_on_the_real_clock(journal, tmp_path):  # noqa: F811
+    from datetime import UTC, datetime
+
+    payer, _, _ = make_payer(matching_ledger())
+    before = datetime.now(UTC).replace(microsecond=0)
+    setup = BrainSetup(brain=WatchedBrain(tmp_path), zone=LAGOS, autonomy=Autonomy.ACT,
+                       live=activity.LiveActivity(tmp_path))
+    report = cycle(journal, payer, setup)
+    after = datetime.now(UTC)
+
+    tools = [e for e in activity.read_activity(tmp_path) if e["kind"] == "tool"]
+    for event, step in zip(tools, report.thought.session.trace, strict=True):
+        assert event["done_at"] == step["at"]
+        assert before <= datetime.fromisoformat(step["at"]) <= after  # not the session's start
+        assert event["at"] == NOW.isoformat()  # the session's time, which groups its lines
+
+
 class Broken:
     def started(self, at, wakes):
         raise OSError("disk full")
