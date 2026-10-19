@@ -322,7 +322,7 @@ async function renderEarn(isOwner, service) {
   $("liquidity-strategy").value = service?.liquidity_strategy ?? "preserve_yield";
 }
 
-/** Signed out of the hub (never signed in, or the 12-hour sign-in ended): a bar on every page. */
+/** Signed out of the hub (never signed in, signed out, or the 12-hour sign-in ended): a bar on every page. */
 function signedOut(on) {
   $("signin-bar").hidden = !on;
 }
