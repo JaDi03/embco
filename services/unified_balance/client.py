@@ -114,6 +114,10 @@ class UnifiedBalance:
     def spend(self, owner: str, agent: str, allocations: Sequence[Allocation]) -> Any:
         return self._call("spend", _spend(owner, agent, allocations))
 
+    def vaults(self) -> list[dict[str, str]]:
+        """The Earn vaults on Arc as Circle's Earn Kit lists them, with their current APY."""
+        return self._call("vaults", {})["vaults"]
+
 
 def _spend(owner: str, agent: str, allocations: Sequence[Allocation]) -> dict[str, Any]:
     total = sum((a.amount for a in allocations), Decimal(0))

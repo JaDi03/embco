@@ -12,6 +12,7 @@
   "dependencies": {
     "@circle-fin/adapter-circle-wallets": "1.8.1",
     "@circle-fin/developer-controlled-wallets": "10.8.1",
+    "@circle-fin/earn-kit": "1.8.1",
     "@circle-fin/unified-balance-kit": "1.8.0"
   },
   "packageManager": "pnpm@11.2.2"

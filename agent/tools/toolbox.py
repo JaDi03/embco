@@ -22,7 +22,9 @@ from agent.memory import DecisionJournal
 from agent.models import AgentDecision, Alarm, Choice, Note
 from agent.tools import trace as tool_trace
 from agent.tools.definitions import TOOLS
+from agent.tools.earn_plan import ChainRoute, earn_plan
 from services.circle import CircleError
+from services.earn import MIN_WALLET_CUSHION
 from services.erp import LedgerAdapter, LedgerError
 from services.payments import ChainError, PaymentEvent, PaymentStatus
 from services.payments.payer import PaymentRefused, PaymentSetupError
@@ -400,6 +402,87 @@ class Toolbox:
                         "accepts_deposits": v.max_deposit_usdc > 0,
                         "you_may_withdraw_now": fmt(s.can_unpark(v.key))} for v in s.vaults],
         }
+
+    def _earn_plan(self) -> dict[str, Any] | str:
+        if self.owner_earn is None:
+            return "Earn is not connected for this shop"
+        try:
+            s = self.owner_earn.read()
+        except (ChainError, CircleError, PaymentSetupError) as error:
+            raise ToolError(f"could not read Arc Earn: {error}") from None
+        rates = self._vault_rates()
+        vaults = [{"key": v.key, "name": v.name, "approved": v.approved_in_earn,
+                   "accepts_deposits": v.max_deposit_usdc > 0, "balance": v.balance_usdc,
+                   **rates.get(v.vault.lower(), {"apy": None})} for v in s.vaults]
+        blocked = ("the owner has not set up Earn" if not s.earn else "Earn is paused by the owner"
+                   if s.paused else "the agent is not set in ShopEarn" if not s.agent_is_set
+                   else "")
+        return earn_plan(arc_wallet=s.in_wallet, cushion=MIN_WALLET_CUSHION,
+                         reserve=self._reserve_7_days(),
+                         park_room=Decimal(0) if blocked else min(s.left_this_week,
+                                                                  s.usdc_approved),
+                         max_per_park=s.max_per_park, vaults=vaults, routes=self._routes(),
+                         strategy=s.liquidity_strategy, blocked=blocked)
+
+    def _vault_rates(self) -> dict[str, dict[str, Any]]:
+        """Each vault's APY and status from Circle's Earn Kit; empty when it cannot be read."""
+        if self.owner_funds is None:
+            return {}
+        try:
+            rows = self.owner_funds.vault_rates()
+        except (UnifiedBalanceError, ChainError, CircleError, PaymentSetupError):
+            return {}
+        rates = {}
+        for r in rows:
+            apy = _decimal(str(r.get("current_apy", "")))
+            rates[str(r.get("vault", "")).lower()] = {"apy": apy, "status": r.get("status")}
+        return rates
+
+    def _reserve_7_days(self) -> Decimal:
+        """Bills due or scheduled within 7 days that are not paid yet."""
+        soon = self.today + timedelta(days=7)
+        total = Decimal(0)
+        for d in self.decisions:
+            if d.invoice in self.done or d.action is not Action.PAY:
+                continue
+            chosen = self.current(d.invoice)
+            day = chosen.pay_on if chosen and chosen.choice is Choice.SCHEDULE else d.due_date
+            if day and day <= soon:
+                total += d.amount
+        return total
+
+    def _routes(self) -> list[ChainRoute]:
+        """For each other chain: what the agent can reach there and Gateway's real fee estimate."""
+        if self.owner_funds is None:
+            return []
+        try:
+            gateway = {c.chain: c.confirmed for c in self.owner_funds.chains()
+                       if c.agent_can_spend}
+            held = [w for w in self.owner_funds.in_wallets() if w.funding]
+            wallets = {w.chain: w.can_move for w in held}
+            owned = {w.chain: w.in_wallet for w in held}
+        except (UnifiedBalanceError, ChainError, CircleError, PaymentSetupError):
+            return []
+        routes = []
+        for chain in sorted(set(gateway) | set(wallets)):  # chains the owner set up
+            reachable = gateway.get(chain, Decimal(0)) + wallets.get(chain, Decimal(0))
+            on_top = forwarder = Decimal(0)
+            error = ""
+            try:
+                fees = (self.owner_funds.estimate([Allocation(chain, reachable)]).get("fees", [])
+                        if reachable > 0 else [])
+                for f in fees:
+                    amount = Decimal(str(f.get("amount", "0")))
+                    if f.get("type") == FORWARDER:
+                        forwarder += amount
+                    else:
+                        on_top += amount
+            except (UnifiedBalanceError, ChainError, CircleError, PaymentSetupError) as e:
+                error = str(e)[:120]
+            routes.append(ChainRoute(chain, gateway.get(chain, Decimal(0)),
+                                     wallets.get(chain, Decimal(0)), on_top, forwarder, error,
+                                     owned.get(chain, Decimal(0))))
+        return routes
 
     def _park_in_earn(self, vault: str, amount: str, reason: str) -> dict[str, Any]:
         if self.owner_earn is None:
