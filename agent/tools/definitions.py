@@ -136,8 +136,9 @@ TOOLS: list[dict[str, Any]] = [
           "the owner must first do something in the dashboard (approve a wallet, raise a limit, "
           "add money), their yes cannot do it: ask what they should check before doing it.",
           invoice=INVOICE,
-          question=_text("The question as the owner will read it: the invoice, the amounts, "
-                         "what they need to do and where."),
+          question=_text("The question alone, as the owner will read it on a card with yes/no "
+                         "buttons, at most 300 characters: the supplier, the amount and what to "
+                         "check. Plain words, no invoice number, no recommendation here."),
           recommendation=_text("What you recommend and why, in one sentence.")),
     _tool("set_alarm",
           "Wake yourself at a given time to look at something again.",
@@ -156,11 +157,11 @@ TOOLS: list[dict[str, Any]] = [
                      "to what they asked, and what they must do and where, if anything. The "
                      "steps and numbers behind it are in their activity; do not repeat them.")),
     _tool("notify_owner",
-          "Tell the owner something they should act on, without waiting for them to write: money "
-          "that will not reach a coming payment, a deadline, a problem only they can fix. It "
-          "reaches their dashboard and phone, also to tell them what you paid on your own. Say "
-          "the numbers and what to do and where. At most 3 per session; never to repeat a "
-          "question you asked with ask_owner.",
+          "Tell the owner something that changed for them, without waiting for them to write: "
+          "what you paid on your own, a problem only they can fix, money nothing you can reach "
+          "will cover. One topic per notice. It reaches their dashboard and phone. Never for "
+          "money you moved (it shows as a receipt), never to repeat an ask_owner question. At "
+          "most 3 per session.",
           text=_text("The notice in one or two short lines (at most 300 characters): what "
                      "happened, and what they must do and where, if anything.")),
     _tool("email_supplier",

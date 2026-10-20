@@ -603,3 +603,8 @@ button.side-link { font: inherit; border: 0; background: none; width: 100%; text
 
 /* what is happening, inside the open tool */
 .modal-notice { margin: 0 0 14px; }
+
+/* the agent's question in the chat: who and how much, the question, two answers */
+.ask-card { display: grid; gap: 6px; border-color: var(--accent-line); }
+.ask-title { font-weight: 600; font-size: 0.82rem; color: var(--accent-ink); }
+.ask-card .row { margin-top: 4px; }

@@ -38,6 +38,9 @@ MAX_MESSAGE_CHARS = 300  # a message in the chat and on Telegram: the details ar
 # A full wallet address is a place to send money: one wrong character, or an address planted in
 # an invoice, and the owner pays the wrong one. A transaction hash only proves a payment: allowed.
 ADDRESS = re.compile(r"0x[0-9a-fA-F]{40}(?![0-9a-fA-F])")
+# The model's own tool-call syntax leaking into a text field (seen: "...</question>
+# <parameter name="recommendation">..."): it reached the owner word for word.
+MARKUP = re.compile(r"</?(?:parameter|question|recommendation|invoice|text|summary|invoke)\b", re.I)
 SEARCH_LIMIT = 50
 MAX_NOTICES = 3
 MAX_EMAILS_PER_DAY = 3
@@ -481,7 +484,8 @@ class Toolbox:
         decision = self._decision(invoice)
         if not question.strip():
             raise ToolError("the question is empty")
-        _check_owner_text(question)
+        _check_owner_text(question, MAX_MESSAGE_CHARS)
+        _check_owner_text(recommendation)
         self._choose(decision, Choice.ASK, question, question=question.strip(),
                      recommendation=recommendation.strip())
         return f"{invoice}: the owner will be asked"
@@ -584,6 +588,8 @@ class Toolbox:
             raise ToolError("answer the owner's message with reply_owner first")
         if not summary.strip():
             raise ToolError("the summary for the owner is empty")
+        if MARKUP.search(summary):
+            raise ToolError("rewrite the summary as plain words: it carries tool-call markup")
         _refuse_workarounds(summary)
         self.summary = summary.strip()
         return "session finished"
@@ -684,6 +690,9 @@ def _check_owner_text(text: str, limit: int = MAX_OWNER_CHARS) -> None:
     address in a message is how people get tricked into paying the wrong one; a transaction hash
     is fine), and no more than `limit` characters. A chat message gets the short limit: what
     happened and what the owner must do; the steps and numbers behind it are in the activity."""
+    if MARKUP.search(text):
+        raise ToolError("rewrite this as plain words: it carries tool-call markup (like "
+                        "</question> or <parameter>); each field goes in its own input")
     if ADDRESS.search(text):
         raise ToolError("rewrite this without full wallet addresses: say where instead (the "
                         "owner's wallet on Arc, the agent's wallet shown in the dashboard under "
