@@ -360,6 +360,10 @@ def run_shop(
                 chat.take_messages(folder)
                 waiting = chat.unanswered(folder)
                 wakes = inbox_wakes(signed, answered, limits_changed)
+                moved = balances.money_changed(
+                    folder, policy["now"].weekly_budget * balances.WAKE_SHARE)
+                if moved:
+                    wakes.append(Wake("money", moved))
                 if waiting:
                     wakes.append(Wake("message", f"The owner wrote to you ({len(waiting)} "
                                                  "message(s)); answer with reply_owner."))
@@ -393,6 +397,9 @@ def run_shop(
                                         **views})
             balances.record_balance(folder, balances.balance_point(report.at, views["earn"],
                                                                    views["unified_balance"]))
+            session = report.thought.session if report.thought else None
+            if (session and session.finished) or balances.read_seen(folder) is None:
+                balances.remember_seen(folder)  # what the agent saw, or the first baseline
             store.write_supplier_view(shop, supplier_view(report, journal, settings.company,
                                                           signatures, wallet_of=wallet_of))
             log.info("shop %s: %s", shop, format_report(report))

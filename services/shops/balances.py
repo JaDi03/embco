@@ -4,6 +4,10 @@ Each check reads the owner's wallet on Arc, Earn and the other chains (`last_run
 keeps one point per reading in `<shop>/balances.jsonl`: a new line when a number changed, or
 every hour while nothing did. Only the newest MAX_POINTS are kept. A check that could not read
 every place adds no point, so a reading error never shows as money leaving.
+
+`money_seen.json` keeps the reading after the agent's last session. When a place moves by a tenth
+of the weekly budget or more from it, the agent is woken once to look; what it then does is its
+call. Holding money never wakes it again: only a new change does.
 """
 
 import json
@@ -16,6 +20,8 @@ from typing import Any
 from agent.guardrails.controls.base import fmt
 
 BALANCES = "balances.jsonl"
+SEEN = "money_seen.json"
+WAKE_SHARE = Decimal("0.1")  # of the weekly budget: smaller moves do not wake the agent
 MAX_POINTS = 3000
 QUIET = timedelta(hours=1)
 PLACES = ("wallet", "earn", "other_chains")
@@ -62,6 +68,44 @@ def record_balance(folder: Path, point: dict[str, str] | None) -> None:
     tmp.write_text("".join(json.dumps(p) + "\n" for p in kept), encoding="utf-8")
     os.chmod(tmp, 0o600)
     os.replace(tmp, path)
+
+
+def money_changed(folder: Path, threshold: Decimal) -> str | None:
+    """What moved since the agent last looked, when one place changed by `threshold` or more.
+
+    The baseline is the reading after the agent's last session, so what it moved itself is
+    never a reason. None when nothing moved that much, or before the first baseline."""
+    seen, points = read_seen(folder), read_balances(folder)
+    if seen is None or not points:
+        return None
+    now = points[-1]
+    moves = [(place, Decimal(seen[place]), Decimal(now[place])) for place in PLACES]
+    if all(abs(after - before) < threshold for _, before, after in moves):
+        return None
+    names = {"wallet": "your wallet on Arc", "earn": "Earn",
+             "other_chains": "other chains (Gateway and the owner's wallets there)"}
+    return "The owner's money changed since you last looked: " + "; ".join(
+        f"{names[place]} {fmt(before)} -> {fmt(after)}"
+        for place, before, after in moves if before != after) + "."
+
+
+def remember_seen(folder: Path) -> None:
+    """The latest reading becomes what the agent last looked at."""
+    points = read_balances(folder)
+    if points:
+        path = folder / SEEN
+        tmp = path.with_name(SEEN + ".tmp")
+        tmp.write_text(json.dumps(points[-1]), encoding="utf-8")
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+
+
+def read_seen(folder: Path) -> dict[str, str] | None:
+    try:
+        seen = json.loads((folder / SEEN).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return seen if isinstance(seen, dict) and all(p in seen for p in PLACES) else None
 
 
 def read_balances(folder: Path) -> list[dict[str, str]]:
