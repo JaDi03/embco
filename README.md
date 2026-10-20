@@ -38,6 +38,49 @@ and acts on what happened. A smart contract sets the limits it cannot cross.
 - **Remembers** every decision and answer in a hash-chained journal that nobody can rewrite
   unnoticed.
 
+## How it works
+
+### The agent: the model decides, the contract holds the limits
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagrams/readme-agent-dark.svg">
+  <img src="docs/assets/diagrams/readme-agent.svg" width="100%" alt="The agent: reflexes wake the AI model, it uses tools and decides, the ShopPayables contract pays or refuses and the model sees the result, and it talks with the owner both ways">
+</picture>
+
+1. Code only decides **when** to wake the model: a new or changed bill, a due date, an alarm the
+   model set, the owner's money moving, a message, or the daily round. No reason, no session.
+2. The model decides **what** to do, using tools: read the invoice and its checks, look at the
+   cash on every chain, bring funds, park or withdraw from Earn, pay, schedule, hold, or ask.
+3. It sees what came back (the transaction, or the contract's or Circle's error) and acts on it.
+   Every payment is recorded back in ERPNext and every decision in the journal.
+
+| The AI model decides | Code enforces, and the model cannot change |
+|---|---|
+| Whether, when and how much to pay | Per-payment and weekly caps, in the owner's contract |
+| Where the money comes from (Arc, Earn, other chains) | Only approved supplier wallets, once per invoice |
+| What to park in Earn, and when to take it back | Only owner-approved vaults, within park limits |
+| What to ask the owner, and every word it writes | Unproven wallets and duplicate bills are blocked |
+
+### Cross-chain funds: the owner's USDC on other chains, via Circle Gateway
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagrams/readme-cross-chain-dark.svg">
+  <img src="docs/assets/diagrams/readme-cross-chain.svg" width="100%" alt="Cross-chain funds: the owner's wallet on Ethereum or Base, ShopFunding into the owner's Unified Balance on Circle Gateway, brought to the owner's wallet on Arc, then paid to the supplier">
+</picture>
+
+When the wallet on Arc runs short, the model estimates the fees, moves the owner's USDC into their
+Gateway balance and brings it to their wallet on Arc. It only ever lands in the owner's own wallet.
+
+### Earn: idle USDC earns yield, with zero custody
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagrams/readme-earn-dark.svg">
+  <img src="docs/assets/diagrams/readme-earn.svg" width="100%" alt="Earn: ShopEarn parks the owner's USDC from their wallet on Arc into an approved ERC-4626 vault, shares go to the owner's wallet, and unpark returns the USDC when a bill needs it">
+</picture>
+
+USDC and vault shares never sit in an embco contract. The owner picks the vaults and the limits;
+the model picks when and how much, following the owner's liquidity strategy.
+
 Why it exists: [Agents and Ledgers in 2026](https://thecanteenapp.com/analysis/2026/09/12/agents-and-ledgers.html).
 How each part works, with diagrams: [the documentation](https://jadi03.github.io/embco/).
 
