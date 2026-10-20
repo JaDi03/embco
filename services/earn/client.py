@@ -20,6 +20,7 @@ from eth_utils import keccak, to_checksum_address
 
 from services.circle import CircleClient, CircleError
 from services.payments import ArcRpc, ChainError, Payer
+from services.payments.chain import LOG_CHUNK_BLOCKS as LOG_CHUNK
 from services.payments.encoding import USDC_DECIMALS, usdc_units
 
 # ShopEarnFactory deployed on Arc Testnet (contracts/src/ShopEarnFactory.sol).
@@ -32,6 +33,12 @@ MIN_WALLET_CUSHION = Decimal("1")
 
 FOLLOW_SECONDS = 60
 POLL_SECONDS = 2
+
+# ShopEarn's events: what entered and left a vault, and who did it.
+PARKED = "0x" + keccak(text="Parked(address,uint256,uint256,address)").hex()
+UNPARKED = "0x" + keccak(text="Unparked(address,uint256,uint256,address)").hex()
+MOVES_FROM = 66943142  # no ShopEarn is older than the first shop factory on Arc testnet
+MAX_CHUNKS = 20  # per read: a long gap is caught up over the next checks
 
 
 @dataclass(frozen=True)
@@ -211,6 +218,40 @@ class OwnerEarn:
             vaults=positions,
             liquidity_strategy=self._strategy(),
         )
+
+    def moves(self, after_block: int | None) -> tuple[list[dict[str, Any]], int]:
+        """What entered and left Earn through the owner's ShopEarn after `after_block`, oldest
+        first, and the last block read. Reads at most MAX_CHUNKS ranges per call."""
+        owner = self.chain.owner_of(self.payer.shop)
+        agent = self.payer.agent_address().lower()
+        end = self.chain.latest_block()
+        start = MOVES_FROM if after_block is None else after_block + 1
+        earns: list[str] = []
+        if self._factory:
+            (earns,) = decode(["address[]"], self._view(self._factory, "earnsOf(address)",
+                                                        ["address"], [to_checksum_address(owner)]))
+        if not earns or start > end:
+            return [], max(end, start - 1)
+        names = {v.address.lower(): v.name for v in self._vaults}
+        found: list[dict[str, Any]] = []
+        last = start - 1
+        for _ in range(MAX_CHUNKS):
+            if last >= end:
+                break
+            upper = min(end, last + LOG_CHUNK)
+            for log in self.chain.logs(earns[-1], [[PARKED, UNPARKED]], last + 1, upper):
+                assets, shares = decode(["uint256", "uint256"], bytes.fromhex(log["data"][2:]))
+                vault = "0x" + log["topics"][1][-40:]
+                block = int(log["blockNumber"], 16)
+                found.append({
+                    "at": self.chain.block_time(block).isoformat(), "block": block,
+                    "tx": log["transactionHash"],
+                    "kind": "in" if log["topics"][0] == PARKED else "out",
+                    "vault": names.get(vault.lower(), to_checksum_address(vault)),
+                    "usdc": str(_usdc(assets)), "shares": str(shares),
+                    "by": "agent" if log["topics"][2][-40:].lower() == agent[2:] else "owner"})
+            last = upper
+        return found, last
 
     def _read_vault(self, spec: VaultSpec, owner: str, earn: str | None) -> EarnPosition:
         vault = to_checksum_address(spec.address)

@@ -139,6 +139,18 @@ class ArcRpc:
             raise ChainError(f"Arc node returned unexpected logs: {type(error).__name__}") from None
         return None
 
+    def latest_block(self) -> int:
+        return int(self._rpc("eth_blockNumber", []), 16)
+
+    def logs(self, address: str, topics: list[Any], start: int, end: int) -> list[dict[str, Any]]:
+        """The contract's events in [start, end]; at most LOG_CHUNK_BLOCKS + 1 blocks per call."""
+        return self._rpc("eth_getLogs", [{"address": to_checksum_address(address),
+                                          "topics": topics, "fromBlock": hex(start),
+                                          "toBlock": hex(end)}]) or []
+
+    def block_time(self, block: int) -> datetime:
+        return self._block_time(hex(block))
+
     def _block_time(self, block: str) -> datetime:
         return datetime.fromtimestamp(int(self._rpc("eth_getBlockByNumber",
                                                     [block, False])["timestamp"], 16), UTC)
