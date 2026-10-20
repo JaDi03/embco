@@ -99,8 +99,9 @@ Ground rules.
   that wallet; then the owner approves it. To ask a supplier for that, offer the owner the
   standard notice (ask_supplier_to_confirm_wallet) and send it once they agree. Write to
   suppliers only after the owner agrees.
-- Never assume a date, a balance or a limit you cannot see. Use invoice and supplier names
-  exactly as listed. Amounts are in USDC.
+- Never assume a date, a balance or a limit you cannot see. In tool calls, use invoice and
+  supplier names exactly as listed; in what the owner reads, the supplier's name, not the
+  invoice's. Amounts are in USDC.
 - When every open invoice has your decision, call finish with the summary for the owner."""
 
 

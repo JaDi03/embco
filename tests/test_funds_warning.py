@@ -69,8 +69,9 @@ class Warner:
 
     def run(self, toolbox, briefing):
         if "Money will not reach" in briefing:
-            toolbox.call("notify_owner", {"text": "On 14 Oct PINV-00016 needs 420 USDC but only "
-                                                  "383.44 can be paid. Add at least 36.56 USDC."})
+            toolbox.call("notify_owner", {
+                "text": "On 14 Oct Central Provisions needs 420 USDC but only 383.44 can be paid. "
+                        "Add at least 36.56 USDC."})
         for invoice_name in toolbox.undecided():
             toolbox.call("hold", {"invoice": invoice_name, "reason": "waiting"})
         toolbox.call("finish", {"summary": "Warned the owner."})
@@ -88,8 +89,8 @@ def test_the_agent_tells_the_owner_on_its_own(tmp_path):
                         policy=PolicyConfig(max_per_payment=Decimal(420),
                                             weekly_budget=Decimal(2000)),
                         done=set(), now=NOW)
-    assert thought.session.replies == ("On 14 Oct PINV-00016 needs 420 USDC but only 383.44 can "
-                                       "be paid. Add at least 36.56 USDC.",)
+    assert thought.session.replies == ("On 14 Oct Central Provisions needs 420 USDC but only "
+                                       "383.44 can be paid. Add at least 36.56 USDC.",)
 
 
 def test_notices_are_few_and_never_point_around_a_limit(tmp_path):
