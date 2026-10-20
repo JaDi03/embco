@@ -600,3 +600,6 @@ button.side-link { font: inherit; border: 0; background: none; width: 100%; text
 .feed-fold > summary:hover { background: var(--line-soft); }
 .feed-fold[open] { display: grid; gap: 6px; padding-bottom: 6px; }
 .feed-fold[open] > .line, .feed-fold[open] > .session { margin: 0 12px; font-size: 0.82rem; }
+
+/* what is happening, inside the open tool */
+.modal-notice { margin: 0 0 14px; }

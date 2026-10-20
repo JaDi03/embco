@@ -31,11 +31,15 @@ function show(view) {
   for (const id of VIEWS) $(id).hidden = id !== view;
 }
 
+/** What is happening, in the open tool when there is one: a modal sits above the page's notice. */
 function notify(text, kind = "info") {
-  const notice = $("notice");
-  notice.textContent = text;
-  notice.className = kind === "info" ? "notice" : `notice ${kind}`;
-  notice.hidden = !text;
+  const open = document.querySelector("dialog[open] .modal-notice");
+  for (const notice of [$("notice"), ...document.querySelectorAll(".modal-notice")]) {
+    const here = notice === (open ?? $("notice"));
+    notice.textContent = here ? text : "";
+    notice.className = `${notice === $("notice") ? "notice" : "notice modal-notice"}${kind === "info" ? "" : ` ${kind}`}`;
+    notice.hidden = !here || !text;
+  }
 }
 
 const addressUrl = (address) => `${ARC_TESTNET.explorer}/address/${address}`;
