@@ -46,12 +46,27 @@ export function bubbleOf(entry) {
   if (entry.from === "owner") {
     return { side: "me", text: entry.text, meta: entry.by === VIA_TELEGRAM ? "via Telegram" : "" };
   }
+  if (entry.from === "agent") return { side: "agent", text: entry.text, meta: "" };  // a colleague: no label
   const telegram = entry.telegram ? "sent to Telegram" : "";
-  if (entry.from === "agent") {
-    const meta = ["AGENT", entry.model ? "Claude" : "", telegram];
-    return { side: "agent", text: entry.text, meta: meta.filter(Boolean).join(" · ") };
-  }
   return { side: "system", text: entry.text, meta: ["SERVICE", telegram].filter(Boolean).join(" · ") };
+}
+
+/**
+ * The agent's question as a card with two answers, when only the owner's yes is missing: the
+ * supplier and amount on top, the question, and the answers sent as the same quick answers the
+ * bills page uses. `bill` is that invoice's decision, when the page has it. Null for any other
+ * entry.
+ */
+export function questionCard(entry, bill, answers) {
+  if (entry.from !== "agent" || !entry.buttons || !entry.invoice) return null;
+  const asked = entry.question ? ` (you asked: ${entry.question})` : "";
+  const about = `About ${entry.invoice}${asked}: `;
+  return {
+    title: bill ? `${bill.supplier} · ${bill.amount} USDC` : "Needs your answer",
+    text: entry.question || entry.text,
+    yes: about + answers.yes,
+    no: about + answers.no,
+  };
 }
 
 /** "Working · 1m 20s" while the agent is on the owner's last message, so a quiet minute is not

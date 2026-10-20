@@ -12,7 +12,7 @@ import * as hub from "./hub.js";
 import * as ledger from "./ledger.js";
 import * as console_ from "./terminal.js";
 import * as nav from "./nav.js";
-import { agentView, groupTasks, raisedLimits, taskFor } from "./needs.js";
+import { agentView, groupTasks, QUICK_ANSWERS, raisedLimits, taskFor } from "./needs.js";
 import * as suppliers from "./suppliers.js";
 import * as unified from "./unified.js";
 import * as earn from "./earn.js";
@@ -567,12 +567,50 @@ function paintChat() {
   box.scrollTop = box.scrollHeight;
 }
 
+/** A bill the page knows, by its invoice name: for supplier names in the chat. */
+function billOf(invoice) {
+  return work.groups.flatMap((g) => g.tasks).find((t) => t.decision.invoice === invoice)?.decision ?? null;
+}
+
 function bubble(entry) {
+  const card = chat.questionCard(entry, billOf(entry.invoice), QUICK_ANSWERS);
+  if (card) return questionBubble(card, entry);
   const b = chat.bubbleOf(entry);
   const quick = b.side === "me" ? feed.quickAnswer(b.text) : null;
   const node = el("div", { className: `bubble ${b.side}` }, ...withLinks(quick ? quick.text : b.text));
-  if (quick) node.append(el("span", { className: "meta", textContent: `↳ on ${quick.invoice}` }));
+  if (quick) node.append(el("span", { className: "meta", textContent: `↳ ${billOf(quick.invoice)?.supplier ?? quick.invoice}` }));
   if (b.meta) node.append(el("span", { className: "meta", textContent: b.meta }));
+  return node;
+}
+
+/** The agent's question: who and how much, the question, and two answers. Once the owner
+ * answered it (a quick answer on the same bill after it), the buttons give way to a line. */
+function questionBubble(card, entry) {
+  const answered = terminal.chat.some((e) => e.from === "owner" && e.seq > entry.seq
+    && feed.quickAnswer(e.text)?.invoice === entry.invoice);
+  const node = el("div", { className: "bubble agent ask-card" },
+    el("span", { className: "ask-title", textContent: card.title }),
+    el("span", { textContent: card.text }));
+  if (answered) {
+    node.append(el("span", { className: "meta", textContent: "Answered" }));
+    return node;
+  }
+  const row = el("div", { className: "row" });
+  for (const [label, text, style] of [["Yes, pay it", card.yes, "btn-primary"], ["No, hold it", card.no, "btn-ghost"]]) {
+    const button = el("button", { className: `btn btn-small ${style}`, type: "button", textContent: label });
+    button.addEventListener("click", async () => {
+      for (const b of row.querySelectorAll("button")) b.disabled = true;
+      try {
+        await chat.sendMessage(session.shop, text);
+        pollChat();
+      } catch (error) {
+        $("chat-status").textContent = describeError(error);
+        for (const b of row.querySelectorAll("button")) b.disabled = false;
+      }
+    });
+    row.append(button);
+  }
+  node.append(row);
   return node;
 }
 

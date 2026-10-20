@@ -12,18 +12,18 @@ test("a message is trimmed, and an empty or too long one is not sent", () => {
   assert.match(chat.checkMessage("x".repeat(chat.MAX_TEXT + 1)).error, /At most/);
 });
 
-test("the owner's words go right, the agent's left, without what it cost", () => {
+test("the owner's words go right, the agent's left, with no label, like a colleague", () => {
   assert.equal(chat.bubbleOf({ from: "owner", text: "hi" }).side, "me");
   const reply = chat.bubbleOf({ from: "agent", text: "Nothing is due.", cost: "$0.0012", model: "claude-haiku-5-5" });
-  assert.deepEqual(reply, { side: "agent", text: "Nothing is due.", meta: "AGENT · Claude" });
+  assert.deepEqual(reply, { side: "agent", text: "Nothing is due.", meta: "" });
   assert.equal(chat.bubbleOf({ from: "system", text: "could not answer" }).meta, "SERVICE");
 });
 
-test("what came from Telegram, and what went there, says so", () => {
+test("what the owner wrote on Telegram says so; the agent's words carry no label", () => {
   assert.equal(chat.bubbleOf({ from: "owner", text: "pay it", by: chat.VIA_TELEGRAM }).meta, "via Telegram");
   assert.equal(chat.bubbleOf({ from: "owner", text: "pay it", by: "owner 0xabc" }).meta, "");
   const reply = chat.bubbleOf({ from: "agent", text: "Paid.", cost: "$0.0014", model: "m", telegram: true });
-  assert.equal(reply.meta, "AGENT · Claude · sent to Telegram");
+  assert.equal(reply.meta, "");
   assert.equal(chat.bubbleOf({ from: "system", text: "x", telegram: true }).meta, "SERVICE · sent to Telegram");
 });
 
@@ -56,4 +56,16 @@ test("while the agent works, the owner sees for how long since they wrote", asyn
   assert.equal(workingText(true, entries, now), "The agent is working on your message · 1m 20s");
   assert.equal(workingText(true, [{ from: "owner", at: "2026-10-14T19:25:12Z" }], now), "The agent is working on your message · 8s");
   assert.equal(workingText(false, entries, now), "");
+});
+
+test("a question with buttons is a card: who and how much, the question, two answers", () => {
+  const answers = { yes: "yes, go ahead and pay it.", no: "no, hold it for now." };
+  const entry = { from: "agent", text: "t", invoice: "ACC-PINV-2026-00022", buttons: true,
+    question: "Northern Grains billed 2 sacks of flour but no delivery is recorded. Did it arrive?" };
+  const card = chat.questionCard(entry, { supplier: "Northern Grains & Cereals Co.", amount: "92.0" }, answers);
+  assert.equal(card.title, "Northern Grains & Cereals Co. · 92.0 USDC");
+  assert.equal(card.text, entry.question);
+  assert.equal(card.yes, `About ACC-PINV-2026-00022 (you asked: ${entry.question}): yes, go ahead and pay it.`);
+  assert.equal(chat.questionCard({ ...entry, buttons: false }, null, answers), null);
+  assert.equal(chat.questionCard({ from: "agent", text: "Paid." }, null, answers), null);
 });
