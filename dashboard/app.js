@@ -31,11 +31,15 @@ function show(view) {
   for (const id of VIEWS) $(id).hidden = id !== view;
 }
 
+/** What is happening, in the open tool when there is one: a modal sits above the page's notice. */
 function notify(text, kind = "info") {
-  const notice = $("notice");
-  notice.textContent = text;
-  notice.className = kind === "info" ? "notice" : `notice ${kind}`;
-  notice.hidden = !text;
+  const open = document.querySelector("dialog[open] .modal-notice");
+  for (const notice of [$("notice"), ...document.querySelectorAll(".modal-notice")]) {
+    const here = notice === (open ?? $("notice"));
+    notice.textContent = here ? text : "";
+    notice.className = `${notice === $("notice") ? "notice" : "notice modal-notice"}${kind === "info" ? "" : ` ${kind}`}`;
+    notice.hidden = !here || !text;
+  }
 }
 
 const addressUrl = (address) => `${ARC_TESTNET.explorer}/address/${address}`;
@@ -1324,7 +1328,7 @@ function wireActions() {
       const provider = wallet.eip1193();
       for (let i = 0; i < active.length; i++) {
         notify(`Turning off ${active[i].name}: confirm it in MetaMask...`);
-        await earn.turnOffVault(provider, active[i].address, { otherVaultsOn: i < active.length - 1 });
+        await earn.turnOffVault(provider, active[i].address, { otherVaultsOn: i < active.length - 1, onStep: notify });
       }
       notify("Earn is off. The agent will not park or unpark USDC.", "success");
     } catch (error) {
@@ -1340,7 +1344,7 @@ function wireActions() {
     button.disabled = true;
     try {
       notify("Withdraw all from Arc Earn to your wallet: confirm in MetaMask...");
-      await earn.withdrawAllFromEarn(wallet.eip1193(), earnState.rows);
+      await earn.withdrawAllFromEarn(wallet.eip1193(), earnState.rows, notify);
       notify("All your Arc Earn funds are back in your wallet.", "success");
       await renderShop();
     } catch (error) {
@@ -1363,10 +1367,10 @@ function wireActions() {
       for (const { row, on } of chosen) {
         if (on) {
           notify(`${row.name}: confirm in MetaMask...`);
-          await earn.setUpVault(provider, row.address, { agent: session.agent, maxPerMove, weeklyCap });
+          await earn.setUpVault(provider, row.address, { agent: session.agent, maxPerMove, weeklyCap, onStep: notify });
         } else if (row.status !== "off") {
           notify(`Turning off ${row.name}: confirm in MetaMask...`);
-          await earn.turnOffVault(provider, row.address, { otherVaultsOn: remainingOn > 0 });
+          await earn.turnOffVault(provider, row.address, { otherVaultsOn: remainingOn > 0, onStep: notify });
           remainingOn = Math.max(0, remainingOn);
         }
       }

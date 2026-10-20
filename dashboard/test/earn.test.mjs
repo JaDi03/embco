@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 globalThis.window = { location: { origin: "https://app.embco.xyz" } };
-const { setupEarnCalls, turnOffEarnCalls, vaultStatus } = await import("../earn.js");
+const { setupEarnCalls, stepText, turnOffEarnCalls, vaultStatus } = await import("../earn.js");
 
 const SHOP = { agent: "0x" + "a9".repeat(20), maxPerMove: 300000000n, weeklyCap: 1000000000n };
 const READY = {
@@ -90,4 +90,16 @@ test("withdrawAllCalls redeems every vault where the owner holds shares directly
   assert.equal(calls[0].to, "0x8f2d33b5d4b9b5f02df635ae308f7b4c9da8d2dc");
   assert.equal(calls[0].data.slice(0, 10), "0xba087652"); // redeem(uint256,address,address)
   assert.ok(calls[0].data.includes(owner.slice(2)));
+});
+
+test("each signature says what it does, one by one or all at once", () => {
+  const calls = setupEarnCalls({
+    factory: "0x" + "fa".repeat(20), earn: "0x" + "e1".repeat(20), create: true,
+    vault: "0x8f2d33b5d4b9b5f02df635ae308f7b4c9da8d2dc", agent: SHOP.agent,
+    maxPerPark: SHOP.maxPerMove, weeklyCap: SHOP.weeklyCap,
+  });
+  assert.ok(calls.every((c) => c.label));
+  assert.equal(stepText(calls, 1),
+    "Signature 2 of 4: let it move your USDC into the vault, within those limits. Confirm it in your wallet.");
+  assert.match(stepText(calls), /^One signature for 4 steps: create your Earn contract/);
 });

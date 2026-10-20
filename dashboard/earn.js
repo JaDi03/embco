@@ -89,32 +89,34 @@ export function setupEarnCalls({
 }) {
   const calls = [];
   const earnIface = new ethers.Interface(EARN_ABI);
-  const earnCall = (name, args) =>
-    calls.push({ to: earn, data: earnIface.encodeFunctionData(name, args), value: "0x0" });
+  const earnCall = (name, args, label) =>
+    calls.push({ to: earn, data: earnIface.encodeFunctionData(name, args), value: "0x0", label });
 
   if (create) {
     const data = new ethers.Interface(EARN_FACTORY_ABI).encodeFunctionData(
       "create",
       [agent, maxPerPark, weeklyCap],
     );
-    calls.push({ to: factory, data, value: "0x0" });
+    calls.push({ to: factory, data, value: "0x0", label: "create your Earn contract, with your deposit limits" });
   } else {
-    if (setAgent) earnCall("setAgent", [agent]);
-    if (setLimits) earnCall("setLimits", [maxPerPark, weeklyCap]);
+    if (setAgent) earnCall("setAgent", [agent], "make your shop's agent the one that uses it");
+    if (setLimits) earnCall("setLimits", [maxPerPark, weeklyCap], "set its deposit limits");
   }
   if (approveUsdc) {
     calls.push({
       to: usdc,
       data: new ethers.Interface(USDC_ABI).encodeFunctionData("approve", [earn, AUTHORIZE_ALL]),
       value: "0x0",
+      label: "let it move your USDC into the vault, within those limits",
     });
   }
-  if (approveVault) earnCall("setVault", [vault, true]);
+  if (approveVault) earnCall("setVault", [vault, true], "approve this vault");
   if (approveShares) {
     calls.push({
       to: vault,
       data: new ethers.Interface(ERC4626_ABI).encodeFunctionData("approve", [earn, AUTHORIZE_ALL]),
       value: "0x0",
+      label: "let it bring the money back from the vault to your wallet",
     });
   }
   return calls;
@@ -130,17 +132,20 @@ export function turnOffEarnCalls({ earn, vault, usdc = USDC_ADDRESS, otherVaults
       to: earn,
       data: new ethers.Interface(EARN_ABI).encodeFunctionData("setVault", [vault, false]),
       value: "0x0",
+      label: "remove this vault",
     });
     calls.push({
       to: vault,
       data: new ethers.Interface(ERC4626_ABI).encodeFunctionData("approve", [earn, 0n]),
       value: "0x0",
+      label: "take back its permission on the vault",
     });
     if (!otherVaultsOn) {
       calls.push({
         to: usdc,
         data: new ethers.Interface(USDC_ABI).encodeFunctionData("approve", [earn, 0n]),
         value: "0x0",
+        label: "take back its permission on your USDC",
       });
     }
   }
@@ -157,19 +162,36 @@ async function waitForCalls(provider, id) {
   throw new Error("Still waiting for Arc; check your wallet's activity, then look again.");
 }
 
-async function sendCalls(provider, signer, owner, calls) {
+/** What the owner is asked to sign: one message for a batch, or "Signature 2 of 4: ..." for each
+ * call when the wallet cannot batch. */
+export function stepText(calls, index = null) {
+  if (index === null) {
+    return `One signature for ${calls.length} steps: ${calls.map((c) => c.label).join("; ")}. Confirm it in your wallet.`;
+  }
+  return `Signature ${index + 1} of ${calls.length}: ${calls[index].label}. Confirm it in your wallet.`;
+}
+
+async function sendCalls(provider, signer, owner, calls, onStep = () => {}) {
   const chainId = ARC_TESTNET.chainIdHex;
   const capabilities = await provider.request({ method: "wallet_getCapabilities", params: [owner, [chainId]] })
     .catch(() => ({}));
   const atomic = capabilities?.[chainId]?.atomic?.status;
   if (atomic === "supported" || atomic === "ready") {
+    onStep(stepText(calls));
     const sent = await provider.request({
       method: "wallet_sendCalls",
-      params: [{ version: "2.0.0", from: owner, chainId, atomicRequired: true, calls }],
+      params: [{ version: "2.0.0", from: owner, chainId, atomicRequired: true,
+        calls: calls.map(({ to, data, value }) => ({ to, data, value })) }],
     });
+    onStep("Waiting for Arc to confirm...");
     await waitForCalls(provider, sent.id ?? sent.batchId);
   } else {
-    for (const call of calls) await (await signer.sendTransaction({ to: call.to, data: call.data })).wait();
+    for (let i = 0; i < calls.length; i++) {
+      onStep(stepText(calls, i));
+      const tx = await signer.sendTransaction({ to: calls[i].to, data: calls[i].data });
+      onStep(`Signature ${i + 1} of ${calls.length} sent. Waiting for Arc to confirm...`);
+      await tx.wait();
+    }
   }
 }
 
@@ -178,7 +200,7 @@ async function sendCalls(provider, signer, owner, calls) {
 export async function setUpVault(
   provider,
   vault,
-  { agent, maxPerMove: maxPerPark, weeklyCap },
+  { agent, maxPerMove: maxPerPark, weeklyCap, onStep },
   factoryAddress = EARN_FACTORY_ADDRESS,
 ) {
   const browser = new ethers.BrowserProvider(provider);
@@ -228,7 +250,7 @@ export async function setUpVault(
     approveVault,
     approveShares,
   });
-  if (calls.length) await sendCalls(provider, signer, owner, calls);
+  if (calls.length) await sendCalls(provider, signer, owner, calls, onStep);
   return earn;
 }
 
@@ -236,7 +258,7 @@ export async function setUpVault(
 export async function turnOffVault(
   provider,
   vault,
-  { otherVaultsOn = true } = {},
+  { otherVaultsOn = true, onStep } = {},
   factoryAddress = EARN_FACTORY_ADDRESS,
 ) {
   const browser = new ethers.BrowserProvider(provider);
@@ -245,7 +267,7 @@ export async function turnOffVault(
   const factory = new ethers.Contract(factoryAddress, EARN_FACTORY_ABI, browser);
   const earn = (await factory.earnsOf(owner)).at(-1) ?? null;
   const calls = turnOffEarnCalls({ earn, vault, usdc: USDC_ADDRESS, otherVaultsOn });
-  if (calls.length) await sendCalls(provider, signer, owner, calls);
+  if (calls.length) await sendCalls(provider, signer, owner, calls, onStep);
 }
 
 /** Direct owner withdrawal: redeems all of the owner's shares in the ERC-4626 vault straight back
@@ -272,11 +294,12 @@ export function withdrawAllCalls({ owner, vaults }) {
       to: v.address,
       data: iface.encodeFunctionData("redeem", [v.shares, owner, owner]),
       value: "0x0",
+      label: "bring your money back from the vault to your wallet",
     }));
 }
 
 /** Withdraw all of the owner's capital from every Arc Earn vault directly to MetaMask. */
-export async function withdrawAllFromEarn(provider, vaults = EARN_VAULTS) {
+export async function withdrawAllFromEarn(provider, vaults = EARN_VAULTS, onStep = () => {}) {
   const browser = new ethers.BrowserProvider(provider);
   const signer = await browser.getSigner();
   const owner = await signer.getAddress();
@@ -286,5 +309,5 @@ export async function withdrawAllFromEarn(provider, vaults = EARN_VAULTS) {
   }));
   const calls = withdrawAllCalls({ owner, vaults: withShares });
   if (!calls.length) throw new Error("You have no funds in Arc Earn vaults to withdraw.");
-  await sendCalls(provider, signer, owner, calls);
+  await sendCalls(provider, signer, owner, calls, onStep);
 }
