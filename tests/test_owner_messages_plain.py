@@ -56,3 +56,27 @@ def test_a_question_fits_a_card(box):
 def test_ordinary_words_with_angle_brackets_still_pass(box):
     ask(box, "Northern Grains billed 92 USDC, <5% above usual, but no delivery is recorded. "
              "Did it arrive?")
+
+
+def test_a_message_names_the_supplier_not_the_invoice(box):
+    with pytest.raises(ToolError, match="Northern Grains & Cereals Co."):
+        box.call("reply_owner", {"text": "PINV-1 is still waiting for your answer."})
+    with pytest.raises(ToolError, match="instead of PINV-1"):
+        ask(box, "Did the flour on PINV-1 arrive?")
+    box.call("reply_owner", {"text": "Northern Grains (92 USDC) is still waiting for your answer."})
+
+
+def test_the_invoice_name_is_fine_when_the_owner_wrote_it(tmp_path):
+    d = Decision(invoice="PINV-1", supplier="Northern Grains & Cereals Co.", amount=Decimal(92),
+                 due_date=None, action=Action.PAY, reasons=("r",), findings=())
+    policy = PolicyConfig(max_per_payment=Decimal(300), weekly_budget=Decimal(2000))
+    now = datetime(2026, 10, 20, 2, 23, tzinfo=UTC)
+    with SqliteJournal(tmp_path / "j.sqlite3") as journal:
+        asked = Toolbox(decisions=[d], ledger=None, journal=journal, policy=policy, now=now,
+                        zone=UTC, messages=("What is the status of PINV-1?",))
+        asked.call("reply_owner", {"text": "PINV-1 waits for your answer on the flour."})
+        quick = Toolbox(decisions=[d], ledger=None, journal=journal, policy=policy, now=now,
+                        zone=UTC, messages=("About PINV-1 (you asked: Did it arrive?): yes, "
+                                            "go ahead and pay it.",))
+        with pytest.raises(ToolError, match="instead of PINV-1"):
+            quick.call("reply_owner", {"text": "Paid PINV-1."})

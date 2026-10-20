@@ -22,7 +22,7 @@ log = logging.getLogger("agent")
 
 DEFAULT_MODEL = "claude-haiku-5-5"
 DEFAULT_EFFORT = "high"
-CHAT_EFFORT = "medium"  # answering the owner: quick, but it may pay too
+CHAT_EFFORT = "high"  # answering the owner: it may pay, and how it writes matters as much
 MAX_TURNS = 25
 MAX_SESSION_TOKENS = 400_000
 MAX_OUTPUT_TOKENS = 8000  # per response: room for adaptive thinking and several tool calls

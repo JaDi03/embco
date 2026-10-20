@@ -40,6 +40,8 @@ MAX_MESSAGE_CHARS = 300  # a message in the chat and on Telegram: the details ar
 ADDRESS = re.compile(r"0x[0-9a-fA-F]{40}(?![0-9a-fA-F])")
 # The model's own tool-call syntax leaking into a text field (seen: "...</question>
 # <parameter name="recommendation">..."): it reached the owner word for word.
+# What a quick answer button sends before the answer (services/shops/questions.py answer_text).
+QUICK_ANSWER = re.compile(r"^About \S+(?: \(you asked: [\s\S]*?\))?: ")
 MARKUP = re.compile(r"</?(?:parameter|question|recommendation|invoice|text|summary|invoke)\b", re.I)
 SEARCH_LIMIT = 50
 MAX_NOTICES = 3
@@ -485,6 +487,7 @@ class Toolbox:
         if not question.strip():
             raise ToolError("the question is empty")
         _check_owner_text(question, MAX_MESSAGE_CHARS)
+        self._names_suppliers(question)
         _check_owner_text(recommendation)
         self._choose(decision, Choice.ASK, question, question=question.strip(),
                      recommendation=recommendation.strip())
@@ -566,6 +569,7 @@ class Toolbox:
             raise ToolError("the notice is empty")
         _refuse_workarounds(text)
         _check_owner_text(text, MAX_MESSAGE_CHARS)
+        self._names_suppliers(text)
         self.replies.append(text.strip())
         self.notices += 1
         return "the owner will see it on the dashboard and on their phone"
@@ -577,6 +581,7 @@ class Toolbox:
             raise ToolError("the answer is empty")
         _refuse_workarounds(text)
         _check_owner_text(text, MAX_MESSAGE_CHARS)
+        self._names_suppliers(text)
         self.replies.append(text.strip())
         return "sent to the owner"
 
@@ -595,6 +600,16 @@ class Toolbox:
         return "session finished"
 
     # helpers
+
+    def _names_suppliers(self, text: str) -> None:
+        """The owner reads supplier names: an invoice's ERP name in a message is refused unless
+        the owner wrote it themselves (a quick answer's own reference does not count)."""
+        own = " ".join(QUICK_ANSWER.sub("", m) for m in self.messages)
+        for name in self._by_invoice:
+            if name in text and name not in own:
+                supplier = self._by_invoice[name].supplier
+                raise ToolError(f"say '{supplier}' and the amount instead of {name}: the owner "
+                                "reads supplier names, invoice numbers only when they ask")
 
     def _decision(self, invoice: str) -> Decision:
         decision = self._by_invoice.get(invoice)
