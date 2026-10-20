@@ -26,6 +26,7 @@
   --danger-soft: #fef2f2;
   --danger-line: #fecaca;
   --brand-tile: #0f172a;
+  --chart-wallet: #94a3b8;
   --chat-bg: #eef2fb;
   --radius: 12px;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -60,6 +61,7 @@
     --danger-soft: #2c1215;
     --danger-line: #7f1d1d;
     --brand-tile: #1e293b;
+    --chart-wallet: #475569;
   --chat-bg: #131c2e;
   }
 }
@@ -88,6 +90,7 @@
   --danger-soft: #2c1215;
   --danger-line: #7f1d1d;
   --brand-tile: #1e293b;
+  --chart-wallet: #475569;
   --chat-bg: #131c2e;
 }
 
@@ -310,6 +313,24 @@ body:has(#view-shop:not([hidden])) .notice { position: fixed; top: 64px; left: 5
 .grid-table td.short { color: var(--danger); }
 .grid-table .row-toggle { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
 .grid-table tr.sub-row td:first-child { padding-left: 36px; }
+/* the money on Arc over time: Earn in the accent, the wallet in slate */
+.chart-card { padding: 0; }
+.chart-card #treasury-chart { padding: 12px 18px 16px; }
+.chart-legend { display: flex; gap: 16px; list-style: none; margin: 0 0 8px; padding: 0; font-size: 0.8rem; color: var(--muted); }
+.chart-legend li { display: flex; align-items: center; gap: 6px; }
+.chart-swatch { width: 10px; height: 10px; border-radius: 2px; }
+.chart-plot { position: relative; }
+.chart-svg { display: block; width: 100%; height: auto; }
+.chart-grid { stroke: var(--line-soft); stroke-width: 1; }
+.chart-axis { fill: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart-area { stroke: var(--surface); stroke-width: 2; stroke-linejoin: round; }
+.chart-earn { fill: var(--accent); background: var(--accent); }
+.chart-wallet { fill: var(--chart-wallet); background: var(--chart-wallet); }
+.chart-cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart-tip { position: absolute; top: 4px; transform: translateX(-50%); display: grid; gap: 2px; padding: 8px 10px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-size: 0.78rem; color: var(--text);
+  font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; box-shadow: 0 2px 8px rgb(0 0 0 / 0.08); }
+.chart-empty { margin: 8px 0; }
 .bills-table tbody tr { cursor: pointer; }
 .bills-table tbody tr:hover { background: var(--surface-2); }
 .bills-table tbody tr.selected { background: var(--accent-soft); }
