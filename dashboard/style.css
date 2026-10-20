@@ -308,6 +308,8 @@ body:has(#view-shop:not([hidden])) .notice { position: fixed; top: 64px; left: 5
 .grid-table .ref { display: block; color: var(--muted); font-size: 0.76rem; font-family: var(--mono); }
 .grid-table tr.muted td { color: var(--faint); }
 .grid-table td.short { color: var(--danger); }
+.grid-table .row-toggle { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.grid-table tr.sub-row td:first-child { padding-left: 36px; }
 .bills-table tbody tr { cursor: pointer; }
 .bills-table tbody tr:hover { background: var(--surface-2); }
 .bills-table tbody tr.selected { background: var(--accent-soft); }

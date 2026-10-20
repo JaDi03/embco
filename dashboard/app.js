@@ -192,6 +192,8 @@ async function renderShop() {
 // Treasury: where the owner's USDC is and what the planned payments leave in the wallet, from
 // the chain (the wallet) and from what the agent read in its last check (Earn, other chains).
 
+let gatewayOpen = false; // the Gateway rows stay folded until the owner opens them
+
 function renderTreasury(state, service) {
   const lastRun = service?.last_run;
   const rows = ledger.moneyRows({ wallet: state.balance, earn: lastRun?.earn, unified: lastRun?.unified_balance });
@@ -200,10 +202,24 @@ function renderTreasury(state, service) {
   $("treasury-total").textContent = `${formatUsdc(totals.total)} USDC`;
   $("treasury-earn").textContent = `${formatUsdc(totals.inEarn)} USDC`;
   $("treasury-earn-note").textContent = totals.inEarn ? "Withdrawn to your wallet when a bill needs it." : "Nothing in Earn.";
-  $("money-rows").replaceChildren(...rows.map((r) => el("tr", { className: r.muted ? "muted" : "" },
+  const moneyRow = (r, className = "") => el("tr", { className: `${className}${r.muted ? " muted" : ""}`.trim() },
     el("td", { textContent: r.name }),
     el("td", { className: "num", textContent: formatUsdc(r.units) }),
-    el("td", { className: "why", textContent: r.note }))));
+    el("td", { className: "why", textContent: r.note }));
+  const gateway = rows.filter((r) => r.group === "gateway");
+  const gatewayTotal = gateway.reduce((sum, r) => sum + r.units, 0n);
+  const toggle = el("button", {
+    type: "button", className: "row-toggle", textContent: `${gatewayOpen ? "▾" : "▸"} Circle Gateway (Unified Balance)`,
+    ariaExpanded: String(gatewayOpen),
+  });
+  toggle.addEventListener("click", () => { gatewayOpen = !gatewayOpen; renderTreasury(state, service); });
+  const gatewayHead = el("tr", { className: gatewayTotal === 0n ? "muted" : "" },
+    el("td", {}, toggle),
+    el("td", { className: "num", textContent: formatUsdc(gatewayTotal) }),
+    el("td", { className: "why", textContent: "USDC you deposited to Circle Gateway, one balance across chains. The agent brings it to your wallet on Arc." }));
+  $("money-rows").replaceChildren(
+    ...rows.filter((r) => !r.group).map((r) => moneyRow(r)),
+    ...(gateway.length ? [gatewayHead, ...(gatewayOpen ? gateway.map((r) => moneyRow(r, "sub-row")) : [])] : []));
 
   const plan = ledger.cashPlan(lastRun?.ok ? lastRun.decisions : [], state.balance, ledger.today());
   $("treasury-out").textContent = `${formatUsdc(plan.out)} USDC`;
@@ -220,7 +236,7 @@ function renderTreasury(state, service) {
   $("plan-note").textContent = !plan.rows.length
     ? "The agent has no payments planned in the next two weeks."
     : plan.short
-      ? `Your wallet is ${formatUsdc(plan.short)} USDC short for these. The agent covers it from Earn or your other chains, as your rules below say, or asks you to add funds.`
+      ? `Your wallet is ${formatUsdc(plan.short)} USDC short for these. The agent covers it from Earn or your other chains, as your Earn settings say, or asks you to add funds.`
       : "Your wallet covers every planned payment.";
 }
 
