@@ -47,6 +47,33 @@ test("where the money is: wallet, each vault and each chain, zero rows muted", (
   assert.deepEqual(ledger.moneyTotals(rows), { total: USDC(1763.877894), inEarn: USDC(1500) });
 });
 
+test("the owner's wallets on other chains show apart from the Gateway rows", () => {
+  const rows = ledger.moneyRows({
+    wallet: USDC(1.004041),
+    earn: null,
+    unified: {
+      chains: [
+        { chain: "Base_Sepolia", available: "0.001313", arriving: "0.000000", agent_authorized: true },
+        { chain: "Ethereum_Sepolia", available: "6.959198", arriving: "0.000000", agent_authorized: true },
+      ],
+      wallets: [
+        { chain: "Base_Sepolia", in_wallet: "0.000000", funding: "0x6cd9", approved: "1200.000000", agent_may_move: "0.000000" },
+        { chain: "Ethereum_Sepolia", in_wallet: "6965.000000", funding: "0x4a2c", approved: "156.000000", agent_may_move: "125.000000" },
+      ],
+    },
+  });
+  assert.deepEqual(rows.map((r) => [r.key, r.group ?? "", r.units]), [
+    ["wallet", "", USDC(1.004041)],
+    ["wallet:Base_Sepolia", "", 0n],
+    ["wallet:Ethereum_Sepolia", "", USDC(6965)],
+    ["chain:Base_Sepolia", "gateway", USDC(0.001313)],
+    ["chain:Ethereum_Sepolia", "gateway", USDC(6.959198)],
+  ]);
+  assert.equal(rows[2].name, "Your wallet on Ethereum Sepolia");
+  assert.match(rows[2].note, /up to 125 of it/);
+  assert.equal(ledger.moneyTotals(rows).total, USDC(6972.964552));
+});
+
 test("a view with an error adds no rows", () => {
   const rows = ledger.moneyRows({ wallet: 5n, earn: { error: "node down" }, unified: null });
   assert.equal(rows.length, 1);

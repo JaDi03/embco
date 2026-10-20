@@ -2,7 +2,7 @@
 // what is overdue, where the money is and what the planned payments leave in the wallet.
 // Amounts are exact USDC units (bigint); dates are the shop's YYYY-MM-DD strings.
 
-import { parseUsdc } from "./units.js";
+import { formatUsdc, parseUsdc } from "./units.js";
 
 const WEEK_DAYS = 7;
 const PLAN_DAYS = 14;
@@ -80,14 +80,29 @@ export function moneyRows({ wallet, earn, unified }) {
         : open ? "Not approved for the agent." : "Not taking deposits.",
     });
   }
-  for (const c of (unified && !unified.error ? unified.chains ?? [] : [])) {
+  const view = unified && !unified.error ? unified : {};
+  for (const w of view.wallets ?? []) {
+    const amount = units(w.in_wallet);
+    rows.push({
+      key: `wallet:${w.chain}`, name: `Your wallet on ${chainName(w.chain)}`, units: amount, muted: amount === 0n,
+      note: w.funding
+        ? `The agent may move up to ${formatUsdc(units(w.agent_may_move))} of it to your Gateway balance, as you approved.`
+        : "Not set up for the agent on this chain.",
+    });
+  }
+  for (const c of view.chains ?? []) {
     const amount = units(c.available) + units(c.arriving);
     rows.push({
-      key: `chain:${c.chain}`, name: `Unified Balance · ${c.chain.replace(/_/g, " ")}`, units: amount, muted: amount === 0n,
+      key: `chain:${c.chain}`, group: "gateway", name: chainName(c.chain), units: amount, muted: amount === 0n,
       note: c.agent_authorized ? "The agent can bring it to your wallet on Arc, with a fee." : "The agent is not authorized on this chain.",
     });
   }
   return rows;
+}
+
+/** "Ethereum_Sepolia" -> "Ethereum Sepolia". */
+function chainName(chain) {
+  return chain.replace(/_/g, " ");
 }
 
 /** Total of the rows, and what sits in Earn. */
