@@ -42,7 +42,8 @@ def build_app(env: Mapping[str, str]) -> FastAPI:
     return create_app(
         store=store,
         auth=Auth(chain.shops_of, public_url=public_url,
-                  sessions_file=store.root.parent / "owner_sessions.json"),
+                  # inside the shops folder: the only place systemd lets the hub write
+                  sessions_file=store.root / "owner_sessions.json"),
         limits_of=chain.limits,
         units=SystemdUnits(),
         circle=circle,
