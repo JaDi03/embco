@@ -63,6 +63,10 @@ class OwnerFunds:
         self._ready()
         return self.kit.spend(self._owner(), self._signer(), allocations)
 
+    def vault_rates(self) -> list[dict[str, str]]:
+        """Each Earn vault on Arc with its current APY, from Circle's Earn Kit."""
+        return self.kit.vaults()
+
     def in_wallets(self) -> list[WalletFunds]:
         """The owner's USDC in their own wallets on other chains, and what the agent may move."""
         if self.wallets is None:

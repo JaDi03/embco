@@ -103,6 +103,15 @@ TOOLS: list[dict[str, Any]] = [
           "its balance on top of the amount, so leave room for them (estimate first). Returns "
           "what arrived, the fees and the transaction, or the real error.",
           allocations=ALLOCATIONS, reason=REASON),
+    _tool("earn_plan",
+          "Everything to decide whether idle USDC should go to Earn, worked out with real "
+          "numbers: each approved vault's APY (from Circle), what is kept for bills due within "
+          "7 days and for Arc fees, what you may park this week, and for each place idle money "
+          "sits (the owner's wallet on Arc, their Gateway balance and wallets on other chains): "
+          "how much can go to Earn now, the real fee to bring it (Gateway's estimate), what it "
+          "earns per day, how many days until it pays the fee back, and the steps. Read only: "
+          "nothing moves. Call it before any decision about Earn, and never quote a fee or a "
+          "yield it did not give you."),
     _tool("earn_position",
           "The owner's USDC in Arc Earn vaults (Morpho and EarnKit) and their ShopEarn contract "
           "limits: how much is in each vault, what you may withdraw back to the owner's wallet "

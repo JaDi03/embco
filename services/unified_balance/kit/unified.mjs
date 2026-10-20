@@ -11,6 +11,7 @@ import {
 } from "@circle-fin/unified-balance-kit";
 import { createCircleWalletsAdapter, toCircleBlockchain } from "@circle-fin/adapter-circle-wallets";
 import { initiateDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
+import { vaults } from "./earn.mjs";
 
 export const DESTINATION = "Arc_Testnet";
 
@@ -119,7 +120,7 @@ export function chainFacts() {
   });
 }
 
-export const COMMANDS = { balances, prepare, estimate, spend, chains: async () => ({ chains: chainFacts() }) };
+export const COMMANDS = { balances, prepare, estimate, spend, vaults, chains: async () => ({ chains: chainFacts() }) };
 
 /** Run one command; the answer is plain data, or the kit's own error message. */
 export async function run(command, input, env) {
