@@ -86,6 +86,16 @@ export function delegateOf(wallets, contractAgent) {
 }
 
 /** The shop as the hub knows it, or null when the owner has to sign in first. */
+/** Where the owner's USDC was after each check, oldest first; empty when signed out. */
+export async function balances(shop, fetchImpl = fetch) {
+  try {
+    return (await call(`${shopPath(shop)}/balances`, { fetchImpl })).points ?? [];
+  } catch (error) {
+    if (error instanceof HubError && error.status === 401) return [];
+    throw error;
+  }
+}
+
 export async function status(shop, fetchImpl = fetch) {
   try {
     return await call(shopPath(shop), { fetchImpl });

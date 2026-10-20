@@ -35,7 +35,7 @@ from services.payments import (
 )
 from services.payments.encoding import ref_scope
 from services.settings import Settings
-from services.shops import activity, chat
+from services.shops import activity, balances, chat
 from services.shops.inbox import take_answers, take_signatures
 from services.shops.owner_view import decision_view
 from services.shops.questions import new_questions
@@ -388,9 +388,11 @@ def run_shop(
                               at=time.monotonic())
             latest = {p.invoice: p for p in journal.latest_payments()}
             today = claude_today(journal.sessions(), brain.zone, report.at) if brain else None
+            views = {"unified_balance": unified_view(unified), "earn": earn_view(earn)}
             store.write_last_run(shop, {**summarize(report, latest, answers, policy["now"], today),
-                                        "unified_balance": unified_view(unified),
-                                        "earn": earn_view(earn)})
+                                        **views})
+            balances.record_balance(folder, balances.balance_point(report.at, views["earn"],
+                                                                   views["unified_balance"]))
             store.write_supplier_view(shop, supplier_view(report, journal, settings.company,
                                                           signatures, wallet_of=wallet_of))
             log.info("shop %s: %s", shop, format_report(report))

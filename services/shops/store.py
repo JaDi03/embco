@@ -4,6 +4,7 @@
     <root>/<shop>/erp.enc          the ERP API key and secret, encrypted with the service key
     <root>/<shop>/journal.sqlite3  the agent's memory for this shop
     <root>/<shop>/last_run.json    what the agent decided last time, for the dashboard
+    <root>/<shop>/balances.jsonl   where the owner's USDC was after each check (balances.py)
     <root>/<shop>/suppliers.json   what each supplier may see on its own page
     <root>/<shop>/inbox/           wallet signatures from suppliers, for the agent to check
     <root>/<shop>/agent_off        present while the owner has the agent turned off
