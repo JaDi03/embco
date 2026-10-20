@@ -10,7 +10,7 @@ import * as feed from "./feed.js";
 import * as chat from "./chat.js";
 import * as hub from "./hub.js";
 import * as ledger from "./ledger.js";
-import { renderChart } from "./treasury-chart.js";
+import { renderEarnCard } from "./treasury-chart.js";
 import * as console_ from "./terminal.js";
 import * as nav from "./nav.js";
 import { agentView, groupTasks, QUICK_ANSWERS, raisedLimits, taskFor } from "./needs.js";
@@ -188,11 +188,13 @@ async function renderShop() {
   await Promise.all([renderHistory(isOwner), renderApprovals(isOwner),
     renderErp(isOwner, state).then(() => Promise.all([renderChains(isOwner), renderEarn(isOwner, service)]))]);
   renderTreasury(state, service);
-  if (isOwner) renderChart($("treasury-chart"), await hub.balances(session.shop).catch(() => []));
+  if (isOwner) renderEarnCard($("earn-card-body"), await hub.balances(session.shop).catch(() => ({})));
 }
 
 // Treasury: where the owner's USDC is and what the planned payments leave in the wallet, from
 // the chain (the wallet) and from what the agent read in its last check (Earn, other chains).
+
+$("treasury-earn-link").addEventListener("click", () => $("earn-card").scrollIntoView({ behavior: "smooth", block: "start" }));
 
 let gatewayOpen = false; // the Gateway rows stay folded until the owner opens them
 

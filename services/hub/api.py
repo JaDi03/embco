@@ -32,6 +32,7 @@ from services.hub.units import UnitError, Units
 from services.hub.wallets import agent_wallets_of, create_agent_wallet, create_agent_wallets
 from services.payments.chain import ChainError
 from services.shops.balances import read_balances
+from services.shops.earn_moves import read_moves
 from services.shops.store import ErpCredentials, ShopConfig, ShopError, ShopStore, check_shop
 from services.telegram import links
 
@@ -225,7 +226,8 @@ def create_app(
                         embco_session: str | None = Cookie(default=None)) -> dict[str, Any]:
         shop = shop_of(shop)
         owner_session(shop, embco_session)
-        return {"shop": shop, "points": read_balances(store.folder(shop))}
+        folder = store.folder(shop)
+        return {"shop": shop, "points": read_balances(folder), "earn_moves": read_moves(folder)}
 
     @app.post("/api/shops/{shop}/erp")
     def connect(shop: str, body: Connect,

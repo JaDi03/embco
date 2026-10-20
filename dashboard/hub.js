@@ -86,12 +86,14 @@ export function delegateOf(wallets, contractAgent) {
 }
 
 /** The shop as the hub knows it, or null when the owner has to sign in first. */
-/** Where the owner's USDC was after each check, oldest first; empty when signed out. */
+/** Where the owner's USDC was after each check (points, oldest first) and every move in and out
+ * of Earn (earn_moves); empty when signed out. */
 export async function balances(shop, fetchImpl = fetch) {
   try {
-    return (await call(`${shopPath(shop)}/balances`, { fetchImpl })).points ?? [];
+    const body = await call(`${shopPath(shop)}/balances`, { fetchImpl });
+    return { points: body.points ?? [], earn_moves: body.earn_moves ?? [] };
   } catch (error) {
-    if (error instanceof HubError && error.status === 401) return [];
+    if (error instanceof HubError && error.status === 401) return { points: [], earn_moves: [] };
     throw error;
   }
 }

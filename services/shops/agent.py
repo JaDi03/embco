@@ -35,7 +35,7 @@ from services.payments import (
 )
 from services.payments.encoding import ref_scope
 from services.settings import Settings
-from services.shops import activity, balances, chat
+from services.shops import activity, balances, chat, earn_moves
 from services.shops.inbox import take_answers, take_signatures
 from services.shops.owner_view import decision_view
 from services.shops.questions import new_questions
@@ -397,6 +397,7 @@ def run_shop(
                                         **views})
             balances.record_balance(folder, balances.balance_point(report.at, views["earn"],
                                                                    views["unified_balance"]))
+            earn_moves.update_moves(folder, earn)
             session = report.thought.session if report.thought else None
             if (session and session.finished) or balances.read_seen(folder) is None:
                 balances.remember_seen(folder)  # what the agent saw, or the first baseline
