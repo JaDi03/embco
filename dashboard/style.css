@@ -8,8 +8,8 @@
   --line: #e5e7eb;
   --line-soft: #f0f1f3;
   --text: #111827;
-  --muted: #6b7280;
-  --faint: #9ca3af;
+  --muted: #4b5563;
+  --faint: #646b78;
   --accent: #1d4ed8;
   --accent-hover: #1e40af;
   --accent-ink: #1d4ed8;
@@ -40,19 +40,19 @@
     --bg: #0b0f17;
     --surface: #111827;
     --surface-2: #0f1520;
-    --line: #1f2937;
+    --line: #2b3646;
     --line-soft: #182030;
     --text: #e5e7eb;
     --muted: #9ca3af;
-    --faint: #6b7280;
-    --accent: #3b82f6;
-    --accent-hover: #2563eb;
+    --faint: #8b93a1;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
     --accent-ink: #93c5fd;
     --accent-soft: #13203a;
     --accent-line: #24375e;
     --success: #34d399;
     --success-soft: #0b2a20;
-    --success-line: #14532d;
+    --success-line: #1f6f4a;
     --warn: #fbbf24;
     --warn-soft: #3a2a0a;
     --warn-ink: #fcd34d;
@@ -60,7 +60,7 @@
     --danger-soft: #2c1215;
     --danger-line: #7f1d1d;
     --brand-tile: #1e293b;
-  --chat-bg: #131c2e;
+  --chat-bg: #0b0f17;
   }
 }
 :root[data-theme="dark"] {
@@ -68,19 +68,19 @@
   --bg: #0b0f17;
   --surface: #111827;
   --surface-2: #0f1520;
-  --line: #1f2937;
+  --line: #2b3646;
   --line-soft: #182030;
   --text: #e5e7eb;
   --muted: #9ca3af;
-  --faint: #6b7280;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
+  --faint: #8b93a1;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
   --accent-ink: #93c5fd;
   --accent-soft: #13203a;
   --accent-line: #24375e;
   --success: #34d399;
   --success-soft: #0b2a20;
-  --success-line: #14532d;
+  --success-line: #1f6f4a;
   --warn: #fbbf24;
   --warn-soft: #3a2a0a;
   --warn-ink: #fcd34d;
@@ -88,7 +88,7 @@
   --danger-soft: #2c1215;
   --danger-line: #7f1d1d;
   --brand-tile: #1e293b;
-  --chat-bg: #131c2e;
+  --chat-bg: #0b0f17;
 }
 
 * { box-sizing: border-box; }
@@ -408,14 +408,14 @@ button.side-link { font: inherit; border: 0; background: none; width: 100%; text
 .terminal .live { color: #8b949e; font-family: var(--mono); }
 .terminal-log {
   height: calc(100vh - 250px); min-height: 360px; overflow-y: auto; padding: 14px 16px 18px; display: block;
-  font: 0.82rem/1.6 var(--mono); color: #c9d1d9;
+  font: 0.86rem/1.6 var(--mono); color: #c9d1d9;
 }
 .t-line { display: grid; grid-template-columns: 5.6em 5.4em minmax(0, 1fr); gap: 10px; padding: 1px 0; }
-.t-time { color: #6e7681; }
+.t-time { color: #7d8590; }
 .t-tag { font-weight: 700; color: #8b949e; }
 .t-text { overflow-wrap: anywhere; white-space: pre-wrap; }
 .t-text a { color: #58a6ff; }
-.t-day { color: #6e7681; text-align: center; margin: 10px 0 6px; }
+.t-day { color: #7d8590; text-align: center; margin: 10px 0 6px; }
 .t-line.wake .t-tag { color: #d2a8ff; }
 .t-line.wake { margin-top: 8px; }
 .t-line.agent .t-tag, .t-line.say .t-tag { color: #58a6ff; }
@@ -423,7 +423,7 @@ button.side-link { font: inherit; border: 0; background: none; width: 100%; text
 .t-line.ok .t-tag { color: #3fb950; }
 .t-line.ask .t-tag { color: #d29922; }
 .t-line.bad .t-tag, .t-line.bad .t-text { color: #f85149; }
-.t-line.dim, .t-line.dim .t-tag { color: #6e7681; }
+.t-line.dim, .t-line.dim .t-tag { color: #7d8590; }
 .t-line.note .t-tag { color: #8b949e; }
 .t-line.tool .t-tag { color: #79c0ff; }
 .t-line.tool .t-text { color: #a5d6ff; }
@@ -612,7 +612,7 @@ button.side-link { font: inherit; border: 0; background: none; width: 100%; text
 .activity-log .time, .chat-log .feed-money .time { flex: none; font: 0.72rem var(--mono); color: var(--faint); }
 .feed-money {
   justify-self: center; width: min(100%, 520px); padding: 7px 12px; border-radius: 10px;
-  background: var(--success-soft); border: 1px solid var(--success-line); color: var(--text);
+  background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--success); color: var(--text);
 }
 .feed-money .ic { color: var(--success); font-weight: 700; }
 .feed-money a { font-family: var(--mono); font-size: 0.85em; }
@@ -634,4 +634,4 @@ button.side-link { font: inherit; border: 0; background: none; width: 100%; text
 .ask-card { display: grid; gap: 6px; border-color: var(--accent-line); }
 .ask-title { font-weight: 600; font-size: 0.82rem; color: var(--accent-ink); }
 .ask-card .row { margin-top: 4px; }
-.receipt-why { display: block; margin-top: 2px; color: var(--muted); font-size: 0.8rem; font-style: italic; }
+.receipt-why { display: block; margin-top: 2px; color: var(--muted); font-size: 0.82rem; }
