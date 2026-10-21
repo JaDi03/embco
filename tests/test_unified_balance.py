@@ -297,6 +297,7 @@ def test_the_activity_says_what_reached_the_owners_wallet_and_from_where():
     [line] = [e for e in activity.session_events(session) if e.get("tx")]
     assert line["text"] == ("Brought 310.035838 USDC to your wallet on Arc from your Unified "
                             "Balance (Base Sepolia 300, Arbitrum Sepolia 10.05).")
+    assert line["why"] == "r"  # the agent's reason travels with the receipt
 
 
 def test_a_session_keeps_what_it_moved_across_a_restart(tmp_path):

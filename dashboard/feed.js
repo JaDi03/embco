@@ -62,6 +62,19 @@ export function activityOf(events) {
 
 /** The chat as the owner reads it: their messages and the agent's, with the money cards of the
  * activity in between, by time. */
+/** Why the agent made this move, in its own words: the reason it gave for a move of funds, or
+ * for a payment the reason of its last decision on that invoice. Empty when it gave none. */
+export function receiptWhy(event, events) {
+  if (event.why) return event.why;
+  if (!event.invoice) return "";
+  const decided = (events ?? []).filter((e) => e.kind === "agent" && e.choice && e.invoice === event.invoice
+    && (e.seq ?? 0) <= (event.seq ?? Infinity));
+  const last = decided.at(-1);
+  if (!last) return "";
+  const text = String(last.text);
+  return text.startsWith(`${event.invoice}:`) ? text.slice(event.invoice.length + 1).trim() : text;
+}
+
 export function chatOf(entries, events) {
   const money = feedOf(events).filter((i) => i.type === "money");
   const messages = entries.map((entry) => ({ type: "message", at: entry.at, entry }));
