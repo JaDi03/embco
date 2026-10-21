@@ -81,3 +81,16 @@ test("money is said once: in the chat as a receipt, not again in the activity", 
   assert.ok(work.session.items.every((e) => !e.tx));  // the move is the chat's receipt
   assert.equal(work.session.said, "ACC-PINV-2026-00019 is paid.");  // the agent's words stay
 });
+
+test("a receipt says why, in the agent's own words", async () => {
+  const { receiptWhy } = await import("../feed.js");
+  // lopezgrocery, 21 Oct 00:50: the park carries the reason the agent gave park_in_earn
+  const park = { seq: 2039, kind: "agent", text: "Parked 2000 USDC from your wallet on Arc into Morpho USDC Vault.", tx: "0xb919", why: "Idle 2000 from Ethereum; 3.5% APY pays back the 1.12 fee in about 6 days." };
+  assert.equal(receiptWhy(park, []), park.why);
+  // 20 Oct 06:33: Adeyemi's payment takes the reason of the agent's decision on that invoice
+  const decided = { seq: 1831, kind: "agent", choice: "PAY_NOW", invoice: "ACC-PINV-2026-00017",
+    text: "ACC-PINV-2026-00017: Adeyemi Foods bill AFD/INV/1521 (476 USDC) is due 24 Oct; the weekly room has reset to 1200." };
+  const paid = { seq: 1833, kind: "recorded", invoice: "ACC-PINV-2026-00017", text: "Paid 476 USDC to Adeyemi Foods.", tx: "0xd2a5" };
+  assert.equal(receiptWhy(paid, [decided, paid]), "Adeyemi Foods bill AFD/INV/1521 (476 USDC) is due 24 Oct; the weekly room has reset to 1200.");
+  assert.equal(receiptWhy({ ...paid, invoice: "OTHER" }, [decided]), "");
+});

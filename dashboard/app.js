@@ -552,6 +552,8 @@ function feedItem(item) {
   if (item.type === "money") {
     const text = el("span", { className: "what" }, ...withLinks(item.event.text));
     if (item.event.tx) text.append(" ", link("tx", txUrl(item.event.tx)));
+    const why = feed.receiptWhy(item.event, terminal.events);
+    if (why) text.append(el("span", { className: "receipt-why", textContent: why }));
     return el("div", { className: "feed-money" }, el("span", { className: "ic", textContent: "✓", ariaHidden: "true" }), text, time);
   }
   if (item.type === "note") {

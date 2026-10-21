@@ -634,3 +634,4 @@ button.side-link { font: inherit; border: 0; background: none; width: 100%; text
 .ask-card { display: grid; gap: 6px; border-color: var(--accent-line); }
 .ask-title { font-weight: 600; font-size: 0.82rem; color: var(--accent-ink); }
 .ask-card .row { margin-top: 4px; }
+.receipt-why { display: block; margin-top: 2px; color: var(--muted); font-size: 0.8rem; font-style: italic; }
