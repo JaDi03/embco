@@ -99,3 +99,7 @@ class DecisionJournal(Protocol):
     def verify(self) -> None:
         """Raise JournalError if any entry was changed or removed after it was written."""
         ...
+
+    def entry_hashes(self) -> list[str]:
+        """The chain hash of every entry, oldest first: the leaves of the journal's Merkle tree."""
+        ...

@@ -69,8 +69,11 @@ The agent pays no gas: Circle covers its network fees.
 ## Memory
 
 Every decision, owner answer, wallet challenge and payment step is an event in an append-only
-journal. Each event stores the hash of the one before it, so changing an old event breaks the
-chain. `embco verify` checks it.
+journal. Each event stores the hash of the one before it. After money moves, and at least once a
+day, the agent writes the Merkle root of the whole journal (RFC 9162) to the JournalAnchor
+contract on Arc. A copy of the journal that was changed, cut or reordered gives a different
+root, even if every hash in the chain was recomputed. `embco verify` checks the chain and every
+root written on Arc.
 
 <figure class="diagram" markdown>
 ![Memory: each journal event stores the hash of the one before it, so the events form a chain](assets/diagrams/memory.svg#only-light "Memory")

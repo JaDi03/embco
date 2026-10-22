@@ -36,6 +36,7 @@ from services.payments import (
 from services.payments.encoding import ref_scope
 from services.settings import Settings
 from services.shops import activity, balances, chat, earn_moves
+from services.shops.anchoring import anchor_journal, anchors_for
 from services.shops.inbox import take_answers, take_signatures
 from services.shops.owner_view import decision_view
 from services.shops.questions import new_questions
@@ -272,6 +273,7 @@ def run_shop(
     room, funds = room_of(payments), funds_of(payments)
     unified = owner_funds_of(settings, payments)
     earn = owner_earn_of(payments, lambda: store.liquidity_strategy(shop))
+    anchors = anchors_for(payments)
     if unified:
         try:
             log.info("shop %s: agent wallet ready for the Unified Balance on %s", shop,
@@ -398,7 +400,9 @@ def run_shop(
             balances.record_balance(folder, balances.balance_point(report.at, views["earn"],
                                                                    views["unified_balance"]))
             earn_moves.update_moves(folder, earn)
-            session = report.thought.session if report.thought else None
+            if anchored := anchor_journal(journal, anchors, report.at):
+                activity.append_activity(folder, [anchored])
+            session =report.thought.session if report.thought else None
             if (session and session.finished) or balances.read_seen(folder) is None:
                 balances.remember_seen(folder)  # what the agent saw, or the first baseline
             store.write_supplier_view(shop, supplier_view(report, journal, settings.company,

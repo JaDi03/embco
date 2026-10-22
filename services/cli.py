@@ -6,7 +6,7 @@
     embco challenge SUPPLIER                 the message the supplier must sign (EIP-712 JSON)
     embco sign-wallet SUPPLIER SIGNATURE     the supplier's signature comes back
     embco history INVOICE                    every decision taken on an invoice
-    embco verify                             check that the memory was not altered
+    embco verify                             check that the memory was not altered, also on Arc
     embco create-wallet                      create the agent's paying wallet with Circle (once)
     embco shop --dir ROOT/SHOP               the hosted agent of one shop, settings from its folder
     embco hub                                the API the dashboard uses to connect shops
@@ -26,6 +26,7 @@ from agent.reflexes.cycle import run_cycle
 from agent.reflexes.report import format_report
 from agent.reflexes.watch import watch
 from agent.wiring import brain_setup, room_of
+from services.anchor import JOURNAL_ANCHOR, JournalAnchors, mismatches
 from services.circle import CircleClient, CircleError
 from services.erp import ErpnextAdapter, LedgerError
 from services.payments import ArcRpc, Payer
@@ -217,6 +218,18 @@ def _history(args, settings, journal) -> int:
 def _verify(args, settings, journal) -> int:
     journal.verify()
     print(f"journal verified: {settings.journal_path}")
+    if not (JOURNAL_ANCHOR and settings.arc_rpc_url and settings.shop_address):
+        print("not checked against Arc: no anchor registry or no shop on Arc in the settings")
+        return 0
+    anchors = JournalAnchors(ArcRpc(settings.arc_rpc_url), settings.shop_address).all()
+    hashes = journal.entry_hashes()
+    if problems := mismatches(hashes, anchors):
+        for problem in problems:
+            print(f"DOES NOT MATCH ARC: {problem}", file=sys.stderr)
+        return 1
+    covered = anchors[-1].size if anchors else 0
+    print(f"matches all {len(anchors)} anchors on Arc: {covered} of {len(hashes)} entries "
+          "anchored")
     return 0
 
 
