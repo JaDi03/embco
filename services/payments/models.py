@@ -28,6 +28,7 @@ class PaymentEvent:
     tx_hash: str | None = None
     reason: str = ""
     erp_entry: str | None = None  # the ERP's payment entry, once recorded
+    session: str | None = None  # the agent session that sent it; its later states keep it
 
 
 @dataclass(frozen=True)

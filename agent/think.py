@@ -1,7 +1,8 @@
 """Wake the agent when the reflexes find a reason, run one session, and remember it.
 
 A session that does not finish is remembered too (why it failed, what it cost) but changes no
-decision: the payments planned from it are the ones the agent had already decided.
+decision: the payments planned from it are the ones the agent had already decided. Only a payment
+it already sent keeps its decision, because that money went out.
 """
 
 import logging
@@ -10,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, tzinfo
 from decimal import Decimal
 from typing import Any
+from uuid import uuid4
 
 from agent.agent import Brain
 from agent.cost import estimate, shown
@@ -21,7 +23,7 @@ from agent.reflexes.funds import funds_wake, money_wake
 from agent.reflexes.wake import backing_off, pending_alarms, recent_notes, wakes_for
 from agent.tools import Toolbox
 from services.erp import LedgerAdapter
-from services.payments import PaymentEvent
+from services.payments import PaymentEvent, PaymentStatus
 
 log = logging.getLogger("agent")
 
@@ -146,6 +148,7 @@ def think(
                        skipped="the last session failed; trying again soon")
     if spent := over_budget(setup, sessions, now):
         return Thought(agent=standing, last=last, skipped=spent)
+    session_id = uuid4().hex
     toolbox = Toolbox(decisions=list(decisions), ledger=ledger, journal=journal, policy=policy,
                       now=now, zone=setup.zone, done=set(done), standing=standing,
                       room=setup.room, funds=setup.funds, mailer=setup.mailer,
@@ -155,7 +158,7 @@ def think(
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), payer=payer,
                       can_pay=setup.autonomy is Autonomy.ACT,
-                      on_step=live_hooks(setup, now, wakes))
+                      on_step=live_hooks(setup, now, wakes), session=session_id)
     text = briefing(toolbox, wakes, pending_alarms(sessions, now, done), recent_notes(sessions),
                     conversation, already_told(sessions, setup.zone, now))
     try:
@@ -167,7 +170,7 @@ def think(
     session = Session(
         at=now, wakes=tuple(wakes), finished=finished, summary=toolbox.summary or "",
         money=money_after(setup, toolbox, money),
-        decisions=tuple(toolbox.chosen.values()) if finished else (),
+        decisions=kept_decisions(toolbox, finished),
         alarms=tuple(toolbox.alarms) if finished else (),
         notes=tuple(toolbox.notes) if finished else (),
         steps=steps, model=setup.brain.model, error=error,
@@ -176,7 +179,7 @@ def think(
         wallet_notices=tuple(toolbox.notified_wallets),
         seen_payments=tuple(payment_seen_key(e) for e in toolbox.payments),
         funds_moved=tuple(toolbox.funds_moved),
-        trace=tuple(toolbox.trace),
+        trace=tuple(toolbox.trace), id=session_id,
         **({"usage": usage} if usage else {}),
     )
     journal.record_session(session)
@@ -212,6 +215,7 @@ def converse(
         return Thought(agent=standing, last=last, skipped=spent)
     brain = setup.chat_brain or setup.brain
     wakes = (Wake("message", f"The owner wrote to you ({len(messages)} message(s))."),)
+    session_id = uuid4().hex
     toolbox = Toolbox(decisions=list(decisions), ledger=ledger, journal=journal, policy=policy,
                       now=now, zone=setup.zone, done=set(done), standing=standing,
                       room=setup.room, funds=setup.funds, mailer=setup.mailer,
@@ -221,7 +225,7 @@ def converse(
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), require_all=False, payer=payer,
                       can_pay=setup.autonomy is Autonomy.ACT,
-                      on_step=live_hooks(setup, now, wakes))
+                      on_step=live_hooks(setup, now, wakes), session=session_id)
     text = chat_briefing(toolbox, pending_alarms(sessions, now, done), recent_notes(sessions),
                          conversation, already_told(sessions, setup.zone, now))
     try:
@@ -234,7 +238,7 @@ def converse(
         at=now, wakes=wakes,
         finished=finished, summary=toolbox.summary or "",
         money=money_after(setup, toolbox, None),
-        decisions=tuple(toolbox.chosen.values()) if finished else (),
+        decisions=kept_decisions(toolbox, finished),
         alarms=tuple(toolbox.alarms) if finished else (),
         notes=tuple(toolbox.notes) if finished else (),
         steps=steps, model=brain.model, error=error,
@@ -243,12 +247,22 @@ def converse(
         wallet_notices=tuple(toolbox.notified_wallets),
         seen_payments=tuple(payment_seen_key(e) for e in toolbox.payments),
         funds_moved=tuple(toolbox.funds_moved),
-        trace=tuple(toolbox.trace),
+        trace=tuple(toolbox.trace), id=session_id,
         **({"usage": usage} if usage else {}),
     )
     journal.record_session(session)
     return Thought(agent={**standing, **{d.invoice: d for d in session.decisions}},
                    session=session, last=session, payments=tuple(toolbox.payments))
+
+
+def kept_decisions(toolbox: Toolbox, finished: bool) -> tuple[AgentDecision, ...]:
+    """Every decision of a finished session; of one that did not finish, only the payments it
+    already sent, so each payment in the journal has the decision that sent it."""
+    if finished:
+        return tuple(toolbox.chosen.values())
+    sent = {e.invoice for e in toolbox.payments if e.status is not PaymentStatus.BLOCKED}
+    return tuple(d for d in toolbox.chosen.values()
+                 if d.choice is Choice.PAY_NOW and d.invoice in sent)
 
 
 def money_after(setup: BrainSetup, toolbox: Toolbox,
