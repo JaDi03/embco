@@ -432,7 +432,17 @@
             <dl class="facts">
               <div><dt>Wallet</dt><dd class="mono" id="agent-address"></dd></div>
               <div class="owner-only"><dt>Telegram</dt><dd id="telegram-state">not linked</dd></div>
+              <div class="owner-only"><dt>Balance</dt><dd id="agent-balance">-</dd></div>
             </dl>
+            <p class="hint owner-only" id="agent-balance-note" hidden></p>
+            <div class="row owner-only">
+              <button class="btn btn-ghost" id="agent-balance-return" type="button" hidden>Take it back to my wallet</button>
+            </div>
+            <div class="owner-only" id="agent-balance-confirm" hidden>
+              <p class="hint" id="agent-balance-question"></p>
+              <button class="btn btn-danger btn-small" id="agent-balance-yes" type="button">Yes, send it to my wallet</button>
+              <button class="btn btn-ghost btn-small" id="agent-balance-cancel" type="button">Cancel</button>
+            </div>
             <div class="row owner-only">
               <button class="btn btn-ghost" id="telegram-link" type="button">Connect Telegram</button>
               <button class="btn btn-ghost" id="telegram-unlink" type="button" hidden>Unlink Telegram</button>

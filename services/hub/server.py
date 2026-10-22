@@ -50,6 +50,7 @@ def build_app(env: Mapping[str, str]) -> FastAPI:
         public_url=public_url,
         telegram_bot=env.get("TELEGRAM_BOT_USERNAME", "").strip().lstrip("@") or None,
         shops_of=chain.shops_of,
+        balance_of=chain.usdc_balance,
     )
 
 

@@ -1,4 +1,5 @@
-"""What the hub reads on chain: which shops a wallet owns, and a shop's limits and agent."""
+"""What the hub reads on chain: which shops a wallet owns, a shop's limits and agent, and how
+much USDC a wallet holds."""
 
 from dataclasses import dataclass
 from decimal import Decimal
@@ -6,6 +7,7 @@ from decimal import Decimal
 from eth_abi import decode, encode
 from eth_utils import keccak, to_checksum_address
 
+from services.earn.client import ARC_USDC
 from services.payments.chain import ArcRpc
 from services.payments.encoding import USDC_DECIMALS
 
@@ -35,6 +37,12 @@ class ShopChain:
         (weekly,) = decode(["uint256"], self._view(shop, "weeklyCap()", [], []))
         return ShopLimits(max_per_payment=_usdc(per_payment), weekly_cap=_usdc(weekly),
                           agent=self._rpc.agent_of(shop))
+
+    def usdc_balance(self, wallet: str) -> Decimal:
+        """On Arc, USDC is also the gas token: its ERC-20 interface reads the same balance."""
+        (units,) = decode(["uint256"], self._view(ARC_USDC, "balanceOf(address)", ["address"],
+                                                  [to_checksum_address(wallet)]))
+        return _usdc(units)
 
     def _view(self, to: str, signature: str, types: list[str], args: list) -> bytes:
         return self._rpc.call(to, keccak(text=signature)[:4] + encode(types, args))

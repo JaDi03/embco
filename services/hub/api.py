@@ -9,6 +9,7 @@ agent wallets, so the contract is created with its agent and the owner never set
 """
 
 from collections.abc import Callable
+from decimal import Decimal
 from typing import Any
 
 from eth_utils import is_address, to_checksum_address
@@ -20,6 +21,7 @@ from pydantic import BaseModel, Field, field_validator
 from services.circle import CircleClient, CircleError
 from services.erp.erpnext.adapter import PROTECTED_PAYMENT_FIELDS
 from services.erp.erpnext.client import FrappeClient
+from services.hub.agent_balance import agent_balance_routes
 from services.hub.auth import ALL_SHOPS, SESSION_LIFETIME, Auth, AuthError
 from services.hub.chain import ShopLimits
 from services.hub.errors import HubError
@@ -79,6 +81,7 @@ def create_app(
     supplier_auth: SupplierAuth | None = None,
     telegram_bot: str | None = None,
     shops_of: Callable[[str], list[str]] | None = None,
+    balance_of: Callable[[str], Decimal] | None = None,
 ) -> FastAPI:
     app = FastAPI(title="embco hub", docs_url=None, redoc_url=None, openapi_url=None)
     frappe_for = frappe_for or (lambda url, key, secret: FrappeClient(url, key, secret,
@@ -306,6 +309,8 @@ def create_app(
     app.include_router(owner_action_routes(store=store, units=units, shop_of=shop_of,
                                            owner_session=owner_session,
                                            telegram_bot=telegram_bot))
+    app.include_router(agent_balance_routes(store=store, circle=circle, balance_of=balance_of,
+                                            shop_of=shop_of, owner_session=owner_session))
     supplier_auth = supplier_auth or SupplierAuth(public_url=public_url)
     app.include_router(supplier_routes(store=store, auth=supplier_auth,
                                        shop_of=shop_of, owner_session=owner_session,

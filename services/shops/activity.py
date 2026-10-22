@@ -74,6 +74,12 @@ def draft_mode_switched(at: datetime, draft: bool) -> dict[str, Any]:
                            "and closes its invoice, even when it was paid in test USDC.")
 
 
+def agent_balance_returned(at: datetime, amount: Decimal, to: str,
+                           transaction: str) -> dict[str, Any]:
+    return _event(at, YOU, f"You took back {fmt(amount)} USDC from the agent's wallet to your "
+                           f"wallet {_short(to)}. Circle transaction {transaction}.")
+
+
 def check_started(at: datetime) -> dict[str, Any]:
     return _event(at, CHECK, "Checking your ERPNext for unpaid invoices...")
 
