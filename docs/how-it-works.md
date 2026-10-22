@@ -75,7 +75,9 @@ against what the agent saw. Each event stores the hash of the one before it. Aft
 day, the agent writes the Merkle root of the whole journal (RFC 9162) to the JournalAnchor
 contract on Arc. A copy of the journal that was changed, cut or reordered gives a different
 root, even if every hash in the chain was recomputed. `embco verify` checks the chain and every
-root written on Arc.
+root written on Arc. In the dashboard, Agent activity does the same check in the owner's browser
+and downloads the journal, and each receipt shows what the agent read in the session that moved
+it.
 
 <figure class="diagram" markdown>
 ![Memory: each journal event stores the hash of the one before it, so the events form a chain](assets/diagrams/memory.svg#only-light "Memory")

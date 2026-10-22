@@ -17,7 +17,8 @@ import { agentView, groupTasks, QUICK_ANSWERS, raisedLimits, taskFor } from "./n
 import * as suppliers from "./suppliers.js";
 import * as unified from "./unified.js";
 import * as earn from "./earn.js";
-import { factory, memoNames, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
+import { factory, journalAnchors, memoNames, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
+import * as journalCheck from "./journal.js";
 import { AUTHORIZE_ALL, authorizationView, formatUsdc, parseUsdc, shortAddress, ZERO_ADDRESS } from "./units.js";
 import { chooseWallet } from "./picker.js";
 import "./theme.js";
@@ -554,6 +555,7 @@ function feedItem(item) {
     if (item.event.tx) text.append(" ", link("tx", txUrl(item.event.tx)));
     const why = feed.receiptWhy(item.event, terminal.events);
     if (why) text.append(el("span", { className: "receipt-why", textContent: why }));
+    if (item.event.tx) text.append(seenToggle(item.event.tx));
     return el("div", { className: "feed-money" }, el("span", { className: "ic", textContent: "✓", ariaHidden: "true" }), text, time);
   }
   if (item.type === "note") {
@@ -568,6 +570,113 @@ function feedItem(item) {
     ...item.events.map(timelineLine));
   box.addEventListener("toggle", () => (box.open ? terminal.open.add(key) : terminal.open.delete(key)));
   return box;
+}
+
+// The journal, fetched from the hub when the owner asks, and checked here against Arc.
+const journalCache = { shop: null, data: null };
+
+async function loadJournal(fresh = false) {
+  if (fresh || journalCache.shop !== session.shop || !journalCache.data) {
+    journalCache.data = await hub.journal(session.shop);
+    journalCache.shop = session.shop;
+  }
+  return journalCache.data;
+}
+
+const shortDate = (iso) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+
+async function verifyJournal() {
+  const status = $("journal-status");
+  status.className = "journal-status";
+  status.textContent = "Checking the journal against Arc...";
+  try {
+    const [data, anchors] = await Promise.all([loadJournal(true), journalAnchors(session.shop)]);
+    const result = await journalCheck.check(data.entries, anchors);
+    if (!result.ok) {
+      status.className = "journal-status bad";
+      status.textContent = `✗ The journal does not match Arc. ${result.problems.join(" ")}`;
+    } else if (!anchors.length) {
+      status.textContent = `The ${result.entries} entries are intact, but none is anchored on Arc yet.`;
+    } else {
+      status.className = "journal-status ok";
+      status.textContent = `✓ Matches Arc: ${result.anchored} of ${result.entries} entries anchored, the last on `
+        + `${shortDate(result.anchoredAt)}. Nothing anchored was changed or removed.`;
+    }
+  } catch (error) {
+    status.className = "journal-status bad";
+    status.textContent = `Could not check the journal: ${describeError(error)}`;
+  }
+}
+
+async function downloadJournal() {
+  try {
+    const [data, anchors] = await Promise.all([loadJournal(true), journalAnchors(session.shop)]);
+    const file = {
+      shop: session.shop, downloaded_at: new Date().toISOString(), entries: data.entries,
+      anchors_on_arc: anchors,
+      how_to_check: "Recompute each entry's hash from the one before it, then the RFC 9162 Merkle root of the "
+        + "first `size` hashes, and compare it with each anchor's root in the JournalAnchor contract on Arc "
+        + "(embco verify, or the dashboard).",
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 1)], { type: "application/json" }));
+    const a = el("a", { href: url, download: `embco-journal-${session.shop.slice(2, 8)}-${file.downloaded_at.slice(0, 10)}.json` });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    notify(`Could not download the journal: ${describeError(error)}`, "error");
+  }
+}
+
+/** Under a receipt: the session that moved it, each tool the agent called and what it read. */
+function seenToggle(tx) {
+  const key = `seen:${tx}`;
+  const box = el("details", { className: "receipt-seen", open: terminal.open.has(key) },
+    el("summary", { textContent: "What the agent saw" }));
+  const fill = async () => {
+    if (box.dataset.filled) return;
+    box.dataset.filled = "1";
+    box.append(el("p", { className: "hint", textContent: "Reading the journal..." }));
+    try {
+      const session = journalCheck.sessionOf((await loadJournal()).entries, tx);
+      box.lastChild.remove();
+      box.append(...seenLines(session));
+    } catch (error) {
+      box.lastChild.textContent = `Could not read the journal: ${describeError(error)}`;
+      delete box.dataset.filled;
+    }
+  };
+  box.addEventListener("toggle", () => {
+    if (box.open) {
+      terminal.open.add(key);
+      fill();
+    } else {
+      terminal.open.delete(key);
+    }
+  });
+  if (box.open) fill();
+  return box;
+}
+
+function seenLines(session) {
+  if (!session) {
+    return [el("p", { className: "hint", textContent: "No session of the agent moved this: the owner did, or it "
+      + "happened before the journal kept what the agent read." })];
+  }
+  const lines = [el("p", { className: "hint", textContent: `Woke at ${shortDate(session.at)}: ${session.woke.join(" ")}` })];
+  for (const s of session.steps) {
+    const args = Object.entries(s.args).map(([k, v]) => `${k}=${v}`).join(", ");
+    const head = `${s.tool}(${args})${s.ok ? "" : ` refused: ${s.refused}`}`;
+    if (s.saw === null) {
+      lines.push(el("div", { className: "seen-step", textContent: head }));
+    } else {
+      lines.push(el("details", { className: "seen-step" }, el("summary", { textContent: `${head}: what it read` }),
+        el("pre", { textContent: typeof s.saw === "string" ? s.saw : JSON.stringify(s.saw, null, 1) })));
+    }
+  }
+  if (session.summary) lines.push(el("p", { className: "hint", textContent: session.summary }));
+  return lines;
 }
 
 /** Text with its transaction hashes and addresses linked to the explorer. */
@@ -1589,6 +1698,8 @@ function wireActions() {
   });
 
   $("erp-refresh").addEventListener("click", () => renderShop().catch((error) => notify(describeError(error), "error")));
+  $("journal-verify").addEventListener("click", verifyJournal);
+  $("journal-download").addEventListener("click", downloadJournal);
 
   $("erp-disconnect").addEventListener("click", async (event) => {
     const button = event.currentTarget;

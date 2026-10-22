@@ -13,6 +13,7 @@ from fastapi import APIRouter, Cookie, Query
 from pydantic import BaseModel, Field
 
 from agent.guardrails.rules import Verdict
+from agent.memory.sqlite import export_journal
 from services.hub.errors import HubError
 from services.hub.units import UnitError, Units
 from services.shops import chat
@@ -23,7 +24,7 @@ from services.shops.activity import (
     switched,
 )
 from services.shops.inbox import answer_waiting, drop_answer
-from services.shops.store import LIQUIDITY_STRATEGIES, ShopError, ShopStore
+from services.shops.store import JOURNAL, LIQUIDITY_STRATEGIES, ShopError, ShopStore
 from services.telegram import links
 
 CHECK_EVERY = timedelta(seconds=30)  # "check now" restarts the agent: not more often than this
@@ -146,6 +147,16 @@ def owner_action_routes(
             interval = None
         return {"events": read_activity(store.folder(shop), after=after),
                 "interval_minutes": interval}
+
+    @router.get("/api/shops/{shop}/journal")
+    def journal(shop: str, embco_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+        """The shop's whole journal as stored, for the owner to check against Arc and keep."""
+        shop = shop_of(shop)
+        owner_session(shop, embco_session)
+        path = store.folder(shop) / JOURNAL
+        if not path.exists():
+            return {"shop": shop, "entries": []}
+        return {"shop": shop, "entries": export_journal(path)}
 
     @router.post("/api/shops/{shop}/check")
     def check_now(shop: str,

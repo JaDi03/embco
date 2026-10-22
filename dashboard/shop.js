@@ -4,13 +4,14 @@
 // here can sign.
 
 import { ethers } from "./vendor/ethers-6.17.0.min.js";
-import { FACTORY_ABI, SHOP_ABI, USDC_ABI } from "./abi.js";
+import { FACTORY_ABI, JOURNAL_ANCHOR_ABI, SHOP_ABI, USDC_ABI } from "./abi.js";
 import {
   ARC_TESTNET,
   EXPLORER_API,
   FACTORY_ADDRESS,
   FACTORY_DEPLOY_BLOCK,
   HISTORY_MAX_PAGES,
+  JOURNAL_ANCHOR_ADDRESS,
   LOG_CHUNK_BLOCKS,
   MEMO_ADDRESS,
   RPC_BATCH_MAX,
@@ -33,6 +34,15 @@ function readProvider() {
 /** Run a read against the Canteen node. */
 export function read(fn) {
   return fn(readProvider());
+}
+
+/** Every root the shop's agent wrote on Arc, oldest first: {root (hex, no 0x), size, anchoredAt}. */
+export async function journalAnchors(shop) {
+  const registry = new ethers.Contract(JOURNAL_ANCHOR_ADDRESS, JOURNAL_ANCHOR_ABI, readProvider());
+  const count = Number(await registry.count(shop));
+  const anchors = await Promise.all(Array.from({ length: count }, (_, i) => registry.anchorAt(shop, i)));
+  return anchors.map((a) => ({ root: a.root.slice(2).toLowerCase(), size: Number(a.size),
+    anchoredAt: new Date(Number(a.anchoredAt) * 1000).toISOString() }));
 }
 
 export function factory(runner) {

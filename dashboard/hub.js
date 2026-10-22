@@ -107,6 +107,9 @@ export async function status(shop, fetchImpl = fetch) {
   }
 }
 
+/** The shop's whole journal as stored: {shop, entries: [{kind, run, invoice, at, body, hash}]}. */
+export const journal = (shop, fetchImpl = fetch) => call(`${shopPath(shop)}/journal`, { fetchImpl });
+
 export const connectErp = (shop, form, fetchImpl = fetch) =>
   call(`${shopPath(shop)}/erp`, { method: "POST", body: form, fetchImpl });
 
