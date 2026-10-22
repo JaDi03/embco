@@ -26,6 +26,8 @@ In the dashboard, open **Agent activity** and press **Download journal**. The fi
 | `merkle` | The root of the whole file, computed by the browser that downloaded it. A convenience: recompute it |
 | `anchors_on_arc` | The roots read from Arc at download time, and whether each matches this file |
 | `chain_intact` | Whether each entry's hash follows from the one before it |
+| `decisions` | One proof per decision of the agent that is anchored already (see [Prove one decision](#4-prove-one-decision)) |
+| `decisions_not_anchored_yet` | How many decisions the next anchor will cover |
 
 ## 2. Check it
 
@@ -106,7 +108,32 @@ path to the root, and reads the root from Arc. A proof file that claims a root A
 fails. The proof does not contain the other entries. It does contain this entry's full text, so
 send only what the dispute needs.
 
-## 4. Keep a witness
+## 4. Prove one decision
+
+A decision of the agent is more than one entry. Each session of the agent has an id, written in its
+`SESSION` entry, in the `AGENT` entry of each choice it made and in each `PAYMENT` it sent. The proof
+of one decision holds every entry it rests on, each with its own audit path:
+
+- the `SESSION`: what woke the agent, each tool it called and what it read;
+- the `AGENT` entry: its choice and its reason;
+- the `DECISION` it was made on (the rule checks, by its `fingerprint`), that check's `RUN` and the
+  `POLICY` the run names;
+- the owner's `ANSWER` to that check, if any, and the session's `PAYMENT` entries for the invoice.
+
+The proofs are made from the journal and the anchors when they are asked for: nothing is stored.
+The dashboard shows the result under each receipt, in **What the agent saw**, and puts every
+decision proof in the download under `decisions`. To share one decision without the rest of the
+journal, save that item as its own file. Check it on `/audit/` or with:
+
+```
+embco check-proof decision.json --rpc-url <Arc Testnet node>
+```
+
+The checker proves each entry against Arc and refuses an entry that does not belong to the
+decision: another session, another invoice or another rule check. Sessions written before
+sessions had an id have no decision proof; their receipts show the proof of the session entry.
+
+## 5. Keep a witness
 
 An anchor is written by the agent's wallet. A **witness** is a record kept by someone else, which
 shows when each anchor was first seen and compares it with a copy of the journal:

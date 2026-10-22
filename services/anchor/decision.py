@@ -89,6 +89,20 @@ def check_decision_bundle(bundle: Mapping[str, Any], anchors: Sequence[Anchor]) 
                          unlinked=_unlinked(found, session, invoice))
 
 
+def decision_report(bundle: Mapping[str, Any], result: DecisionCheck) -> str:
+    lines = [f"Decision of the agent on {bundle['invoice']}, session {bundle['session']}, "
+             f"journal of {bundle['shop']}: {len(result.proofs)} entries", ""]
+    for proof, check in zip(bundle["proofs"], result.proofs, strict=True):
+        entry = proof["entry"]
+        lines.append(f"  entry {proof['number']:>5}  {entry['kind']:<8}  {entry['at']}  "
+                     + ("anchored, unchanged" if check.ok else "DOES NOT CHECK"))
+    if result.unlinked:
+        lines += ["", f"Not part of this decision: {result.unlinked}"]
+    lines += ["", "RESULT: " + ("every entry of this decision was anchored on Arc, unchanged."
+                                if result.ok else "DOES NOT CHECK. Do not rely on this decision.")]
+    return "\n".join(lines)
+
+
 def _unlinked(found: Sequence[tuple[Mapping[str, Any], Mapping[str, Any]]], session: str,
               invoice: str) -> str | None:
     agents = [b for e, b in found if e["kind"] == "AGENT"]

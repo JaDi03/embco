@@ -4,6 +4,7 @@
 import { ARC_TESTNET, JOURNAL_ANCHOR_ADDRESS } from "./config.js";
 import { describeError } from "./errors.js";
 import { parseJournal, report } from "./journal.js";
+import { checkDecisionProof, isDecisionProof } from "./proof.js";
 import { journalAnchors } from "./shop.js";
 import "./theme.js";
 
@@ -51,11 +52,53 @@ function render(data, audit) {
   $("audit-facts").hidden = false;
 }
 
+/** One decision on its own, as the dashboard puts it in a journal download. */
+async function runDecision(bundle) {
+  if (typeof bundle.shop !== "string") throw new Error("That decision proof does not say its shop.");
+  const result = await checkDecisionProof(bundle, await journalAnchors(bundle.shop));
+  const what = `the decision of the agent on ${bundle.invoice}`;
+  if (result.ok) {
+    setStatus(`✓ All ${result.proofs.length} journal entries of ${what} were anchored on Arc, unchanged.`, "ok");
+  } else if (result.unlinked) {
+    setStatus(`✗ This proof holds an entry that is not part of ${what}: ${result.unlinked}.`, "bad");
+  } else {
+    const bad = result.proofs.filter((p) => !p.ok).length;
+    setStatus(`✗ ${bad} of the ${result.proofs.length} entries of ${what} do not match Arc.`, "bad");
+  }
+}
+
+/** The decision proofs a journal download carries, checked one by one: a sentence, or "". */
+async function decisionsSentence(data, anchors) {
+  const all = Array.isArray(data.decisions) ? data.decisions : [];
+  if (!all.length) return "";
+  let bad = 0;
+  for (const d of all) {
+    try {
+      if (!(await checkDecisionProof(d, anchors)).ok) bad += 1;
+    } catch {
+      bad += 1;
+    }
+  }
+  return bad ? ` ✗ ${bad} of its ${all.length} decision proofs do not check.`
+    : ` Its ${all.length} decision proofs check too.`;
+}
+
 async function run(file) {
   clear();
   setStatus("Checking...");
   try {
-    const data = parseJournal(await file.text());
+    const text = await file.text();
+    let raw = null;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      // parseJournal says it is not JSON
+    }
+    if (isDecisionProof(raw)) {
+      await runDecision(raw);
+      return;
+    }
+    const data = parseJournal(text);
     const anchors = await journalAnchors(data.shop);
     const audit = await report(data.entries, anchors);
     render(data, audit);
@@ -65,8 +108,10 @@ async function run(file) {
     } else if (!audit.rows.length) {
       setStatus("The chain is intact, but nothing is anchored on Arc for this shop yet, so there is nothing to compare with.");
     } else if (audit.rows.every((r) => r.matches)) {
+      const decisions = await decisionsSentence(data, anchors);
       setStatus(`✓ This file matches every anchor on Arc. The last, on ${when(last.anchoredAt)}, covers `
-        + `${last.size} of its ${audit.entries} entries: nothing anchored was changed, removed or reordered.`, "ok");
+        + `${last.size} of its ${audit.entries} entries: nothing anchored was changed, removed or reordered.${decisions}`,
+      decisions.includes("✗") ? "bad" : "ok");
     } else {
       setStatus("✗ This file does not match Arc. Something anchored was changed, removed or reordered.", "bad");
     }

@@ -114,6 +114,33 @@ def test_a_session_from_before_ids_cannot_be_gathered(tmp_path):
         decision_entries(entries, "", "PINV-1")
 
 
+def test_the_cli_checks_the_decision_proof_the_dashboard_downloads(tmp_path, monkeypatch, capsys):
+    """The browser makes this same bundle (dashboard/test/proof.test.mjs checks it is equal)."""
+    from pathlib import Path
+
+    from services import cli
+    from services.anchor import JournalAnchors
+    from test_journal_anchor import REGISTRY, FakeRegistry
+
+    fixture = json.loads((Path(__file__).parent.parent / "dashboard" / "test"
+                          / "decision-fixture.json").read_text(encoding="utf-8"))
+    registry = FakeRegistry()
+    for a in fixture["anchors"]:
+        registry.anchors.append((bytes.fromhex(a["root"]), a["size"], int(T0.timestamp())))
+    monkeypatch.setattr(cli, "ArcRpc", lambda _url: registry)
+    monkeypatch.setattr(cli, "JournalAnchors",
+                        lambda chain, shop: JournalAnchors(chain, shop, address=REGISTRY))
+    path = tmp_path / "decision.json"
+    path.write_text(json.dumps(fixture["bundle"]), encoding="utf-8")
+    assert cli.main(["check-proof", str(path), "--rpc-url", "http://node"]) == 0
+    assert "every entry of this decision was anchored on Arc" in capsys.readouterr().out
+    bundle = fixture["bundle"]
+    bundle["proofs"][-1]["entry"]["body"] = '{"forged":true}'
+    path.write_text(json.dumps(bundle), encoding="utf-8")
+    assert cli.main(["check-proof", str(path), "--rpc-url", "http://node"]) == 1
+    assert "DOES NOT CHECK" in capsys.readouterr().out
+
+
 def test_an_entry_not_anchored_yet_gives_no_decision_proof(data):
     hashes = [e["hash"] for e in data["entries"]][:3]
     early = [Anchor(journal_root(hashes).hex(), 3, T0)]

@@ -37,7 +37,7 @@ def make_bundle(data: dict[str, Any], number: int, anchors: Sequence[Anchor]) ->
     entries = data["entries"]
     if not 1 <= number <= len(entries):
         raise AuditError(f"this file has entries 1 to {len(entries)}, not {number}")
-    covering = [a for a in anchors if a.size >= number]
+    covering = [a for a in anchors if number <= a.size <= len(entries)]
     if not covering:
         raise AuditError(f"entry {number} is not covered by an anchor on Arc yet")
     anchor = min(covering, key=lambda a: a.size)
@@ -119,6 +119,7 @@ def read_bundle(path: str) -> dict[str, Any]:
         bundle = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         raise AuditError("not a proof file: it must be the JSON written by embco prove") from None
-    if not isinstance(bundle, dict) or "entry" not in bundle or "proof" not in bundle:
+    one_entry = isinstance(bundle, dict) and "entry" in bundle and "proof" in bundle
+    if not (one_entry or isinstance(bundle, dict) and "proofs" in bundle):
         raise AuditError("not a proof file: it must be the JSON written by embco prove")
     return bundle
