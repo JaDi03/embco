@@ -28,13 +28,16 @@ def _clip(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-def _tx(result: str) -> str:
-    """The transaction in a tool's JSON result, when it has one."""
+def _tx(name: str, result: str) -> str:
+    """The transaction in a tool's JSON result, when it has one. pay_now names it "transaction";
+    payment_status does too, but only reads a payment sent before, so it moved nothing."""
     try:
         body = json.loads(result)
     except (TypeError, ValueError):
         return ""
-    return str(body.get("tx") or "") if isinstance(body, dict) else ""
+    if not isinstance(body, dict):
+        return ""
+    return str(body.get("tx") or (body.get("transaction") if name == "pay_now" else "") or "")
 
 
 def step(name: str, args: Mapping[str, Any], *, result: str | None = None,
@@ -47,7 +50,7 @@ def step(name: str, args: Mapping[str, Any], *, result: str | None = None,
         out["at"] = at.isoformat(timespec="seconds")
     if refused is not None:
         out["refused"] = _clip(refused, MAX_REFUSAL)
-    elif tx := _tx(result or ""):
+    elif tx := _tx(name, result or ""):
         out["tx"] = tx
     if refused is None and name in SEEN and result:
         out["saw"] = _seen(result)

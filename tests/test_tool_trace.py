@@ -27,9 +27,17 @@ def test_a_step_keeps_the_values_the_model_chose_but_not_its_long_words():
 
 
 def test_a_payment_step_carries_its_transaction_and_a_refusal_its_reason():
-    paid = step("pay_now", {"invoice": "ACC-PINV-2026-00018", "reason": "due today"},
-                result=json.dumps({"status": "paid", "tx": TX}))
+    from agent.tools.toolbox import _payment_view
+    from services.payments import PaymentEvent, PaymentStatus
+
+    done = PaymentEvent(invoice="ACC-PINV-2026-00018", status=PaymentStatus.RECORDED, at=NOW,
+                        supplier="S", payee="0x" + "cd" * 20, amount=Decimal(5), invoice_ref="0x01",
+                        tx_hash=TX, erp_entry="ACC-PAY-1")
+    result = json.dumps(_payment_view([done]))  # what pay_now really answers
+    paid = step("pay_now", {"invoice": "ACC-PINV-2026-00018", "reason": "due today"}, result=result)
     assert line(paid) == f"pay_now(invoice=ACC-PINV-2026-00018) -> done, tx {TX}"
+    # looking up a payment sent earlier moves nothing: its transaction is not this session's
+    assert "tx" not in step("payment_status", {"invoice": "ACC-PINV-2026-00018"}, result=result)
     refused = step("pay_now", {"invoice": "X", "reason": "r"},
                    refused="the checks hold X: duplicate bill")
     assert line(refused) == "pay_now(invoice=X) -> refused: the checks hold X: duplicate bill"

@@ -4,7 +4,7 @@
 // are made when asked for, from the journal and the anchors (as RFC 6962 logs serve them), and
 // never stored.
 
-import { chainHash, merkleTree, verifyInclusion } from "./journal.js";
+import { chainHash, merkleTree, sessionFor, verifyInclusion } from "./journal.js";
 
 const GENESIS = "0".repeat(64);
 const FIELDS = ["kind", "run", "invoice", "at", "body", "hash"];
@@ -177,16 +177,8 @@ function unlinkedEntry(entries, session, invoice) {
 /** What proves a receipt: the decision that paid it, when its session has an id, or else the
  * session entry that moved it. Null when no session of the agent moved it. */
 export function receiptEvidence(entries, tx) {
-  const wanted = String(tx ?? "").toLowerCase();
-  if (!wanted) return null;
-  for (let i = entries.length - 1; i >= 0; i -= 1) {
-    if (entries[i].kind !== "SESSION") continue;
-    const body = bodyOf(entries[i]);
-    const step = (body.trace ?? []).find((s) => String(s.tx ?? "").toLowerCase() === wanted);
-    const moved = (body.funds_moved ?? []).some((m) => String(m.tx ?? "").toLowerCase() === wanted);
-    if (!step && !moved) continue;
-    const invoice = step?.tool === "pay_now" ? step.args?.invoice : null;
-    return body.id && invoice ? { session: body.id, invoice } : { number: i + 1 };
-  }
-  return null;
+  const found = sessionFor(entries, tx);
+  if (!found) return null;
+  return found.session && found.invoice ? { session: found.session, invoice: found.invoice }
+    : { number: found.index + 1 };
 }
