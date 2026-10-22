@@ -19,6 +19,7 @@ import * as unified from "./unified.js";
 import * as earn from "./earn.js";
 import { factory, journalAnchors, memoNames, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
 import * as journalCheck from "./journal.js";
+import * as proofs from "./proof.js";
 import { AUTHORIZE_ALL, authorizationView, formatUsdc, parseUsdc, shortAddress, ZERO_ADDRESS } from "./units.js";
 import { chooseWallet } from "./picker.js";
 import "./theme.js";
@@ -613,6 +614,7 @@ async function downloadJournal() {
   try {
     const [data, anchors] = await Promise.all([loadJournal(true), journalAnchors(session.shop)]);
     const audit = await journalCheck.report(data.entries, anchors);
+    const decisions = await proofs.allDecisionProofs(data, anchors);
     const file = {
       shop: session.shop, downloaded_at: new Date().toISOString(),
       // computed by this browser when you downloaded: a convenience, not a proof. Recompute it.
@@ -624,7 +626,11 @@ async function downloadJournal() {
       how_to_check: "Open the audit page of the dashboard (/audit/) and choose this file, or run "
         + "`embco audit <file> --rpc-url <Arc Testnet node>`. Both recompute every hash and root from "
         + "`entries` and compare them with the roots written in the JournalAnchor contract on Arc "
-        + "(0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582), read from Arc, not from this file.",
+        + "(0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582), read from Arc, not from this file. Each item of "
+        + "`decisions` proves one decision of the agent on its own: save it as its own file to share only "
+        + "that decision, and check it the same two ways (`embco check-proof <file>`).",
+      decisions: decisions.proofs,
+      decisions_not_anchored_yet: decisions.pending,
       entries: data.entries,
     };
     const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 1)], { type: "application/json" }));
@@ -651,6 +657,7 @@ function seenToggle(tx) {
       const session = journalCheck.sessionOf((await loadJournal()).entries, tx);
       box.lastChild.remove();
       box.append(...seenLines(session));
+      if (session) box.append(await receiptProofLine(tx));
     } catch (error) {
       box.lastChild.textContent = `Could not read the journal: ${describeError(error)}`;
       delete box.dataset.filled;
@@ -666,6 +673,27 @@ function seenToggle(tx) {
   });
   if (box.open) fill();
   return box;
+}
+
+/** Whether what the agent decided and did for this receipt is anchored on Arc, proved here. */
+async function receiptProofLine(tx) {
+  const line = (text, tone = "") => el("p", { className: `journal-status ${tone}`.trim(), textContent: text });
+  try {
+    const [data, anchors] = await Promise.all([loadJournal(), journalAnchors(session.shop)]);
+    const evidence = proofs.receiptEvidence(data.entries, tx);
+    const make = proofs.prover(data, anchors);
+    const result = evidence.session
+      ? await proofs.checkDecisionProof(await make.decision(evidence.session, evidence.invoice), anchors)
+      : await proofs.checkEntryProof(await make.entry(evidence.number), anchors);
+    if (!result.ok) return line("✗ This does not match the root written on Arc.", "bad");
+    return line(evidence.session
+      ? `✓ Anchored on Arc: the ${result.proofs.length} journal entries of this decision (its session, the `
+        + "agent's choice, the checks, the limits and the payment) are unchanged."
+      : "✓ Anchored on Arc: this session's journal entry is unchanged.", "ok");
+  } catch (error) {
+    if (error instanceof proofs.NotAnchored) return line("Not anchored on Arc yet: the next anchor covers it.");
+    return line(`Could not check it against Arc: ${error.message && !error.code ? error.message : describeError(error)}`, "bad");
+  }
 }
 
 function seenLines(session) {

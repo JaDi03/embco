@@ -61,6 +61,70 @@ export async function merkleRoot(leavesHex) {
   return toHex(await subtree(leaves));
 }
 
+/** One RFC 9162 tree over leaves given as hex, for its root and the audit path of any leaf
+ * (section 2.1.3.1). Inner hashes are kept, so many proofs over one tree cost one tree. */
+export async function merkleTree(leavesHex) {
+  const leaves = await Promise.all(leavesHex.map((h) => sha256(concat(Uint8Array.of(0), fromHex(h)))));
+  const kept = new Map();
+  const splitOf = (lo, hi) => lo + 2 ** (Math.ceil(Math.log2(hi - lo)) - 1);
+  const hash = (lo, hi) => {
+    if (hi - lo === 1) return Promise.resolve(leaves[lo]);
+    const key = `${lo}:${hi}`;
+    if (!kept.has(key)) {
+      const split = splitOf(lo, hi);
+      kept.set(key, Promise.all([hash(lo, split), hash(split, hi)])
+        .then(([left, right]) => sha256(concat(Uint8Array.of(1), left, right))));
+    }
+    return kept.get(key);
+  };
+  const path = async (index, lo, hi) => {
+    if (hi - lo <= 1) return [];
+    const split = splitOf(lo, hi);
+    return index < split
+      ? [...await path(index, lo, split), await hash(split, hi)]
+      : [...await path(index, split, hi), await hash(lo, split)];
+  };
+  return {
+    size: leaves.length,
+    root: async () => toHex(leaves.length ? await hash(0, leaves.length) : await sha256(new Uint8Array())),
+    proof: async (index) => {
+      if (!(Number.isInteger(index) && index >= 0 && index < leaves.length)) {
+        throw new Error(`leaf ${index} is not in a tree of ${leaves.length} leaves`);
+      }
+      return (await path(index, 0, leaves.length)).map(toHex);
+    },
+  };
+}
+
+const HASH = /^[0-9a-f]{64}$/;
+
+/** RFC 9162 section 2.1.3.2, as agent/memory/merkle.py: does the leaf sit at `index` in a tree of
+ * `size` leaves with this root? False on any bad input, never an error. */
+export async function verifyInclusion(leafHex, index, size, proofHex, rootHex) {
+  if (!(Number.isInteger(index) && Number.isInteger(size) && index >= 0 && index < size)) return false;
+  if (![leafHex, rootHex, ...proofHex].every((h) => typeof h === "string" && HASH.test(h))) return false;
+  let fn = index;
+  let sn = size - 1;
+  let r = await sha256(concat(Uint8Array.of(0), fromHex(leafHex)));
+  for (const p of proofHex) {
+    if (sn === 0) return false;
+    if (fn % 2 === 1 || fn === sn) {
+      r = await sha256(concat(Uint8Array.of(1), fromHex(p), r));
+      if (fn % 2 === 0) {
+        while (fn && fn % 2 === 0) {
+          fn = Math.floor(fn / 2);
+          sn = Math.floor(sn / 2);
+        }
+      }
+    } else {
+      r = await sha256(concat(Uint8Array.of(1), r, fromHex(p)));
+    }
+    fn = Math.floor(fn / 2);
+    sn = Math.floor(sn / 2);
+  }
+  return sn === 0 && toHex(r) === rootHex;
+}
+
 /** What does not match: one sentence per anchor the copy fails. Empty means it matches. */
 export async function mismatches(entries, anchors) {
   const hashes = entries.map((e) => e.hash);

@@ -37,6 +37,8 @@ from services.anchor import JOURNAL_ANCHOR, AuditError, JournalAnchors, mismatch
 from services.anchor import audit as audit_journal
 from services.anchor import report as audit_report
 from services.anchor.audit import load as load_journal_file
+from services.anchor.decision import check_decision_bundle as check_decision
+from services.anchor.decision import decision_report
 from services.anchor.proof import check_bundle as check_proof
 from services.anchor.proof import make_bundle as make_proof
 from services.anchor.proof import proof_report
@@ -307,6 +309,14 @@ def _check_proof(args) -> int:
     except (AuditError, ChainError) as error:
         print(f"embco: {error}", file=sys.stderr)
         return 2
+    if "proofs" in bundle:  # every entry behind one decision, as the dashboard downloads it
+        try:
+            checked = check_decision(bundle, anchors)
+        except AuditError as error:
+            print(f"embco: {error}", file=sys.stderr)
+            return 2
+        print(decision_report(bundle, checked))
+        return 0 if checked.ok else 1
     result = check_proof(bundle, anchors)
     print(proof_report(bundle, result))
     return 0 if result.ok else 1
