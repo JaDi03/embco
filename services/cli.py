@@ -8,6 +8,9 @@
     embco history INVOICE                    every decision taken on an invoice
     embco verify                             check that the memory was not altered, also on Arc
     embco audit FILE [--rpc-url URL]         check a downloaded journal against Arc, no keys
+    embco prove FILE --entry N [--out F]     proof that one entry is anchored on Arc
+    embco check-proof FILE [--rpc-url URL]   check a proof of one entry against Arc
+    embco witness --shop ADDR [--journal F]  keep when anchors were first seen; compare with a copy
     embco create-wallet                      create the agent's paying wallet with Circle (once)
     embco shop --dir ROOT/SHOP               the hosted agent of one shop, settings from its folder
     embco hub                                the API the dashboard uses to connect shops
@@ -18,7 +21,10 @@ import json
 import logging
 import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
+
+from eth_utils import to_checksum_address
 
 from agent.explain import ClaudeExplainer, Explainer
 from agent.guardrails.rules import Verdict
@@ -31,6 +37,13 @@ from services.anchor import JOURNAL_ANCHOR, AuditError, JournalAnchors, mismatch
 from services.anchor import audit as audit_journal
 from services.anchor import report as audit_report
 from services.anchor.audit import load as load_journal_file
+from services.anchor.proof import check_bundle as check_proof
+from services.anchor.proof import make_bundle as make_proof
+from services.anchor.proof import proof_report
+from services.anchor.proof import read_bundle as read_proof
+from services.anchor.witness import load_state as load_witness_state
+from services.anchor.witness import save_state as save_witness_state
+from services.anchor.witness import witness as run_witness
 from services.circle import CircleClient, CircleError
 from services.erp import ErpnextAdapter, LedgerError
 from services.payments import ArcRpc, ChainError, Payer
@@ -63,6 +76,12 @@ def main(argv: list[str] | None = None) -> int:
         return _telegram(args)
     if args.command == "audit":
         return _audit(args)
+    if args.command == "prove":
+        return _prove(args)
+    if args.command == "check-proof":
+        return _check_proof(args)
+    if args.command == "witness":
+        return _witness(args)
     try:
         settings = Settings.load(Path(args.env_file))
         settings.journal_path.parent.mkdir(parents=True, exist_ok=True)
@@ -255,6 +274,66 @@ def _audit(args) -> int:
     return 0 if result.ok else 1
 
 
+def _arc_node(args) -> str:
+    url = args.rpc_url or os.environ.get("ARC_TESTNET_RPC_URL", "").strip()
+    if not url:
+        raise AuditError("pass an Arc Testnet node with --rpc-url (or ARC_TESTNET_RPC_URL)")
+    return url
+
+
+def _prove(args) -> int:
+    """One entry of a downloaded journal, with the proof that it is anchored on Arc."""
+    try:
+        data = load_journal_file(args.file)
+        anchors = JournalAnchors(ArcRpc(_arc_node(args)), data["shop"]).all()
+        bundle = make_proof(data, args.entry, anchors)
+    except (AuditError, ChainError) as error:
+        print(f"embco: {error}", file=sys.stderr)
+        return 2
+    text = json.dumps(bundle, ensure_ascii=False, indent=1)
+    if args.out:
+        Path(args.out).write_text(text + "\n", encoding="utf-8")
+        print(f"proof of entry {args.entry} written to {args.out}")
+    else:
+        print(text)
+    return 0
+
+
+def _check_proof(args) -> int:
+    """Check a proof bundle: its entry, its place in the tree, and the root on Arc."""
+    try:
+        bundle = read_proof(args.file)
+        anchors = JournalAnchors(ArcRpc(_arc_node(args)), bundle["shop"]).all()
+    except (AuditError, ChainError) as error:
+        print(f"embco: {error}", file=sys.stderr)
+        return 2
+    result = check_proof(bundle, anchors)
+    print(proof_report(bundle, result))
+    return 0 if result.ok else 1
+
+
+def _witness(args) -> int:
+    """Read the anchors on Arc, keep when each was first seen, and compare them with a copy."""
+    try:
+        shop = to_checksum_address(args.shop)
+        journal = load_journal_file(args.journal) if args.journal else None
+        state_path = Path(args.state or f"witness-{shop[2:10].lower()}.json")
+        state = load_witness_state(state_path, shop)
+        anchors = JournalAnchors(ArcRpc(_arc_node(args)), shop).all()
+    except (AuditError, ChainError) as error:
+        print(f"embco: {error}", file=sys.stderr)
+        return 2
+    run = run_witness(state, anchors, journal, datetime.now(UTC))
+    save_witness_state(state_path, state)
+    for alert in run.alerts:
+        print(f"ALERT: {alert}")
+    for note in run.notes:
+        print(note)
+    print(f"{run.anchors_seen} anchors recorded in {state_path}: "
+          + ("no alerts." if run.ok else "ALERTS, see above."))
+    return 0 if run.ok else 1
+
+
 def _create_wallet(args, settings, journal) -> int:
     if settings.agent_wallet_id:
         print("EMBCO_AGENT_WALLET_ID is already set; the agent has a wallet", file=sys.stderr)
@@ -304,6 +383,19 @@ def _parser() -> argparse.ArgumentParser:
     audit_cmd = sub.add_parser("audit", help="check a downloaded journal against Arc")
     audit_cmd.add_argument("file", help="the journal JSON downloaded from the dashboard")
     audit_cmd.add_argument("--rpc-url", help="an Arc Testnet node (default: ARC_TESTNET_RPC_URL)")
+    prove_cmd = sub.add_parser("prove", help="make the proof that one entry is anchored on Arc")
+    prove_cmd.add_argument("file", help="the journal JSON downloaded from the dashboard")
+    prove_cmd.add_argument("--entry", type=int, required=True, help="the entry number, from 1")
+    prove_cmd.add_argument("--out", help="write the proof to this file (default: print it)")
+    prove_cmd.add_argument("--rpc-url", help="an Arc Testnet node (default: ARC_TESTNET_RPC_URL)")
+    check_cmd = sub.add_parser("check-proof", help="check a proof of one entry against Arc")
+    check_cmd.add_argument("file", help="a proof written by embco prove")
+    check_cmd.add_argument("--rpc-url", help="an Arc Testnet node (default: ARC_TESTNET_RPC_URL)")
+    witness_cmd = sub.add_parser("witness", help="keep when each anchor was seen; compare")
+    witness_cmd.add_argument("--shop", required=True, help="the shop contract address")
+    witness_cmd.add_argument("--journal", help="your latest copy of the journal (downloaded JSON)")
+    witness_cmd.add_argument("--state", help="the witness record (default: witness-<shop>.json)")
+    witness_cmd.add_argument("--rpc-url", help="an Arc Testnet node (default: ARC_TESTNET_RPC_URL)")
     sub.add_parser("create-wallet", help="create the agent's paying wallet with Circle (once)")
     shop = sub.add_parser("shop", help="run the hosted agent of one shop from its folder")
     shop.add_argument("--dir", required=True, help="the shop's folder: ROOT/<contract address>")
