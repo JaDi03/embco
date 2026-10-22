@@ -81,6 +81,17 @@ Gateway balance and brings it to their wallet on Arc. It only ever lands in the 
 USDC and vault shares never sit in an embco contract. The owner picks the vaults and the limits;
 the model picks when and how much, following the owner's liquidity strategy.
 
+## Contracts on Arc Testnet
+
+| Contract | What it does | Address |
+|---|---|---|
+| `ShopPayablesFactory` | Each owner creates their shop contract: the agent pays suppliers from the owner's wallet within the owner's limits | [`0x5D455dF984C85abe160E4585E0c1139ded5d2c3b`](https://explorer.testnet.arc.io/address/0x5D455dF984C85abe160E4585E0c1139ded5d2c3b) |
+| `ShopEarnFactory` | Each owner creates their ShopEarn: the agent parks idle USDC in approved vaults and takes it back, shares stay with the owner | [`0xEDF589982F10CCC3c8489726FaB39124b1F683Aa`](https://explorer.testnet.arc.io/address/0xEDF589982F10CCC3c8489726FaB39124b1F683Aa) |
+| `JournalAnchor` | The Merkle root of each shop's journal, written by its agent, so any copy can be checked | [`0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582`](https://explorer.testnet.arc.io/address/0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582) |
+| `ShopFundingFactory` (Base Sepolia, Ethereum Sepolia) | Each owner creates their ShopFunding: the agent deposits the owner's USDC into the owner's own Unified Balance | [`0x69e31Af302Ee222204AA78099D39a2956F5C95d6`](https://sepolia.basescan.org/address/0x69e31Af302Ee222204AA78099D39a2956F5C95d6) |
+
+Every contract, who can call what, and the vaults: [Smart contracts](https://jadi03.github.io/embco/contracts/).
+
 Why it exists: [Agents and Ledgers in 2026](https://thecanteenapp.com/analysis/2026/09/12/agents-and-ledgers.html).
 How each part works, with diagrams: [the documentation](https://jadi03.github.io/embco/).
 
@@ -122,7 +133,7 @@ embco/
 │   ├── telegram/        the Telegram bot
 │   ├── settings.py      settings from the environment, checked once
 │   └── cli.py           the embco command
-├── contracts/           ShopPayables, ShopFunding, ShopEarn and their factories (Solidity, Arc Foundry)
+├── contracts/           ShopPayables, ShopFunding, ShopEarn, their factories and JournalAnchor (Solidity, Arc Foundry)
 ├── dashboard/           the owner dashboard and the supplier page (static, MetaMask)
 ├── connector/           prepares an ERPNext instance
 ├── deploy/              install.sh and the server files it sets up
