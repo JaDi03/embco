@@ -50,6 +50,45 @@ def test_the_toolbox_keeps_every_call_in_order_refusals_included(tmp_path):
                                                          ("no_such_tool", False)]
 
 
+PLAN = json.dumps({"best_vault": {"vault": "morpho", "apy": "3.50%"}, "sources": [
+    {"from": "the owner's wallet on Arc", "can_go_to_earn_now": "5.5", "fees": "0",
+     "earns_per_day": "0.000527", "earns_in_30_days_after_fees": "0.015822",
+     "days_to_pay_back_fees": "0"}]})
+
+
+def test_a_reading_step_keeps_exactly_what_the_model_read():
+    s = step("earn_plan", {}, result=PLAN)
+    assert s["saw"] == PLAN  # the exact text, numbers as the model got them
+    assert json.loads(s["saw"])["sources"][0]["earns_in_30_days_after_fees"] == "0.015822"
+    assert line(s) == "earn_plan() -> done"  # the activity line stays short
+
+
+def test_acting_steps_and_refusals_keep_no_answer():
+    assert "saw" not in step("park_in_earn", {"amount": "5.5", "vault": "morpho"},
+                             result=json.dumps({"tx": TX}))
+    assert "saw" not in step("get_invoice", {"invoice": "X"}, refused="not among the unpaid")
+
+
+def test_a_very_long_answer_is_kept_cut_and_says_so():
+    s = step("list_open_invoices", {}, result="x" * 20_000)
+    assert len(s["saw"]) < 12_100 and s["saw"].endswith("[cut: the answer had 20000 characters]")
+
+
+def test_what_the_model_saw_is_kept_in_the_journal_not_in_the_activity(tmp_path):
+    trace = (step("earn_plan", {}, result=PLAN),
+             step("park_in_earn", {"amount": "5.5", "vault": "morpho"},
+                  result=json.dumps({"tx": TX})))
+    session = Session(at=NOW, wakes=(Wake("round", "The daily round."),), finished=True,
+                      summary="Parked 5.5.", steps=2, trace=trace)
+    with SqliteJournal(tmp_path / "j.sqlite3") as journal:
+        journal.record_session(session)
+        [kept] = journal.sessions()
+        journal.verify()
+    assert kept.trace[0]["saw"] == PLAN
+    assert all("saw" not in e and "0.015822" not in e["text"]
+               for e in activity.session_events(kept))
+
+
 def test_the_trace_is_remembered_and_shown_between_the_wake_and_the_decisions(tmp_path):
     trace = (step("cash_position", {}, result="{}"),
              step("pay_now", {"invoice": "PINV-1", "reason": "due"}, result=json.dumps({"tx": TX})))

@@ -69,7 +69,9 @@ The agent pays no gas: Circle covers its network fees.
 ## Memory
 
 Every decision, owner answer, wallet challenge and payment step is an event in an append-only
-journal. Each event stores the hash of the one before it. After money moves, and at least once a
+journal. Each time the agent works, the journal keeps every tool it called and, for the tools
+that read balances, plans and invoices, the exact answer it read, so a decision can be checked
+against what the agent saw. Each event stores the hash of the one before it. After money moves, and at least once a
 day, the agent writes the Merkle root of the whole journal (RFC 9162) to the JournalAnchor
 contract on Arc. A copy of the journal that was changed, cut or reordered gives a different
 root, even if every hash in the chain was recomputed. `embco verify` checks the chain and every
