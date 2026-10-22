@@ -8,7 +8,7 @@ verify(). Only what changes is stored, so the file grows with events, not with r
 import json
 import sqlite3
 from collections import Counter
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import fields
 from datetime import date, datetime
@@ -302,6 +302,18 @@ def export_journal(path: str | Path) -> list[dict[str, Any]]:
                 in db.execute(schema.ALL)]
     finally:
         db.close()
+
+
+def verify_export(entries: Sequence[Mapping[str, Any]]) -> str | None:
+    """None when exported entries chain from the first one; otherwise what does not match."""
+    previous = GENESIS
+    for number, e in enumerate(entries, start=1):
+        expected = chain_hash(previous, _content(e["kind"], e["run"], e["invoice"], e["at"],
+                                                 e["body"]))
+        if e["hash"] != expected:
+            return f"entry {number} ({e['kind']}) does not match its hash"
+        previous = expected
+    return None
 
 
 def _content(kind: str, run: int | None, invoice: str | None, at: str, body: str) -> dict:

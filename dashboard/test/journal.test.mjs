@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { canonicalContent, check, merkleRoot, mismatches, sessionOf, verifyChain } from "../journal.js";
+import { canonicalContent, check, merkleRoot, mismatches, parseJournal, report, sessionOf, verifyChain } from "../journal.js";
 
 // Written by agent/memory (Python) from a synthetic journal: accents, emoji, quotes, a backslash,
 // line breaks and a control character, where two JSON writers could differ.
@@ -79,4 +79,23 @@ test("a receipt finds the session that moved it, with what the agent read", () =
   assert.equal(session.steps[1].saw, null);
   assert.equal(sessionOf(entries, "0xcd"), null);
   assert.equal(sessionOf(entries, ""), null);
+});
+
+test("the report gives the chain, the root of the whole copy and a row per anchor", async () => {
+  const anchors = [{ root: fixture.root_first_3, size: 3, anchoredAt: "a" }, { root: "00".repeat(32), size: 5, anchoredAt: "b" },
+    { root: fixture.root, size: 9, anchoredAt: "c" }];
+  const r = await report(entries, anchors);
+  assert.equal(r.chain.ok, true);
+  assert.equal(r.root, fixture.root);
+  assert.deepEqual(r.rows.map((row) => row.matches), [true, false, false]);
+  assert.equal(r.rows[1].fileRoot, fixture.root);  // different from what Arc has
+  assert.equal(r.rows[2].fileRoot, null);          // the anchor covers more entries than the copy has
+});
+
+test("a file is read as a journal only when it has a shop and complete entries", () => {
+  const good = JSON.stringify({ shop: "0xabc", merkle: { root: "claimed" }, entries });
+  assert.equal(parseJournal(good).entries.length, 5);
+  assert.throws(() => parseJournal("nope"), /not JSON/);
+  assert.throws(() => parseJournal('{"hello": 1}'), /not an Embco journal/);
+  assert.throws(() => parseJournal(JSON.stringify({ shop: "0xabc", entries: [{ kind: "RUN" }] })), /not an Embco journal/);
 });

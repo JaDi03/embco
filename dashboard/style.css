@@ -647,6 +647,8 @@ button.side-link { font: inherit; border: 0; background: none; width: 100%; text
 .journal-status.ok { color: var(--success); font-weight: 600; }
 .journal-status.bad { color: var(--danger); font-weight: 600; }
 .journal-check .row { margin: 0; }
+.audit-pick { display: grid; gap: 8px; margin-bottom: 10px; }
+#audit-rows td { padding: 10px 16px; border-bottom: 1px solid var(--line-soft); }
 .receipt-seen { margin-top: 4px; font-size: 0.9rem; }
 .receipt-seen > summary { cursor: pointer; color: var(--accent-ink); }
 .receipt-seen .hint { margin: 4px 0; }

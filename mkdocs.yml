@@ -48,6 +48,7 @@ nav:
   - How it works: how-it-works.md
   - Architecture: architecture.md
   - Smart contracts: contracts.md
+  - Audit the agent: audit.md
   - Connect your ERPNext: connect.md
   - Run your own server: server.md
 

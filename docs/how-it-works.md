@@ -77,7 +77,7 @@ contract on Arc. A copy of the journal that was changed, cut or reordered gives 
 root, even if every hash in the chain was recomputed. `embco verify` checks the chain and every
 root written on Arc. In the dashboard, Agent activity does the same check in the owner's browser
 and downloads the journal, and each receipt shows what the agent read in the session that moved
-it.
+it. Anyone can check a downloaded copy: see [Audit the agent](audit.md).
 
 <figure class="diagram" markdown>
 ![Memory: each journal event stores the hash of the one before it, so the events form a chain](assets/diagrams/memory.svg#only-light "Memory")
