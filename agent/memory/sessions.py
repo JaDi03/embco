@@ -33,6 +33,7 @@ def session_body(session: Session) -> dict[str, Any]:
         "seen_payments": list(session.seen_payments),
         "funds_moved": list(session.funds_moved),
         "trace": list(session.trace),
+        **({"id": session.id} if session.id else {}),
     }
 
 
@@ -74,6 +75,7 @@ def session_from(at: datetime, body: dict[str, Any],
         seen_payments=tuple(body.get("seen_payments", [])),
         funds_moved=tuple(body.get("funds_moved", [])),
         trace=tuple(body.get("trace", [])),
+        id=body.get("id", ""),
     )
 
 

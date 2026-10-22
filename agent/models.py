@@ -102,6 +102,7 @@ class Session:
     seen_payments: tuple[str, ...] = ()  # payment results the agent saw in this session
     funds_moved: tuple[dict, ...] = ()  # what the agent brought from the owner's other chains
     trace: tuple[dict, ...] = ()  # every tool call the model made, in order (agent.tools.trace)
+    id: str = ""  # links the session's AGENT and PAYMENT entries to it in the journal
 
 
 def payment_seen_key(event) -> str:

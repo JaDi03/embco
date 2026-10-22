@@ -447,6 +447,17 @@ def test_reconcile_follows_what_was_sent_and_pays_nothing_new(journal):
     assert len(circle.sent) == 1  # PINV-2 is payable but only the agent pays
 
 
+def test_every_state_of_a_payment_keeps_the_session_that_sent_it(journal):
+    payer, _, circle = make_payer()
+    circle.final_state = "PENDING"
+    payer.pay(decision(), journal, session="s1")
+    circle.final_state = "COMPLETE"
+    payer.reconcile([], journal)  # a later check, from what the journal kept
+    states = [(b["status"], b.get("session")) for kind, _, _, _, b in journal.entries()
+              if kind == "PAYMENT"]
+    assert states == [("SUBMITTED", "s1"), ("COMPLETE", "s1")]
+
+
 # recording in the ERP
 
 

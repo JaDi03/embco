@@ -54,6 +54,35 @@ def test_what_the_agent_chooses_to_pay_now_is_paid_through_the_contract(journal)
     assert report.settlement.events[-1].status is PaymentStatus.COMPLETE
 
 
+class PaysThenBreaks:
+    """Pays one invoice, holds another, then the session breaks before it finishes."""
+
+    model = "scripted"
+
+    def run(self, toolbox, briefing):
+        toolbox.call("pay_now", {"invoice": "PINV-1", "reason": "the checks pass"})
+        toolbox.call("hold", {"invoice": "PINV-2", "reason": "wait"})
+        return SessionRun(finished=False, steps=2, usage=Usage(), error="model down")
+
+
+def test_a_session_that_breaks_keeps_only_the_decision_of_a_payment_it_sent(journal):  # noqa: F811
+    from services.anchor.decision import decision_entries
+    from support import make_invoice
+
+    ledger = matching_ledger()
+    ledger.pending.append(make_invoice(name="PINV-2", bill_no="B-2", currency="USD"))
+    payer, _, circle = make_payer(ledger)
+    report = cycle(journal, payer, PaysThenBreaks(), NOW)
+
+    session = report.thought.session
+    assert not session.finished and len(circle.sent) == 1
+    assert [(d.invoice, d.choice) for d in session.decisions] == [("PINV-1", Choice.PAY_NOW)]
+    entries = [{"kind": k, "run": r, "invoice": i, "at": a.isoformat(), "body": json.dumps(b)}
+               for k, r, i, a, b in journal.entries()]
+    kinds = [entries[n - 1]["kind"] for n in decision_entries(entries, session.id, "PINV-1")]
+    assert kinds.count("AGENT") == 1 and "SESSION" in kinds and "PAYMENT" in kinds
+
+
 class SchedulesThenPays:
     """Schedules every invoice for tomorrow; when woken on that day, pays it."""
 

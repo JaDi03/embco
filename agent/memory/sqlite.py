@@ -201,6 +201,8 @@ class SqliteJournal:
         }
         if event.erp_entry:
             body["erp_entry"] = event.erp_entry
+        if event.session:
+            body["session"] = event.session
         self._append_owner_entry("PAYMENT", event.at, body, event.invoice)
 
     def latest_payment(self, invoice: str) -> PaymentEvent | None:
@@ -230,9 +232,10 @@ class SqliteJournal:
         with self._transaction():
             head = self._append(self._head(), "SESSION", None, None, stamp,
                                 session_body(session))
+            linked = {"session": session.id} if session.id else {}
             for decision in session.decisions:
                 head = self._append(head, "AGENT", None, decision.invoice, stamp,
-                                    decision_body(decision))
+                                    {**decision_body(decision), **linked})
 
     def sessions(self) -> list[Session]:
         """Every session, oldest first (decisions are read with latest_agent_decisions)."""
@@ -377,6 +380,7 @@ def _payment(row: tuple) -> PaymentEvent:
         tx_hash=body["tx_hash"],
         reason=body["reason"],
         erp_entry=body.get("erp_entry"),
+        session=body.get("session"),
     )
 
 

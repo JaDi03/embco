@@ -96,6 +96,7 @@ class Toolbox:
     summary: str | None = None
     trace: list[dict[str, Any]] = field(default_factory=list)  # every tool call, in order
     on_step: Callable[[dict[str, Any]], None] | None = None  # told of each call as it happens
+    session: str = ""  # the session's id, written with each payment it sends
 
     def __post_init__(self) -> None:
         self._by_invoice = {d.invoice: d for d in self.decisions}
@@ -302,7 +303,7 @@ class Toolbox:
         _refuse_workarounds(reason)
         self._paid_now += 1
         try:
-            events = self.payer.pay(decision, self.journal)
+            events = self.payer.pay(decision, self.journal, session=self.session or None)
         except PaymentRefused as error:
             self.payments.append(self._not_sent(decision, str(error)))
             raise ToolError(f"not paid, nothing was sent: {error}") from None

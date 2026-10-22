@@ -157,18 +157,19 @@ class Payer:
             self._agent = address
         return self._agent
 
-    def pay(self, decision: Decision, book: PaymentBook) -> list[PaymentEvent]:
+    def pay(self, decision: Decision, book: PaymentBook,
+            session: str | None = None) -> list[PaymentEvent]:
         """Pay one invoice now, because the agent chose to: what happened, in order (sent, its
         final state, written in the ERP). Raises PaymentRefused with the real reason when
         nothing was sent: a precondition, the contract's answer to the simulation, or Circle's
-        own error, word for word."""
+        own error, word for word. `session` is the agent session that chose it."""
         try:
             agent = self.agent_address()
             last = book.latest_payment(decision.invoice)
             if settled_or_sent(last, book):
                 raise PaymentRefused("the agent already paid or sent this invoice")
             remaining = self.chain.remaining_this_week(self.shop)
-            outcome = self._pay(decision, book, agent, remaining, last, [])
+            outcome = self._pay(decision, book, agent, remaining, last, [], session)
         except (PaymentSetupError, ChainError, CircleError, LedgerError) as error:
             raise PaymentRefused(str(error)) from None
         if outcome is None:
@@ -361,13 +362,14 @@ class Payer:
         remaining: int,
         last: PaymentEvent | None,
         pending: list[PendingApproval],
+        session: str | None = None,
     ) -> list[PaymentEvent] | None:
         name = decision.invoice
         ref = invoice_ref(name, self.ref_scope)
         base = PaymentEvent(
             invoice=name, status=PaymentStatus.BLOCKED, at=self.clock(),
             supplier=decision.supplier, payee="", amount=decision.amount,
-            invoice_ref="0x" + ref.hex(),
+            invoice_ref="0x" + ref.hex(), session=session,
         )
 
         def blocked(reason: str) -> list[PaymentEvent]:
