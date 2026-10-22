@@ -183,6 +183,7 @@ async function renderShop() {
   $("telegram-link").hidden = !isOwner || !service?.connected || telegram;
   $("telegram-unlink").hidden = !isOwner || !telegram;
   if (telegram) $("telegram-code").hidden = true;
+  await renderAgentBalance(isOwner && service ? service : null);
   $("agent-off").hidden = !isOwner || !view.on;
   $("agent-on").hidden = !isOwner || view.on;
 
@@ -1329,6 +1330,26 @@ async function setDraftMode(button, draft) {
   }
 }
 
+/** The agent's own balance (its gas) and, when the agent is off, the way to take it back. */
+async function renderAgentBalance(service) {
+  const body = service ? await hub.agentBalance(session.shop).catch(() => null) : null;
+  const view = hub.agentBalanceView(body, Boolean(service?.connected && service.agent_on));
+  $("agent-balance").textContent = view.text;
+  $("agent-balance-note").textContent = view.note;
+  $("agent-balance-note").hidden = !view.note;
+  $("agent-balance-return").hidden = !view.canReturn;
+  $("agent-balance-question").textContent = view.canReturn
+    ? `Send ${view.amount} USDC from the agent's wallet to your wallet?` : "";
+  if (!view.canReturn) $("agent-balance-confirm").hidden = true;
+}
+
+/** Taking the balance back is two clicks: the second one says how much goes where. */
+function askAgentBalance(show) {
+  $("agent-balance-confirm").hidden = !show;
+  $("agent-balance-return").hidden = show;
+  if (show) $("agent-balance-yes").focus();
+}
+
 /**
  * Off: the service stops the agent's process first (no checks, no Claude), then the owner pauses
  * the contract so no payment can leave either. On: the contract first, then the process.
@@ -1630,6 +1651,23 @@ function wireActions() {
       await renderShop();
     } catch (error) {
       notify(describeError(error), "error");
+    }
+  });
+
+  $("agent-balance-return").addEventListener("click", () => askAgentBalance(true));
+  $("agent-balance-cancel").addEventListener("click", () => askAgentBalance(false));
+  $("agent-balance-yes").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      const sent = await hub.returnAgentBalance(session.shop);
+      notify(`Sent ${sent.amount} USDC from the agent's wallet to your wallet. Circle transaction ${sent.transaction}.`, "success");
+      askAgentBalance(false);
+      await renderShop();
+    } catch (error) {
+      notify(describeError(error), "error");
+    } finally {
+      button.disabled = false;
     }
   });
 

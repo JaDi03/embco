@@ -174,6 +174,30 @@ test("the owner authorizes the agent's signer in Gateway, or an outside agent it
   assert.equal(hub.delegateOf(null, agent), null);
 });
 
+test("the agent's balance can be taken back only while the agent is off", () => {
+  const body = { wallet: "0x" + "5c".repeat(20), balance: "19.5435", returnable: "19.4435", gasless: false };
+  const off = hub.agentBalanceView(body, false);
+  assert.equal(off.text, "19.5435 USDC");
+  assert.equal(off.canReturn, true);
+  assert.equal(off.amount, "19.4435");
+  assert.match(off.note, /gas of that transfer/);
+  const on = hub.agentBalanceView(body, true);
+  assert.equal(on.canReturn, false);
+  assert.match(on.note, /Turn the agent off/);
+  assert.equal(hub.agentBalanceView({ ...body, returnable: "0" }, false).canReturn, false);
+  assert.equal(hub.agentBalanceView(null, false).canReturn, false);
+  assert.doesNotMatch(hub.agentBalanceView({ ...body, gasless: true }, false).note, /gas/);
+});
+
+test("taking the agent's balance back posts to the shop's endpoint with no address in it", async () => {
+  const { impl, calls } = fakeFetch({
+    [`POST /api/shops/${SHOP.toLowerCase()}/agent-balance/return`]: [200, { amount: "19.4435", transaction: "tx-1" }],
+  });
+  assert.deepEqual(await hub.returnAgentBalance(SHOP, impl), { amount: "19.4435", transaction: "tx-1" });
+  assert.equal(calls[0].body, undefined);  // the service sends only to the signed-in owner
+  assert.equal(calls[0].credentials, "same-origin");
+});
+
 test("setting the liquidity strategy posts the owner's choice to the shop's endpoint", async () => {
   const { impl, calls } = fakeFetch({
     [`POST /api/shops/${SHOP.toLowerCase()}/liquidity-strategy`]: [200, { liquidity_strategy: "instant_zero_fee" }],

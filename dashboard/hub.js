@@ -178,6 +178,35 @@ export const telegramCode = (shop, fetchImpl = fetch) =>
 export const telegramUnlink = (shop, fetchImpl = fetch) =>
   call(`${shopPath(shop)}/telegram`, { method: "DELETE", fetchImpl });
 
+/** What the agent's own wallet holds ({wallet, balance, returnable, gasless}); null when the
+ * owner has to sign in first or the shop has no agent wallet of ours. */
+export async function agentBalance(shop, fetchImpl = fetch) {
+  try {
+    return await call(`${shopPath(shop)}/agent-balance`, { fetchImpl });
+  } catch (error) {
+    if (error instanceof HubError && (error.status === 401 || error.status === 409)) return null;
+    throw error;
+  }
+}
+
+/** Send what the agent's wallet holds back to the owner's wallet: the only address it can go to. */
+export const returnAgentBalance = (shop, fetchImpl = fetch) =>
+  call(`${shopPath(shop)}/agent-balance/return`, { method: "POST", fetchImpl });
+
+/** What the Agent card says about the agent's balance, and whether the owner can take it back. */
+export function agentBalanceView(body, agentOn) {
+  if (!body) return { text: "sign in to the embco service first", canReturn: false, note: "" };
+  const text = `${body.balance} USDC`;
+  if (Number(body.returnable) <= 0) return { text, canReturn: false, note: "" };
+  if (agentOn) {
+    return { text, canReturn: false, note: "Turn the agent off to take this back: it pays its gas from this wallet." };
+  }
+  const note = body.gasless
+    ? `${body.returnable} USDC can come back to your wallet.`
+    : `${body.returnable} USDC can come back to your wallet. The rest pays the gas of that transfer.`;
+  return { text, canReturn: true, note, amount: body.returnable };
+}
+
 /** What to tell the owner to send, and to whom. */
 export function linkInstruction({ code, bot }) {
   const to = bot ? `@${bot}` : "your embco bot";
