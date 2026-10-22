@@ -14,6 +14,7 @@ from dataclasses import fields
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 from agent.explain.base import Explanation
 from agent.guardrails.controls import Finding, Outcome, WalletChallenge, WalletProof
@@ -289,6 +290,18 @@ class SqliteJournal:
         entry_hash = chain_hash(previous, _content(kind, run, invoice, at, text))
         self._db.execute(schema.INSERT, (kind, run, invoice, at, text, entry_hash))
         return entry_hash
+
+
+def export_journal(path: str | Path) -> list[dict[str, Any]]:
+    """Every entry exactly as stored, oldest first, read without opening the journal for
+    writing: what anyone needs to recompute the hash chain and the Merkle root."""
+    db = sqlite3.connect(f"file:{Path(path).as_posix()}?mode=ro", uri=True)
+    try:
+        return [{"kind": kind, "run": run, "invoice": invoice, "at": at, "body": body,
+                 "hash": entry_hash} for kind, run, invoice, at, body, entry_hash
+                in db.execute(schema.ALL)]
+    finally:
+        db.close()
 
 
 def _content(kind: str, run: int | None, invoice: str | None, at: str, body: str) -> dict:

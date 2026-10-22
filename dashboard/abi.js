@@ -9,6 +9,12 @@ export const FACTORY_ABI = [
   "error InvalidAddress()",
 ];
 
+// contracts/src/JournalAnchor.sol
+export const JOURNAL_ANCHOR_ABI = [
+  "function count(address shop) view returns (uint256)",
+  "function anchorAt(address shop, uint256 index) view returns (tuple(bytes32 root, uint64 size, uint64 anchoredAt))",
+];
+
 export const SHOP_ABI = [
   "function owner() view returns (address)",
   "function agent() view returns (address)",

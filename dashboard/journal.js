@@ -1,0 +1,118 @@
+// The shop's journal, checked here in the browser, not on our server: the hash chain is
+// recomputed entry by entry, then the Merkle root (RFC 9162) of the first N entries is compared
+// with every root the agent wrote on Arc. Same rules as agent/memory (models.py, merkle.py).
+
+const DOMAIN = "embco-journal-v1";
+const GENESIS = "0".repeat(64);
+const encoder = new TextEncoder();
+
+async function sha256(bytes) {
+  return new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes));
+}
+
+const toHex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+const fromHex = (hex) => Uint8Array.from(hex.match(/../g) ?? [], (h) => parseInt(h, 16));
+
+function concat(...parts) {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
+}
+
+/** The entry as Python's json.dumps(sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+ * writes it: its fields are strings, integers or null, and JSON.stringify escapes strings the
+ * same way. */
+export function canonicalContent(e) {
+  const value = (v) => (v === null || v === undefined ? "null" : JSON.stringify(v));
+  return `{"at":${value(e.at)},"body":${value(e.body)},"invoice":${value(e.invoice)},`
+    + `"kind":${value(e.kind)},"run":${value(e.run)}}`;
+}
+
+export async function chainHash(previous, entry) {
+  return toHex(await sha256(encoder.encode(`${DOMAIN}\n${previous}\n${canonicalContent(entry)}`)));
+}
+
+/** {ok: true} when every stored hash is the hash of its entry and the one before it. */
+export async function verifyChain(entries) {
+  let previous = GENESIS;
+  for (const [i, e] of entries.entries()) {
+    const expected = await chainHash(previous, e);
+    if (expected !== e.hash) return { ok: false, entry: i + 1, kind: e.kind };
+    previous = expected;
+  }
+  return { ok: true };
+}
+
+async function subtree(nodes) {
+  if (nodes.length === 1) return nodes[0];
+  const split = 2 ** (Math.ceil(Math.log2(nodes.length)) - 1);
+  const [left, right] = await Promise.all([subtree(nodes.slice(0, split)), subtree(nodes.slice(split))]);
+  return sha256(concat(Uint8Array.of(1), left, right));
+}
+
+/** RFC 9162 Merkle tree hash over leaves given as hex (the entries' chain hashes). */
+export async function merkleRoot(leavesHex) {
+  if (!leavesHex.length) return toHex(await sha256(new Uint8Array()));
+  const leaves = await Promise.all(leavesHex.map((h) => sha256(concat(Uint8Array.of(0), fromHex(h)))));
+  return toHex(await subtree(leaves));
+}
+
+/** What does not match: one sentence per anchor the copy fails. Empty means it matches. */
+export async function mismatches(entries, anchors) {
+  const hashes = entries.map((e) => e.hash);
+  const problems = [];
+  for (const [i, a] of anchors.entries()) {
+    if (a.size > hashes.length) {
+      problems.push(`Anchor ${i + 1} covers ${a.size} entries but the journal has only ${hashes.length}: entries were removed.`);
+    } else if ((await merkleRoot(hashes.slice(0, a.size))) !== a.root) {
+      problems.push(`Anchor ${i + 1}: the first ${a.size} entries do not give the root written on Arc.`);
+    }
+  }
+  return problems;
+}
+
+/** The whole check: the chain, then every anchor. */
+export async function check(entries, anchors) {
+  const chain = await verifyChain(entries);
+  if (!chain.ok) {
+    return { ok: false, problems: [`Entry ${chain.entry} (${chain.kind}) does not match its hash.`] };
+  }
+  const problems = await mismatches(entries, anchors);
+  const last = anchors.at(-1);
+  return { ok: problems.length === 0, problems, entries: entries.length,
+    anchored: last?.size ?? 0, anchoredAt: last?.anchoredAt ?? null };
+}
+
+function parsed(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+/** The session that moved this transaction: what woke the agent, each tool it called with what
+ * it read, and its summary. Null when the journal has no such session. */
+export function sessionOf(entries, tx) {
+  const wanted = String(tx ?? "").toLowerCase();
+  if (!wanted) return null;
+  for (let i = entries.length - 1; i >= 0; i -= 1) {
+    if (entries[i].kind !== "SESSION") continue;
+    const body = parsed(entries[i].body);
+    const steps = body.trace ?? [];
+    const moved = (body.funds_moved ?? []).some((m) => String(m.tx ?? "").toLowerCase() === wanted);
+    if (!moved && !steps.some((s) => String(s.tx ?? "").toLowerCase() === wanted)) continue;
+    return {
+      at: entries[i].at,
+      woke: (body.wakes ?? []).map((w) => w.text),
+      steps: steps.map((s) => ({ tool: s.tool, args: s.args ?? {}, ok: s.ok !== false, tx: s.tx ?? "",
+        refused: s.refused ?? "", saw: s.saw === undefined ? null : parsed(s.saw) })),
+      summary: body.summary ?? "",
+    };
+  }
+  return null;
+}

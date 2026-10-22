@@ -1,0 +1,46 @@
+{
+ "entries": [
+  {
+   "kind": "ANSWER",
+   "run": null,
+   "invoice": "INV-0",
+   "at": "2026-10-21T05:48:00+00:00",
+   "body": "{\"note\":\"plain\"}",
+   "hash": "38b31d1ec6082f21db7dd4b6c059c49d3b0e528da6df9641df55eb0b4b16d4be"
+  },
+  {
+   "kind": "ANSWER",
+   "run": null,
+   "invoice": "INV-1",
+   "at": "2026-10-21T05:48:01+00:00",
+   "body": "{\"note\":\"quotes \\\" and \\\\ backslash\"}",
+   "hash": "9f10446feeaffd6a280340deeec6e58da63c0e9f99010a493b22f9fc44f5ac26"
+  },
+  {
+   "kind": "ANSWER",
+   "run": null,
+   "invoice": "INV-2",
+   "at": "2026-10-21T05:48:02+00:00",
+   "body": "{\"note\":\"acentos: café, niño, ¿sí? y emoji 🚀\"}",
+   "hash": "364a3edf4991a079589f2b39450a00c268c3505bd8eef76bc6af5fa750831dfd"
+  },
+  {
+   "kind": "ANSWER",
+   "run": null,
+   "invoice": "INV-3",
+   "at": "2026-10-21T05:48:03+00:00",
+   "body": "{\"note\":\"line\\nbreak\\ttab\\u0001ctl\"}",
+   "hash": "0a0363c409603191736903a343f06df8d38bf029011ef53e45b96f555cb41da4"
+  },
+  {
+   "kind": "SESSION",
+   "run": null,
+   "invoice": null,
+   "at": "2026-10-21T05:48:09+00:00",
+   "body": "{\"funds_moved\":[{\"kind\":\"earn_park\",\"tx\":\"0xab\"}],\"summary\":\"Parked.\",\"trace\":[{\"saw\":\"{\\\"fees\\\": \\\"0\\\"}\",\"tool\":\"earn_plan\"},{\"tool\":\"park_in_earn\",\"tx\":\"0xAB\"}],\"wakes\":[{\"text\":\"daily round\"}]}",
+   "hash": "8ab45d03e5bc57dcf526e5f594cde5409b2425e5645b169e34f9e73c4cdc6cc7"
+  }
+ ],
+ "root": "82365ba1e3a4d256b651457c489b00bbd125ec74be539f9f97c67465879badab",
+ "root_first_3": "653ba40d04a83a5f71e5a4f146e574e76699d868d23aefcc90e36d25549cace3"
+}

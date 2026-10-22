@@ -280,3 +280,25 @@ def test_an_agent_turned_off_runs_no_cycle_even_if_its_process_starts(hub):
     run_shop(store, SHOP, cycles=1, sleep=lambda s: None, erp=erp)
     assert store.last_run(SHOP)["run_id"] == 1  # still the summary written before, untouched
     assert not any(e["kind"] == "check" for e in read_activity(store.folder(SHOP)))
+
+
+# ---- the journal, for the owner to check against Arc and keep
+
+
+def test_the_owner_gets_the_whole_journal_as_stored(hub, owner):  # noqa: F811
+    folder = hub["store"].folder(SHOP)
+    with SqliteJournal(folder / "journal.sqlite3") as j:
+        j._append_owner_entry("ANSWER", MONDAY, {"note": "café"}, "PINV-1")
+        expected = j.entry_hashes()
+    body = owner_client(hub, owner).get(f"/api/shops/{SHOP}/journal").json()
+    assert [e["hash"] for e in body["entries"]] == expected
+    assert body["entries"][0]["body"] == '{"note":"café"}'  # the exact text the hash covers
+
+
+def test_the_journal_needs_the_owners_session(hub):
+    client = TestClient(hub["app"], base_url="https://testserver")
+    assert client.get(f"/api/shops/{SHOP}/journal").status_code == 401
+
+
+def test_a_shop_without_a_journal_gets_an_empty_one(hub, owner):  # noqa: F811
+    assert owner_client(hub, owner).get(f"/api/shops/{SHOP}/journal").json()["entries"] == []

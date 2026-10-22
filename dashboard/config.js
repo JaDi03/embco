@@ -47,6 +47,10 @@ export const FUNDING_FACTORIES = { Base_Sepolia: "0x69e31Af302Ee222204AA78099D39
 // Circle Gateway's GatewayWallet, the same address on every EVM testnet (Circle's Gateway docs).
 export const GATEWAY_WALLET_TESTNET = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
 
+// JournalAnchor on Arc Testnet (contracts/script/DeployJournalAnchor.s.sol): the Merkle root of
+// each shop's journal, written by its agent.
+export const JOURNAL_ANCHOR_ADDRESS = "0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582";
+
 // ShopEarnFactory on Arc Testnet (contracts/script/DeployEarn.s.sol) and verified ERC-4626 vaults.
 export const EARN_FACTORY_ADDRESS = "0xEDF589982F10CCC3c8489726FaB39124b1F683Aa";
 export const EARN_VAULTS = [
