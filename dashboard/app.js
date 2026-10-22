@@ -20,6 +20,7 @@ import * as earn from "./earn.js";
 import { factory, journalAnchors, memoNames, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
 import * as journalCheck from "./journal.js";
 import * as proofs from "./proof.js";
+import { proofLink } from "./share.js";
 import { AUTHORIZE_ALL, authorizationView, formatUsdc, parseUsdc, shortAddress, ZERO_ADDRESS } from "./units.js";
 import { chooseWallet } from "./picker.js";
 import "./theme.js";
@@ -682,18 +683,35 @@ async function receiptProofLine(tx) {
     const [data, anchors] = await Promise.all([loadJournal(), journalAnchors(session.shop)]);
     const evidence = proofs.receiptEvidence(data.entries, tx);
     const make = proofs.prover(data, anchors);
-    const result = evidence.session
-      ? await proofs.checkDecisionProof(await make.decision(evidence.session, evidence.invoice), anchors)
+    const bundle = evidence.session ? await make.decision(evidence.session, evidence.invoice) : null;
+    const result = bundle
+      ? await proofs.checkDecisionProof(bundle, anchors)
       : await proofs.checkEntryProof(await make.entry(evidence.number), anchors);
     if (!result.ok) return line("✗ This does not match the root written on Arc.", "bad");
-    return line(evidence.session
-      ? `✓ Anchored on Arc: the ${result.proofs.length} journal entries of this decision (its session, the `
-        + "agent's choice, the checks, the limits and the payment) are unchanged."
-      : "✓ Anchored on Arc: this session's journal entry is unchanged.", "ok");
+    if (!bundle) return line("✓ Anchored on Arc: this session's journal entry is unchanged.", "ok");
+    const done = line(`✓ Verified on Arc: the ${result.proofs.length} records of this decision (what the agent read, `
+      + "the checks, its limits, its choice and the payment) are unchanged.", "ok");
+    done.append(shareButton(bundle));
+    return done;
   } catch (error) {
     if (error instanceof proofs.NotAnchored) return line("Not anchored on Arc yet: the next anchor covers it.");
     return line(`Could not check it against Arc: ${error.message && !error.code ? error.message : describeError(error)}`, "bad");
   }
+}
+
+/** Copies a link that opens this decision, in plain words and checked against Arc, for anyone:
+ * an accountant, a supplier, a judge. The proof travels inside the link; Embco keeps nothing. */
+function shareButton(bundle) {
+  const button = el("button", { className: "share-proof", type: "button", textContent: "Copy a link anyone can check" });
+  button.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(await proofLink(bundle, new URL("audit/", location.href).href));
+      notify("Link copied. Whoever opens it sees this decision and what the agent read, checked against Arc.", "success");
+    } catch (error) {
+      notify(`Could not copy the link: ${describeError(error)}`, "error");
+    }
+  });
+  return button;
 }
 
 function seenLines(session) {

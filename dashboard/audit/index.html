@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Embco · Audit a journal</title>
+    <title>Embco · Audit the agent</title>
     <meta name="description" content="Check a downloaded Embco agent journal against the roots the agent wrote on Arc. Nothing leaves your browser." />
     <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0b0f17" media="(prefers-color-scheme: dark)" />
@@ -28,19 +28,18 @@
       <section class="page" aria-label="Audit a journal">
         <header class="page-head">
           <div>
-            <h1>Audit a journal</h1>
+            <h1>Audit the agent</h1>
             <p class="hint page-sub">
-              Choose a journal file downloaded from an owner's dashboard. This page recomputes its hash chain and its
-              Merkle roots here in your browser and compares them with the roots the agent wrote on Arc. A proof of
-              one decision, saved from the <code>decisions</code> of a download, is checked here too. The file
-              never leaves your computer, and no sign-in is needed.
+              Open a link an owner sent you, or choose a journal file downloaded from an owner's dashboard. Your
+              browser checks it against what the agent wrote on Arc, the public blockchain: nothing is sent to
+              Embco, and no sign-in is needed.
             </p>
           </div>
         </header>
 
-        <div class="card">
+        <div class="card" id="audit-pick-card">
           <label class="audit-pick">
-            <span class="eyebrow">Journal file (.json)</span>
+            <span class="eyebrow">Journal or proof file (.json)</span>
             <input id="audit-file" type="file" accept=".json,application/json" />
           </label>
           <p class="hint">
@@ -50,6 +49,24 @@
         </div>
 
         <p class="journal-status" id="audit-status" role="status" aria-live="polite"></p>
+
+        <article class="card decision-report" id="decision-report" hidden aria-label="One decision of the agent"></article>
+
+        <div class="card table-card" id="audit-decisions-card" hidden>
+          <h2 class="card-title">Decisions in this journal</h2>
+          <table class="grid-table">
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Invoice</th>
+                <th>What the agent did</th>
+                <th>Result</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="audit-decisions"></tbody>
+          </table>
+        </div>
 
         <div class="card table-card" id="audit-table-card" hidden>
           <table class="grid-table">

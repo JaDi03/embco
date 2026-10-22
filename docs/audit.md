@@ -121,9 +121,20 @@ of one decision holds every entry it rests on, each with its own audit path:
 - the owner's `ANSWER` to that check, if any, and the session's `PAYMENT` entries for the invoice.
 
 The proofs are made from the journal and the anchors when they are asked for: nothing is stored.
-The dashboard shows the result under each receipt, in **What the agent saw**, and puts every
-decision proof in the download under `decisions`. To share one decision without the rest of the
-journal, save that item as its own file. Check it on `/audit/` or with:
+
+**Share one decision with anyone.** Under a receipt, open **What the agent saw** and press **Copy a
+link anyone can check**. Whoever opens the link (an accountant, a supplier, a judge) needs no
+account and no code: the page says in plain words what the agent did, why, what the checks said,
+the limits it worked within, the payment and what it read, then checks every record against Arc
+in their browser and shows **Verified on Arc** or **Does not match**. It can be printed or saved as
+a PDF. The proof travels inside the link, after the `#`, a part browsers never send to a server:
+Embco does not keep it. Anyone with the link can read that decision and what the agent read for it.
+
+**Every decision of a journal.** Open a downloaded journal on `/audit/`: below the anchors, each
+decision is listed with its result, and **Open** shows it the same way.
+
+The download also carries every decision proof under `decisions`. The command line checks one
+saved as its own file:
 
 ```
 embco check-proof decision.json --rpc-url <Arc Testnet node>
