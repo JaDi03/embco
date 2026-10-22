@@ -253,6 +253,9 @@ class SqliteJournal:
                 raise JournalError(f"journal entry {number} ({kind} {subject}) was altered")
             previous = expected
 
+    def entry_hashes(self) -> list[str]:
+        return [row[5] for row in self._db.execute(schema.ALL)]
+
     @contextmanager
     def _transaction(self) -> Iterator[None]:
         self._db.execute("BEGIN IMMEDIATE")

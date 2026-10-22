@@ -10,7 +10,7 @@ export const fetchActivity = (shop, after = 0, fetchImpl = fetch) =>
 /** Who did it: the agent (Claude), its reflexes, the owner, a supplier, the contract, the ERP,
  * or a guardrail that stopped something. */
 const ACTOR_OF = {
-  agent: "AGENT", tool: "AGENT",
+  agent: "AGENT", tool: "AGENT", anchor: "AGENT",
   reflex: "REFLEX", check: "REFLEX", done: "REFLEX", new: "REFLEX", changed: "REFLEX", waiting: "REFLEX",
   you: "YOU", answer: "YOU",
   signature: "SUPPLIER",
