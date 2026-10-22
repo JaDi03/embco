@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { merkleRoot, merkleTree, verifyInclusion } from "../journal.js";
+import { merkleRoot, merkleTree, sessionOf, verifyInclusion } from "../journal.js";
 import {
   allDecisionProofs, checkDecisionProof, checkEntryProof, decisionEntries, isDecisionProof, NotAnchored,
   prover, receiptEvidence,
@@ -86,4 +86,17 @@ test("a receipt points to its decision, or to its session when that has no id", 
   assert.deepEqual(receiptEvidence([session({ trace: [pay] })], "0xab"), { number: 1 });
   assert.deepEqual(receiptEvidence([session({ id: "s6", funds_moved: [{ tx: "0xcd" }] })], "0xCD"), { number: 1 });
   assert.equal(receiptEvidence([session({ trace: [pay] })], "0xee"), null);
+});
+
+test("a payment finds its session by the id its PAYMENT entries carry, with no tx in the steps", () => {
+  // as the live journal wrote ACC-PINV-2026-00025: the pay_now step kept no transaction
+  const entry = (kind, invoice, body) => ({ kind, run: null, invoice, at: "t", body: JSON.stringify(body), hash: "h" });
+  const journal = [
+    entry("PAYMENT", "PINV-8", { status: "SUBMITTED", tx_hash: null, session: "s7" }),
+    entry("PAYMENT", "PINV-8", { status: "COMPLETE", tx_hash: "0xEF", session: "s7" }),
+    entry("SESSION", null, { id: "s7", summary: "Paid.", wakes: [], trace: [{ tool: "pay_now", args: { invoice: "PINV-8" }, ok: true }] }),
+    entry("SESSION", null, { id: "s8", summary: "Looked.", wakes: [], trace: [] }),
+  ];
+  assert.deepEqual(receiptEvidence(journal, "0xef"), { session: "s7", invoice: "PINV-8" });
+  assert.equal(sessionOf(journal, "0xef").summary, "Paid.");
 });

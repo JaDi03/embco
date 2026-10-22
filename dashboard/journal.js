@@ -190,21 +190,39 @@ function parsed(text) {
 /** The session that moved this transaction: what woke the agent, each tool it called with what
  * it read, and its summary. Null when the journal has no such session. */
 export function sessionOf(entries, tx) {
+  const found = sessionFor(entries, tx);
+  if (!found) return null;
+  const body = parsed(entries[found.index].body);
+  const steps = body.trace ?? [];
+  return {
+    at: entries[found.index].at,
+    woke: (body.wakes ?? []).map((w) => w.text),
+    steps: steps.map((s) => ({ tool: s.tool, args: s.args ?? {}, ok: s.ok !== false, tx: s.tx ?? "",
+      refused: s.refused ?? "", saw: s.saw === undefined ? null : parsed(s.saw) })),
+    summary: body.summary ?? "",
+  };
+}
+
+/** Where the session that moved this transaction is: {index, session, invoice}, or null. A
+ * payment says which session sent it (its PAYMENT entries carry the session's id); for a move of
+ * funds, or a payment from before sessions had an id, the session's own steps say it. */
+export function sessionFor(entries, tx) {
   const wanted = String(tx ?? "").toLowerCase();
   if (!wanted) return null;
+  const same = (value) => String(value ?? "").toLowerCase() === wanted;
+  const payment = entries.find((e) => e.kind === "PAYMENT" && same(parsed(e.body).tx_hash) && parsed(e.body).session);
+  if (payment) {
+    const id = parsed(payment.body).session;
+    const index = entries.findIndex((e) => e.kind === "SESSION" && parsed(e.body).id === id);
+    if (index >= 0) return { index, session: id, invoice: payment.invoice };
+  }
   for (let i = entries.length - 1; i >= 0; i -= 1) {
     if (entries[i].kind !== "SESSION") continue;
     const body = parsed(entries[i].body);
-    const steps = body.trace ?? [];
-    const moved = (body.funds_moved ?? []).some((m) => String(m.tx ?? "").toLowerCase() === wanted);
-    if (!moved && !steps.some((s) => String(s.tx ?? "").toLowerCase() === wanted)) continue;
-    return {
-      at: entries[i].at,
-      woke: (body.wakes ?? []).map((w) => w.text),
-      steps: steps.map((s) => ({ tool: s.tool, args: s.args ?? {}, ok: s.ok !== false, tx: s.tx ?? "",
-        refused: s.refused ?? "", saw: s.saw === undefined ? null : parsed(s.saw) })),
-      summary: body.summary ?? "",
-    };
+    const step = (body.trace ?? []).find((s) => same(s.tx));
+    if (!step && !(body.funds_moved ?? []).some((m) => same(m.tx))) continue;
+    const invoice = step?.tool === "pay_now" ? step.args?.invoice ?? null : null;
+    return { index: i, session: body.id || null, invoice };
   }
   return null;
 }
