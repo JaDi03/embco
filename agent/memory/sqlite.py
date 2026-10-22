@@ -304,12 +304,16 @@ def export_journal(path: str | Path) -> list[dict[str, Any]]:
         db.close()
 
 
+def entry_hash_of(previous: str, e: Mapping[str, Any]) -> str:
+    """The hash an exported entry must have, given the hash of the entry before it."""
+    return chain_hash(previous, _content(e["kind"], e["run"], e["invoice"], e["at"], e["body"]))
+
+
 def verify_export(entries: Sequence[Mapping[str, Any]]) -> str | None:
     """None when exported entries chain from the first one; otherwise what does not match."""
     previous = GENESIS
     for number, e in enumerate(entries, start=1):
-        expected = chain_hash(previous, _content(e["kind"], e["run"], e["invoice"], e["at"],
-                                                 e["body"]))
+        expected = entry_hash_of(previous, e)
         if e["hash"] != expected:
             return f"entry {number} ({e['kind']}) does not match its hash"
         previous = expected

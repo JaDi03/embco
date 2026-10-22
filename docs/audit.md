@@ -73,6 +73,65 @@ The implementations are `agent/memory/models.py` and `agent/memory/merkle.py` (P
 `dashboard/journal.js` (browser). Both pass the Certificate Transparency reference vectors and
 produce the same hashes for the same journal.
 
+## 3. Prove one entry
+
+For a dispute you rarely need the whole journal. `embco prove` makes a proof for one entry: the
+entry itself, the hash of the entry before it, and the Merkle audit path (RFC 9162) from the
+entry to the root of the first anchored entries.
+
+```
+embco prove embco-journal-0xbb7b11-2026-10-22.json --entry 1158 --out proof-1158.json --rpc-url <Arc Testnet node>
+```
+
+`--entry` counts from 1, as the entries are listed in the file. The proof uses the first anchor
+on Arc that covers that entry. Anyone checks it with:
+
+```
+embco check-proof proof-1158.json --rpc-url <Arc Testnet node>
+```
+
+```
+Entry 1158 of the journal of 0xbb7b118c...: SESSION at 2026-10-22T08:32:15.759680+00:00
+Its text: {"alarms":[],"decided":[],...  [7156 characters in the proof file]
+
+Its hash follows from the entry before it:  yes
+It is in the tree of the first 1158 entries:  yes
+That tree's root is written on Arc:  yes, 2026-10-22T08:33:24+00:00
+
+RESULT: this entry was anchored on Arc, unchanged.
+```
+
+The checker recomputes the entry's hash from its text and the previous hash, follows the audit
+path to the root, and reads the root from Arc. A proof file that claims a root Arc never wrote
+fails. The proof does not contain the other entries. It does contain this entry's full text, so
+send only what the dispute needs.
+
+## 4. Keep a witness
+
+An anchor is written by the agent's wallet. A **witness** is a record kept by someone else, which
+shows when each anchor was first seen and compares it with a copy of the journal:
+
+```
+embco witness --shop 0xBB7b118C8d6640e7Cb168e71A385A56147CB952d --journal embco-journal-0xbb7b11-2026-10-22.json --rpc-url <Arc Testnet node>
+```
+
+Run it on a schedule with your latest copy of the journal. The first run records each anchor it
+finds on Arc with the time it was first seen, and checks the ones your copy covers:
+
+- `matches your copy`: the anchor is the first entries of your copy.
+- `not checked yet`: the anchor covers more entries than your copy. Download a newer journal.
+- `ALERT`: an anchor does not match your copy, an anchor seen before changed or disappeared, or
+  your copy breaks the hash chain. Exit code 1, so a scheduler can notify you.
+
+The record is a file (`witness-<shop>.json` by default). Keep it somewhere the agent's operator
+cannot change: the copy in your own hands is what makes it a witness.
+
+## What the root does not pin
+
+A Merkle root alone does not say how many entries it covers. Each anchor on Arc carries its size,
+and both `audit` and `check-proof` require the size to match an anchor with that root. A proof
+that claims a different size fails, even though the path would compute the same root.
+
 ## What this does not prove
 
 - That an entry was true when it was written: the journal records what the agent read and said,
