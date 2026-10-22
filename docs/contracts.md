@@ -8,6 +8,10 @@ in `contracts/` (Solidity 0.8.37, Arc Foundry).
 | Contract | Address |
 |---|---|
 | `ShopPayablesFactory` | [`0x5D455dF984C85abe160E4585E0c1139ded5d2c3b`](https://explorer.testnet.arc.io/address/0x5D455dF984C85abe160E4585E0c1139ded5d2c3b) (source verified on [Sourcify](https://repo.sourcify.dev/5042002/0x5D455dF984C85abe160E4585E0c1139ded5d2c3b)) |
+| `ShopEarnFactory` | [`0xEDF589982F10CCC3c8489726FaB39124b1F683Aa`](https://explorer.testnet.arc.io/address/0xEDF589982F10CCC3c8489726FaB39124b1F683Aa) |
+| `JournalAnchor` | [`0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582`](https://explorer.testnet.arc.io/address/0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582) |
+| Morpho USDC Vault (ERC-4626, not embco's) | [`0x8f2d33b5d4b9b5f02df635ae308f7b4c9da8d2dc`](https://explorer.testnet.arc.io/address/0x8f2d33b5d4b9b5f02df635ae308f7b4c9da8d2dc) |
+| EarnKit USDC Vault (ERC-4626, not embco's; deposits closed) | [`0xaabbef1d3971c710276ed41ec791bbe14cdb8e88`](https://explorer.testnet.arc.io/address/0xaabbef1d3971c710276ed41ec791bbe14cdb8e88) |
 | USDC (ERC-20 interface) | `0x3600000000000000000000000000000000000000` |
 | Memo (predeployed) | `0x5294E9927c3306DcBaDb03fe70b92e01cCede505` |
 | Pilot shop's agent wallet (Circle EOA, from before shops got their own gasless agent) | [`0x2309ed4a43e3b1ab4222f6938538a6c88bd27dd8`](https://explorer.testnet.arc.io/address/0x2309ed4a43e3b1ab4222f6938538a6c88bd27dd8) |
@@ -50,6 +54,34 @@ succeeds, and revoking the USDC allowance stops every payment.
 | `Paused` / `Unpaused` | The agent or owner pauses; only the owner resumes |
 
 The dashboard reads these events from the chain to show suppliers and payments.
+
+## ShopEarn: idle USDC in vaults
+
+Each owner creates one ShopEarn from `ShopEarnFactory`, approves the vaults the agent may use and
+sets a per-park limit and a weekly cap.
+
+| Who | Can do | Cannot do |
+|---|---|---|
+| Agent | `park`: move the owner's USDC into an approved vault, within the per-park limit and the weekly cap; `unpark` / `unparkAll`: bring it back to the owner's wallet at any time; pause | Use a vault the owner did not approve, change a limit, send USDC or shares anywhere but the owner |
+| Owner | Everything the agent can, with no limit; approve vaults, set the limits and the agent; resume | Transfer ownership |
+
+Neither USDC nor vault shares stay in ShopEarn: `park` deposits with the owner as the receiver, so
+the shares go to the owner's wallet, and `unpark` redeems them back to the owner. Taking money back
+does not use the weekly cap, so the agent can always recall funds to pay a bill. Every move emits
+`Parked` or `Unparked`, which the dashboard reads for its Earn card.
+
+## JournalAnchor: the journal, checkable by anyone
+
+After money moves, and at least once a day, the agent writes the Merkle root (RFC 9162) of its
+whole journal and how many entries it covers.
+
+| Who | Can do | Cannot do |
+|---|---|---|
+| The agent the shop contract names | `anchor(shop, root, size)`, with a size larger than the last one | Change or remove an anchor, anchor a smaller journal |
+| Anyone | Read `latest`, `count` and `anchorAt` for any shop | Anchor for a shop that does not name them as its agent |
+
+The contract has no owner. `embco verify` recomputes the root from a copy of the journal and
+compares it with every anchor: a changed, removed or reordered entry gives a different root.
 
 ## ShopFunding: the owner's USDC on other chains
 
