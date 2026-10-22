@@ -7,6 +7,7 @@
     embco sign-wallet SUPPLIER SIGNATURE     the supplier's signature comes back
     embco history INVOICE                    every decision taken on an invoice
     embco verify                             check that the memory was not altered, also on Arc
+    embco audit FILE [--rpc-url URL]         check a downloaded journal against Arc, no keys
     embco create-wallet                      create the agent's paying wallet with Circle (once)
     embco shop --dir ROOT/SHOP               the hosted agent of one shop, settings from its folder
     embco hub                                the API the dashboard uses to connect shops
@@ -26,10 +27,13 @@ from agent.reflexes.cycle import run_cycle
 from agent.reflexes.report import format_report
 from agent.reflexes.watch import watch
 from agent.wiring import brain_setup, room_of
-from services.anchor import JOURNAL_ANCHOR, JournalAnchors, mismatches
+from services.anchor import JOURNAL_ANCHOR, AuditError, JournalAnchors, mismatches
+from services.anchor import audit as audit_journal
+from services.anchor import report as audit_report
+from services.anchor.audit import load as load_journal_file
 from services.circle import CircleClient, CircleError
 from services.erp import ErpnextAdapter, LedgerError
-from services.payments import ArcRpc, Payer
+from services.payments import ArcRpc, ChainError, Payer
 from services.payments.encoding import ref_scope
 from services.settings import Settings, SettingsError
 from services.shops import (
@@ -57,6 +61,8 @@ def main(argv: list[str] | None = None) -> int:
         return _hub(args)
     if args.command == "telegram":
         return _telegram(args)
+    if args.command == "audit":
+        return _audit(args)
     try:
         settings = Settings.load(Path(args.env_file))
         settings.journal_path.parent.mkdir(parents=True, exist_ok=True)
@@ -233,6 +239,22 @@ def _verify(args, settings, journal) -> int:
     return 0
 
 
+def _audit(args) -> int:
+    """No settings, no keys: a downloaded journal, and an Arc node to read the anchors from."""
+    url = args.rpc_url or os.environ.get("ARC_TESTNET_RPC_URL", "").strip()
+    try:
+        if not url:
+            raise AuditError("pass an Arc Testnet node with --rpc-url (or ARC_TESTNET_RPC_URL)")
+        data = load_journal_file(args.file)
+        anchors = JournalAnchors(ArcRpc(url), data["shop"]).all()
+    except (AuditError, ChainError) as error:
+        print(f"embco: {error}", file=sys.stderr)
+        return 2
+    result = audit_journal(data, anchors)
+    print(audit_report(result))
+    return 0 if result.ok else 1
+
+
 def _create_wallet(args, settings, journal) -> int:
     if settings.agent_wallet_id:
         print("EMBCO_AGENT_WALLET_ID is already set; the agent has a wallet", file=sys.stderr)
@@ -279,6 +301,9 @@ def _parser() -> argparse.ArgumentParser:
     history = sub.add_parser("history", help="show every decision taken on an invoice")
     history.add_argument("invoice")
     sub.add_parser("verify", help="check that the memory was not altered")
+    audit_cmd = sub.add_parser("audit", help="check a downloaded journal against Arc")
+    audit_cmd.add_argument("file", help="the journal JSON downloaded from the dashboard")
+    audit_cmd.add_argument("--rpc-url", help="an Arc Testnet node (default: ARC_TESTNET_RPC_URL)")
     sub.add_parser("create-wallet", help="create the agent's paying wallet with Circle (once)")
     shop = sub.add_parser("shop", help="run the hosted agent of one shop from its folder")
     shop.add_argument("--dir", required=True, help="the shop's folder: ROOT/<contract address>")

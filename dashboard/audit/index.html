@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Embco · Audit a journal</title>
+    <meta name="description" content="Check a downloaded Embco agent journal against the roots the agent wrote on Arc. Nothing leaves your browser." />
+    <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0f17" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="../brand/logo.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="../icons/icon-192.png" />
+    <link rel="stylesheet" href="../style.css" />
+    <script src="../audit-app.js" type="module"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Embco audit page">
+        <img src="../brand/logo.svg" alt="" width="36" height="36" />
+        <span class="wordmark">Embco</span>
+      </a>
+      <div class="topbar-right">
+        <span class="pill" title="Test network: no real value">Arc Testnet</span>
+        <button class="icon-btn" id="theme-toggle" type="button" aria-label="Switch light or dark mode">◐</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="page" aria-label="Audit a journal">
+        <header class="page-head">
+          <div>
+            <h1>Audit a journal</h1>
+            <p class="hint page-sub">
+              Choose a journal file downloaded from an owner's dashboard. This page recomputes its hash chain and its
+              Merkle roots here in your browser and compares them with the roots the agent wrote on Arc. The file
+              never leaves your computer, and no sign-in is needed.
+            </p>
+          </div>
+        </header>
+
+        <div class="card">
+          <label class="audit-pick">
+            <span class="eyebrow">Journal file (.json)</span>
+            <input id="audit-file" type="file" accept=".json,application/json" />
+          </label>
+          <p class="hint">
+            The roots are read from the
+            <a id="anchor-link" href="#" target="_blank" rel="noopener">JournalAnchor contract</a>, not from the file.
+          </p>
+        </div>
+
+        <p class="journal-status" id="audit-status" role="status" aria-live="polite"></p>
+
+        <div class="card table-card" id="audit-table-card" hidden>
+          <table class="grid-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Entries covered</th>
+                <th>Written on Arc</th>
+                <th>Root on Arc</th>
+                <th>Root from the file</th>
+                <th>Result</th>
+              </tr>
+            </thead>
+            <tbody id="audit-rows"></tbody>
+          </table>
+        </div>
+
+        <dl class="facts" id="audit-facts" hidden>
+          <div><dt>Shop contract</dt><dd class="mono" id="audit-shop"></dd></div>
+          <div><dt>Entries in the file</dt><dd id="audit-count"></dd></div>
+          <div><dt>Hash chain</dt><dd id="audit-chain"></dd></div>
+          <div><dt>Merkle root of the whole file</dt><dd class="mono" id="audit-root"></dd></div>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>

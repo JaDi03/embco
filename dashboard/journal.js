@@ -75,6 +75,34 @@ export async function mismatches(entries, anchors) {
   return problems;
 }
 
+/** A downloaded journal read from its text; throws a sentence when it is not one. */
+export function parseJournal(text) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error("That file is not JSON.");
+  }
+  const fields = ["kind", "run", "invoice", "at", "body", "hash"];
+  const ok = data && typeof data.shop === "string" && Array.isArray(data.entries)
+    && data.entries.every((e) => e && fields.every((f) => f in e));
+  if (!ok) throw new Error("That is not an Embco journal download: it needs a shop and its entries.");
+  return data;
+}
+
+/** The audit as rows: the chain, the root of the whole copy and one row per anchor read from Arc. */
+export async function report(entries, anchors) {
+  const hashes = entries.map((e) => e.hash);
+  const rows = [];
+  for (const [i, a] of anchors.entries()) {
+    const fileRoot = a.size <= hashes.length ? await merkleRoot(hashes.slice(0, a.size)) : null;
+    rows.push({ number: i + 1, size: a.size, anchoredAt: a.anchoredAt, arcRoot: a.root, fileRoot,
+      matches: fileRoot === a.root });
+  }
+  return { chain: await verifyChain(entries), entries: entries.length,
+    root: await merkleRoot(hashes), rows };
+}
+
 /** The whole check: the chain, then every anchor. */
 export async function check(entries, anchors) {
   const chain = await verifyChain(entries);

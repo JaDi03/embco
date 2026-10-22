@@ -5,6 +5,18 @@ in `contracts/` (Solidity 0.8.37, Arc Foundry).
 
 ## Deployed on Arc Testnet
 
+Every embco contract below, and every shop contract that exists today, has its source verified
+(exact match) on [Sourcify](https://repo.sourcify.dev) and in the explorer. The vaults, USDC and
+Memo are not embco's. A contract an owner creates later is verified the same way, with the
+source in this repository:
+
+```
+arc-forge verify-contract <address> src/ShopPayables.sol:ShopPayables --chain-id 5042002 --verifier sourcify --watch
+```
+
+Use `ShopEarn` or `ShopFunding` (with the chain's id) for the other two. The explorer picks up
+what Sourcify verified.
+
 | Contract | Address |
 |---|---|
 | `ShopPayablesFactory` | [`0x5D455dF984C85abe160E4585E0c1139ded5d2c3b`](https://explorer.testnet.arc.io/address/0x5D455dF984C85abe160E4585E0c1139ded5d2c3b) (source verified on [Sourcify](https://repo.sourcify.dev/5042002/0x5D455dF984C85abe160E4585E0c1139ded5d2c3b)) |
@@ -89,6 +101,10 @@ compares it with every anchor: a changed, removed or reordered entry gives a dif
 |---|---|
 | Base Sepolia | [`0x69e31Af302Ee222204AA78099D39a2956F5C95d6`](https://sepolia.basescan.org/address/0x69e31Af302Ee222204AA78099D39a2956F5C95d6) |
 | Ethereum Sepolia | [`0x69e31Af302Ee222204AA78099D39a2956F5C95d6`](https://sepolia.etherscan.io/address/0x69e31Af302Ee222204AA78099D39a2956F5C95d6) |
+
+Both factories are verified on Sourcify for each chain
+([Base Sepolia](https://repo.sourcify.dev/84532/0x69e31Af302Ee222204AA78099D39a2956F5C95d6),
+[Ethereum Sepolia](https://repo.sourcify.dev/11155111/0x69e31Af302Ee222204AA78099D39a2956F5C95d6)).
 
 `ShopFunding` is the same idea on a source chain of the owner's Unified Balance (Circle
 Gateway). Each owner creates one from `ShopFundingFactory` on that chain and approves it, the way

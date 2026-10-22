@@ -611,12 +611,20 @@ async function verifyJournal() {
 async function downloadJournal() {
   try {
     const [data, anchors] = await Promise.all([loadJournal(true), journalAnchors(session.shop)]);
+    const audit = await journalCheck.report(data.entries, anchors);
     const file = {
-      shop: session.shop, downloaded_at: new Date().toISOString(), entries: data.entries,
-      anchors_on_arc: anchors,
-      how_to_check: "Recompute each entry's hash from the one before it, then the RFC 9162 Merkle root of the "
-        + "first `size` hashes, and compare it with each anchor's root in the JournalAnchor contract on Arc "
-        + "(embco verify, or the dashboard).",
+      shop: session.shop, downloaded_at: new Date().toISOString(),
+      // computed by this browser when you downloaded: a convenience, not a proof. Recompute it.
+      merkle: { size: audit.entries, root: audit.root,
+        algorithm: "RFC 9162 Merkle tree hash (SHA-256) over the entries' hashes, in order" },
+      chain_intact: audit.chain.ok,
+      anchors_on_arc: audit.rows.map((r) => ({ number: r.number, size: r.size, anchored_at: r.anchoredAt,
+        root: r.arcRoot, matches_this_file: r.matches })),
+      how_to_check: "Open the audit page of the dashboard (/audit/) and choose this file, or run "
+        + "`embco audit <file> --rpc-url <Arc Testnet node>`. Both recompute every hash and root from "
+        + "`entries` and compare them with the roots written in the JournalAnchor contract on Arc "
+        + "(0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582), read from Arc, not from this file.",
+      entries: data.entries,
     };
     const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 1)], { type: "application/json" }));
     const a = el("a", { href: url, download: `embco-journal-${session.shop.slice(2, 8)}-${file.downloaded_at.slice(0, 10)}.json` });
