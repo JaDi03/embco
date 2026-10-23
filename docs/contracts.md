@@ -95,6 +95,18 @@ whole journal and how many entries it covers.
 The contract has no owner. `embco verify` recomputes the root from a copy of the journal and
 compares it with every anchor: a changed, removed or reordered entry gives a different root.
 
+## DecisionVerifier: one decision, checked by Arc
+
+| Who | Can do | Cannot do |
+|---|---|---|
+| Anyone | `verify(proof)`: a decision's `MANIFEST` entry, its audit path and its anchor, as one value | Change anything: it has no owner, no state and no write function |
+
+`verify` hashes the entry as the journal does, follows the RFC 9162 audit path and compares the
+root with the anchor the shop's agent wrote in `JournalAnchor`. Only if it matches does it read the
+decision out of the entry and return it, with the shop's `owner()`. The entry is read at fixed
+places, never as general JSON, and free text arrives as hex, so a record of any other shape is
+refused. See [Audit the agent](audit.md#4-prove-one-decision).
+
 ## ShopFunding: the owner's USDC on other chains
 
 | Chain | `ShopFundingFactory` |

@@ -140,6 +140,24 @@ The checker proves each entry against Arc, refuses an entry that does not belong
 the `MANIFEST` lists. A payment followed up in a later cycle writes its final state after the
 `MANIFEST`: the proof shows it when it has it, but does not require it.
 
+**On Arc's explorer, with no code.** `DecisionVerifier` is a contract with no owner that checks a
+decision's `MANIFEST` against the anchor itself and returns the decision it holds. Make the value
+to paste from a decision proof:
+
+```
+embco arc-proof decision.json --rpc-url <Arc Testnet node>
+```
+
+Open the contract in the explorer, **Contract** > **Read/Write contract**, paste the value in
+`verify` and press **Read**. No wallet is needed. Arc answers with `verified`, the shop and its
+owner, the invoice, the model's decision and reason, the amount, the supplier, the payment state
+and its transaction, when it was decided, how many records it rests on and when it was anchored.
+If one letter of the manifest changed, `verified` is `false` and nothing else is shown.
+
+The explorer shows the decision, not what the agent read: the other records are checked against
+the hashes the `MANIFEST` lists, on `/audit/` or with `embco check-proof`. Arc knows the shop by
+its contract address, not by its name: compare it with the address the business gives you.
+
 Decisions written before the `MANIFEST` existed are proved entry by entry, and the result says
 that nothing shows none of their entries was left out. Sessions written before sessions had an id
 have no decision proof; their receipts show the proof of the session entry.
