@@ -23,7 +23,7 @@ from agent.memory import schema
 from agent.memory.base import JournalError
 from agent.memory.changes import Change, ChangeKind
 from agent.memory.manifest import manifest_body
-from agent.memory.models import GENESIS, JournalEntry, canonical, chain_hash, digest
+from agent.memory.models import GENESIS, JournalEntry, canonical, chain_hash, chain_text, digest
 from agent.memory.sessions import decision_body, decision_from, session_body, session_from
 from agent.models import AgentDecision, Session
 from services.payments.models import PaymentEvent, PaymentStatus
@@ -318,6 +318,11 @@ def export_journal(path: str | Path) -> list[dict[str, Any]]:
 def entry_hash_of(previous: str, e: Mapping[str, Any]) -> str:
     """The hash an exported entry must have, given the hash of the entry before it."""
     return chain_hash(previous, _content(e["kind"], e["run"], e["invoice"], e["at"], e["body"]))
+
+
+def entry_text_of(previous: str, e: Mapping[str, Any]) -> str:
+    """The exact text an exported entry's hash is taken of."""
+    return chain_text(previous, _content(e["kind"], e["run"], e["invoice"], e["at"], e["body"]))
 
 
 def verify_export(entries: Sequence[Mapping[str, Any]]) -> str | None:

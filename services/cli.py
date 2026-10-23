@@ -10,6 +10,7 @@
     embco audit FILE [--rpc-url URL]         check a downloaded journal against Arc, no keys
     embco prove FILE --entry N [--out F]     proof that one entry is anchored on Arc
     embco check-proof FILE [--rpc-url URL]   check a proof of one entry against Arc
+    embco arc-proof FILE [--rpc-url URL]     a decision proof as one value for Arc's explorer
     embco witness --shop ADDR [--journal F]  keep when anchors were first seen; compare with a copy
     embco create-wallet                      create the agent's paying wallet with Circle (once)
     embco shop --dir ROOT/SHOP               the hosted agent of one shop, settings from its folder
@@ -39,6 +40,7 @@ from services.anchor import report as audit_report
 from services.anchor.audit import load as load_journal_file
 from services.anchor.decision import check_decision_bundle as check_decision
 from services.anchor.decision import decision_report
+from services.anchor.onchain import ARC_EXPLORER, DECISION_VERIFIER, arc_proof
 from services.anchor.proof import check_bundle as check_proof
 from services.anchor.proof import make_bundle as make_proof
 from services.anchor.proof import proof_report
@@ -82,6 +84,8 @@ def main(argv: list[str] | None = None) -> int:
         return _prove(args)
     if args.command == "check-proof":
         return _check_proof(args)
+    if args.command == "arc-proof":
+        return _arc_proof(args)
     if args.command == "witness":
         return _witness(args)
     try:
@@ -322,6 +326,21 @@ def _check_proof(args) -> int:
     return 0 if result.ok else 1
 
 
+def _arc_proof(args) -> int:
+    """A decision proof as the one value DecisionVerifier.verify takes, to paste in the explorer."""
+    try:
+        bundle = read_proof(args.file)
+        anchors = JournalAnchors(ArcRpc(_arc_node(args)), bundle["shop"]).all()
+        value = arc_proof(bundle, anchors)
+    except (AuditError, ChainError) as error:
+        print(f"embco: {error}", file=sys.stderr)
+        return 2
+    where = (f"{ARC_EXPLORER}/address/{DECISION_VERIFIER}?tab=read_contract" if DECISION_VERIFIER
+             else "DecisionVerifier (not deployed yet)")
+    print(f"Paste this in verify, at {where}:\n\n{value}")
+    return 0
+
+
 def _witness(args) -> int:
     """Read the anchors on Arc, keep when each was first seen, and compare them with a copy."""
     try:
@@ -401,6 +420,9 @@ def _parser() -> argparse.ArgumentParser:
     check_cmd = sub.add_parser("check-proof", help="check a proof of one entry against Arc")
     check_cmd.add_argument("file", help="a proof written by embco prove")
     check_cmd.add_argument("--rpc-url", help="an Arc Testnet node (default: ARC_TESTNET_RPC_URL)")
+    arc_cmd = sub.add_parser("arc-proof", help="a decision proof as one value to check on Arc")
+    arc_cmd.add_argument("file", help="a decision proof (from the dashboard's journal download)")
+    arc_cmd.add_argument("--rpc-url", help="an Arc Testnet node (default: ARC_TESTNET_RPC_URL)")
     witness_cmd = sub.add_parser("witness", help="keep when each anchor was seen; compare")
     witness_cmd.add_argument("--shop", required=True, help="the shop contract address")
     witness_cmd.add_argument("--journal", help="your latest copy of the journal (downloaded JSON)")
