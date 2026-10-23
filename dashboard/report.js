@@ -90,7 +90,7 @@ export function headline(story) {
   return `The agent ${story.did} invoice ${story.invoice} (${money}${story.supplier ? ` from ${story.supplier}` : ""}).`;
 }
 
-/** The checklist under a decision, from checkDecisionProof: three plain questions. */
+/** The checklist under a decision, from checkDecisionProof: four plain questions. */
 export function checklist(result) {
   const anchoredAt = result.proofs.map((p) => p.anchoredAt).filter(Boolean).sort().at(-1) ?? null;
   return {
@@ -100,6 +100,9 @@ export function checklist(result) {
       { ok: result.proofs.every((p) => p.included && p.anchored),
         text: "They are in the summary of the journal that the agent wrote on Arc." },
       { ok: result.unlinked === null, text: "They all belong to this one decision." },
+      { ok: Boolean(result.listed) && !result.missing,
+        text: result.listed ? "None of the records it rests on is missing."
+          : "It was written before decisions listed their records, so nothing shows none is missing." },
     ],
   };
 }

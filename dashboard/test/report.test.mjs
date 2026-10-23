@@ -28,13 +28,18 @@ test("a hold or a schedule says so in its sentence", () => {
     "The agent scheduled invoice PINV-9 (40 USDC to S) to be paid on 2026-10-30.");
 });
 
-test("the checklist ticks all three only when the proof checks", async () => {
+test("the checklist ticks all four only when the proof checks and nothing is missing", async () => {
   const good = checklist(await checkDecisionProof(fixture.bundle, fixture.anchors));
-  assert.deepEqual(good.items.map((i) => i.ok), [true, true, true]);
+  assert.deepEqual(good.items.map((i) => i.ok), [true, true, true, true]);
   const changed = structuredClone(fixture.bundle);
   changed.proofs[0].entry.body = changed.proofs[0].entry.body.replace("5000", "9000");
   const bad = checklist(await checkDecisionProof(changed, fixture.anchors));
-  assert.deepEqual(bad.items.map((i) => i.ok), [false, true, true]);  // its text changed; its place did not
+  assert.deepEqual(bad.items.map((i) => i.ok), [false, true, true, true]);  // its text changed; its place did not
+  const older = structuredClone(fixture.bundle);
+  older.proofs = older.proofs.filter((p) => p.entry.kind !== "MANIFEST");
+  const unlisted = checklist(await checkDecisionProof(older, fixture.anchors));
+  assert.deepEqual(unlisted.items.map((i) => i.ok), [true, true, true, false]);
+  assert.match(unlisted.items[3].text, /written before decisions listed their records/);
 });
 
 test("a link carries the whole proof after the #, and a cut link says so", async () => {

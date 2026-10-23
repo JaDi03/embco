@@ -687,11 +687,15 @@ async function receiptProofLine(tx) {
     const result = bundle
       ? await proofs.checkDecisionProof(bundle, anchors)
       : await proofs.checkEntryProof(await make.entry(evidence.number), anchors);
-    if (!result.ok) return line("✗ This does not match the root written on Arc.", "bad");
-    if (!bundle) return line("✓ Anchored on Arc: this session's journal entry is unchanged.", "ok");
-    const done = line(`✓ Verified on Arc: the ${result.proofs.length} records of this decision (what the agent read, `
-      + "the checks, its limits, its choice and the payment) are unchanged.", "ok");
-    done.append(shareButton(bundle));
+    const unlisted = evidence.session && !result.listed && !result.unlinked && result.proofs.every((p) => p.ok);
+    if (!result.ok && !unlisted) return line("✗ This does not match the root written on Arc.", "bad");
+    const done = line(evidence.session
+      ? `✓ Anchored on Arc: the ${result.proofs.length} journal entries of this decision (its session, the `
+        + "agent's choice, the checks, the limits and the payment) are unchanged"
+        + (unlisted ? ". Written before decisions listed their entries, so nothing shows that none was left out."
+          : ", and none is missing.")
+      : "✓ Anchored on Arc: this session's journal entry is unchanged.", "ok");
+    if (bundle && result.ok) done.append(shareButton(bundle));  // only what Arc itself can check
     return done;
   } catch (error) {
     if (error instanceof proofs.NotAnchored) return line("Not anchored on Arc yet: the next anchor covers it.");

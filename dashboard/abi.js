@@ -15,6 +15,13 @@ export const JOURNAL_ANCHOR_ABI = [
   "function anchorAt(address shop, uint256 index) view returns (tuple(bytes32 root, uint64 size, uint64 anchoredAt))",
 ];
 
+// contracts/src/DecisionVerifier.sol
+export const DECISION_VERIFIER_ABI = [
+  "function verify(bytes proof) view returns (tuple(bool verified, string answer, address shop, address owner, "
+    + "string invoice, string decision, string reason, string amount, string supplier, string payment, "
+    + "string paymentTx, string decidedAt, uint256 records, uint64 anchoredAt) r)",
+];
+
 export const SHOP_ABI = [
   "function owner() view returns (address)",
   "function agent() view returns (address)",

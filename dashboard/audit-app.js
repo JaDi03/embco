@@ -1,13 +1,14 @@
 // The audit page: a downloaded journal checked in the browser against the roots the agent wrote on
 // Arc. No sign-in and no upload; the roots come from the JournalAnchor contract, never from the file.
 
-import { ARC_TESTNET, JOURNAL_ANCHOR_ADDRESS } from "./config.js";
+import { arcValue, askArc, sameAsArc, VERIFIER_PAGE } from "./arc-check.js";
+import { ARC_TESTNET, DECISION_VERIFIER_ADDRESS, JOURNAL_ANCHOR_ADDRESS } from "./config.js";
 import { describeError } from "./errors.js";
 import { parseJournal, report } from "./journal.js";
 import { allDecisionProofs, checkDecisionProof, isDecisionProof } from "./proof.js";
 import { checklist, decisionStory, headline } from "./report.js";
 import { proofFromHash } from "./share.js";
-import { journalAnchors } from "./shop.js";
+import { journalAnchors, read } from "./shop.js";
 import "./theme.js";
 
 const $ = (id) => document.getElementById(id);
@@ -54,14 +55,53 @@ function readView(read) {
   return el("dl", { className: "report-read" }, ...rows);
 }
 
-/** One decision in plain words, then the three checks and the verdict. */
-function renderDecision(bundle, result) {
+/** The verdict on top: Arc's own answer when the decision has a MANIFEST, else what this browser
+ * found, said as such. */
+function verdictOf(story, result, arc) {
+  if (arc) {
+    if (!arc.verified) return el("p", { className: "verdict bad", textContent: `✗ Arc says: ${arc.answer}.` });
+    if (!result.ok || !sameAsArc(story, arc)) {
+      return el("p", { className: "verdict bad",
+        textContent: "✗ Arc verified the decision, but the records shown here do not match it. Rely only on Arc's answer." });
+    }
+    return el("p", { className: "verdict ok", textContent: "✓ Arc says: anchored and unchanged" });
+  }
+  if (!result.ok && result.listed === false && !result.unlinked && result.proofs.every((p) => p.ok)) {
+    return el("p", { className: "verdict", textContent: "Anchored on Arc, checked in this browser. It was written "
+      + "before decisions listed their records, so Arc cannot check it on its own." });
+  }
+  return result.ok
+    ? el("p", { className: "verdict ok", textContent: "✓ Anchored on Arc, checked in this browser" })
+    : el("p", { className: "verdict bad", textContent: "✗ Does not match Arc. Do not rely on this record." });
+}
+
+/** How to ask Arc without this page: the value, the contract, three steps. */
+function askArcYourself(value) {
+  const copy = el("button", { className: "btn btn-ghost btn-small", type: "button", textContent: "Copy the proof" });
+  copy.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      copy.textContent = "Copied";
+    } catch {
+      copy.textContent = "Copy it from the box below";
+    }
+  });
+  return section("Check it yourself on Arc",
+    el("ol", { className: "report-steps" },
+      el("li", {}, copy),
+      el("li", {}, "Open ", el("a", { href: VERIFIER_PAGE, target: "_blank", rel: "noopener",
+        textContent: "the verifier contract on Arc's explorer" }), " (no wallet needed)."),
+      el("li", { textContent: "Paste it in verify and press Read. Arc answers with the decision it checked." })),
+    el("details", {}, el("summary", { textContent: "The proof" }),
+      el("textarea", { className: "mono arc-proof", readOnly: true, rows: 4, value })));
+}
+
+/** One decision in plain words, Arc's answer on top, and how it was checked. */
+function renderDecision(bundle, result, arc = null, value = null) {
   const story = decisionStory(bundle);
   const checks = checklist(result);
   const box = $("decision-report");
-  const verdict = result.ok
-    ? el("p", { className: "verdict ok", textContent: "✓ Verified on Arc" })
-    : el("p", { className: "verdict bad", textContent: "✗ Does not match Arc. Do not rely on this record." });
+  const verdict = verdictOf(story, result, arc);
   const steps = story.steps.map((s) => {
     const args = Object.values(s.args).join(", ");
     const head = `${s.tool}${args ? ` (${args})` : ""}${s.ok ? "" : `: refused, ${s.refused}`}`;
@@ -91,13 +131,18 @@ function renderDecision(bundle, result) {
       story.woke.length ? el("p", { className: "hint", textContent: `Woken because: ${story.woke.join(" ")}` }) : null,
       el("ol", { className: "report-steps" }, ...steps),
       story.summary ? el("p", { textContent: `It told the owner: “${story.summary}”` }) : null),
+    value ? askArcYourself(value) : null,
     section("How this was checked",
+      arc ? el("p", {}, "Arc checked the decision: the ",
+        explorer(`address/${DECISION_VERIFIER_ADDRESS}`, "verifier contract"),
+        " hashed its list of records, followed it to the summary the agent wrote on Arc and returned the decision"
+        + " above. It has no owner and nobody can change it.") : null,
       el("ul", { className: "report-checklist" }, ...checks.items.map((i) =>
         el("li", { className: i.ok ? "status-on" : "status-off", textContent: `${i.ok ? "✓" : "✗"} ${i.text}` }))),
-      el("p", { className: "hint" }, "Your browser compared these records with the summary the agent wrote on Arc",
+      el("p", { className: "hint" }, "Your browser compared each record shown here with the summary the agent wrote on Arc",
         checks.anchoredAt ? ` on ${when(checks.anchoredAt)}` : "", " (",
         explorer(`address/${JOURNAL_ANCHOR_ADDRESS}`, "see it on Arc"),
-        "). Nothing was sent to Embco. A record changed by even one letter would not match.")),
+        "). A record changed by even one letter would not match.")),
     el("div", { className: "row no-print" },
       el("button", { className: "btn btn-ghost btn-small", type: "button", textContent: "Print or save as PDF",
         onclick: () => window.print() })),
@@ -132,12 +177,15 @@ function render(data, audit) {
   $("audit-facts").hidden = false;
 }
 
-/** One decision on its own, as the dashboard puts it in a journal download. */
+/** One decision: checked in this browser, and asked to Arc when it has a MANIFEST. */
 async function runDecision(bundle, anchors = null) {
   if (typeof bundle.shop !== "string") throw new Error("That proof does not say which shop it belongs to.");
-  const result = await checkDecisionProof(bundle, anchors ?? await journalAnchors(bundle.shop));
+  const onArc = anchors ?? await journalAnchors(bundle.shop);
+  const result = await checkDecisionProof(bundle, onArc);
+  const value = arcValue(bundle, onArc);
+  const arc = value ? await read((provider) => askArc(value, provider)) : null;
   setStatus("");
-  renderDecision(bundle, result);
+  renderDecision(bundle, result, arc, value);
 }
 
 /** Every decision of a journal, in plain words, each checked; a click opens it. */
@@ -148,13 +196,19 @@ async function listDecisions(data, anchors) {
     const result = await checkDecisionProof(bundle, anchors);
     const story = decisionStory(bundle);
     const open = el("button", { className: "btn btn-ghost btn-small", type: "button", textContent: "Open" });
-    open.addEventListener("click", () => {
-      renderDecision(bundle, result);
-      $("decision-report").scrollIntoView({ behavior: "smooth" });
+    open.addEventListener("click", async () => {
+      try {
+        await runDecision(bundle, anchors);
+        $("decision-report").scrollIntoView({ behavior: "smooth" });
+      } catch (error) {
+        setStatus(`Could not check it: ${describeError(error)}`, "bad");
+      }
     });
+    const older = !result.listed && !result.unlinked && result.proofs.every((p) => p.ok);
     rows.push(el("tr", {}, cell(story.at ? when(story.at) : "-"), cell(story.invoice),
       cell(`${story.did} ${story.amount ? `${Number(story.amount)} USDC` : ""}`.trim()),
-      cell(result.ok ? "✓ Verified" : "✗ Does not match", result.ok ? "status-on" : "status-off"),
+      cell(result.ok ? "✓ Checked" : older ? "Anchored, no list of records" : "✗ Does not match",
+        result.ok ? "status-on" : older ? "" : "status-off"),
       el("td", {}, open)));
   }
   $("audit-decisions").replaceChildren(...rows);

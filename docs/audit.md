@@ -118,17 +118,30 @@ of one decision holds every entry it rests on, each with its own audit path:
 - the `AGENT` entry: its choice and its reason;
 - the `DECISION` it was made on (the rule checks, by its `fingerprint`), that check's `RUN` and the
   `POLICY` the run names;
-- the owner's `ANSWER` to that check, if any, and the session's `PAYMENT` entries for the invoice.
+- the owner's `ANSWER` to that check, if any, and the session's `PAYMENT` entries for the invoice;
+- the `MANIFEST`: written by the journal right after the session, it lists the hash of each entry
+  above. It is anchored with the rest, so a proof that leaves an entry out does not check. It also
+  says the decision in short, taken from those entries: the model's `choice` and reason, the
+  invoice `amount` and supplier, and the `payment` state and its transaction (`tx`). The reason and
+  the supplier are UTF-8 hex (`reason_hex`, `supplier_hex`), so they can be read on chain without
+  undoing JSON escapes.
 
 The proofs are made from the journal and the anchors when they are asked for: nothing is stored.
 
 **Share one decision with anyone.** Under a receipt, open **What the agent saw** and press **Copy a
 link anyone can check**. Whoever opens the link (an accountant, a supplier, a judge) needs no
-account and no code: the page says in plain words what the agent did, why, what the checks said,
-the limits it worked within, the payment and what it read, then checks every record against Arc
-in their browser and shows **Verified on Arc** or **Does not match**. It can be printed or saved as
-a PDF. The proof travels inside the link, after the `#`, a part browsers never send to a server:
-Embco does not keep it. Anyone with the link can read that decision and what the agent read for it.
+account and no code. On top is Arc's own answer: the page asks the `DecisionVerifier` contract (see
+below) and shows **Arc says: anchored and unchanged**, or what Arc refused. Then it says in plain
+words what the agent did, why, what the checks said, the limits it worked within, the payment and
+what it read, each record checked in their browser against the hashes the `MANIFEST` lists. If what
+the page shows differs from what Arc returned, it says so. **Check it yourself on Arc** gives the
+value and the steps to ask the contract in the explorer without the page. It can be printed or
+saved as a PDF. The proof travels inside the link, after the `#`, a part browsers never send to a
+server. To ask Arc, the page sends the decision's `MANIFEST` (its summary and the hashes of its
+records) to an Arc node through this site's connection; the records themselves stay in the
+browser. **Check it yourself on Arc** asks Arc without this site. Anyone with the link can read
+that decision and what the agent read for it. The link is offered only for decisions with a
+`MANIFEST`, the ones Arc can check.
 
 **Every decision of a journal.** Open a downloaded journal on `/audit/`: below the anchors, each
 decision is listed with its result, and **Open** shows it the same way.
@@ -140,9 +153,33 @@ saved as its own file:
 embco check-proof decision.json --rpc-url <Arc Testnet node>
 ```
 
-The checker proves each entry against Arc and refuses an entry that does not belong to the
-decision: another session, another invoice or another rule check. Sessions written before
-sessions had an id have no decision proof; their receipts show the proof of the session entry.
+The checker proves each entry against Arc, refuses an entry that does not belong to the decision
+(another session, another invoice or another rule check) and refuses a proof that lacks an entry
+the `MANIFEST` lists. A payment followed up in a later cycle writes its final state after the
+`MANIFEST`: the proof shows it when it has it, but does not require it.
+
+**On Arc's explorer, with no code.** `DecisionVerifier` is a contract with no owner that checks a
+decision's `MANIFEST` against the anchor itself and returns the decision it holds. Make the value
+to paste from a decision proof:
+
+```
+embco arc-proof decision.json --rpc-url <Arc Testnet node>
+```
+
+Open the [contract](https://explorer.testnet.arc.io/address/0xE9ca18fa99251555DAbed0cE1414b7157B9aD516?tab=read_contract)
+in the explorer, **Contract** > **Read/Write contract**, paste the value in
+`verify` and press **Read**. No wallet is needed. Arc answers with `verified`, the shop and its
+owner, the invoice, the model's decision and reason, the amount, the supplier, the payment state
+and its transaction, when it was decided, how many records it rests on and when it was anchored.
+If one letter of the manifest changed, `verified` is `false` and nothing else is shown.
+
+The explorer shows the decision, not what the agent read: the other records are checked against
+the hashes the `MANIFEST` lists, on `/audit/` or with `embco check-proof`. Arc knows the shop by
+its contract address, not by its name: compare it with the address the business gives you.
+
+Decisions written before the `MANIFEST` existed are proved entry by entry, and the result says
+that nothing shows none of their entries was left out. Sessions written before sessions had an id
+have no decision proof; their receipts show the proof of the session entry.
 
 ## 5. Keep a witness
 
