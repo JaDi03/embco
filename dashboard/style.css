@@ -405,41 +405,61 @@ button.side-link { font: inherit; border: 0; background: none; width: 100%; text
 .modal label { display: grid; gap: 6px; font-weight: 600; font-size: 0.9rem; }
 .modal select { font: inherit; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); }
 
-/* the agent's console: dark in both themes, like a terminal */
-.terminal { border-radius: 12px; overflow: hidden; background: #0d1117; border: 1px solid #1f2733; box-shadow: 0 10px 30px rgb(0 0 0 / 0.12); }
-.terminal-bar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #161b22; border-bottom: 1px solid #1f2733; }
+/* the agent's console, like a terminal: GitHub's dark colors in the dark theme, its light ones in
+   the light theme (which records better on video), in the font of Windows Terminal */
+.terminal {
+  --t-bg: #0d1117; --t-bar: #161b22; --t-line: #1f2733; --t-text: #c9d1d9; --t-strong: #e6edf3;
+  --t-muted: #8b949e; --t-dim: #7d8590; --t-blue: #58a6ff; --t-green: #3fb950; --t-amber: #d29922;
+  --t-amber-text: #e3b341; --t-red: #f85149; --t-purple: #d2a8ff; --t-tool: #79c0ff; --t-tool-text: #a5d6ff;
+  --t-font: "Cascadia Mono", var(--mono);
+  border-radius: 12px; overflow: hidden; background: var(--t-bg); border: 1px solid var(--t-line);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.12);
+}
+:root[data-theme="light"] .terminal {
+  --t-bg: #f6f8fa; --t-bar: #eaeef2; --t-line: #d0d7de; --t-text: #1f2328; --t-strong: #1f2328;
+  --t-muted: #59636e; --t-dim: #656d76; --t-blue: #0969da; --t-green: #1a7f37; --t-amber: #9a6700;
+  --t-amber-text: #9a6700; --t-red: #cf222e; --t-purple: #8250df; --t-tool: #0550ae; --t-tool-text: #0a3069;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .terminal {
+    --t-bg: #f6f8fa; --t-bar: #eaeef2; --t-line: #d0d7de; --t-text: #1f2328; --t-strong: #1f2328;
+    --t-muted: #59636e; --t-dim: #656d76; --t-blue: #0969da; --t-green: #1a7f37; --t-amber: #9a6700;
+    --t-amber-text: #9a6700; --t-red: #cf222e; --t-purple: #8250df; --t-tool: #0550ae; --t-tool-text: #0a3069;
+  }
+}
+.terminal-bar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--t-bar); border-bottom: 1px solid var(--t-line); }
 .terminal-dots { display: inline-flex; gap: 6px; }
 .terminal-dots i { width: 11px; height: 11px; border-radius: 50%; background: #30363d; }
 .terminal-dots i:nth-child(1) { background: #f85149; }
 .terminal-dots i:nth-child(2) { background: #d29922; }
 .terminal-dots i:nth-child(3) { background: #3fb950; }
-.terminal-title { font: 0.8rem var(--mono); color: #8b949e; flex: 1; }
-.terminal .live { color: #8b949e; font-family: var(--mono); }
+.terminal-title { font: 0.8rem var(--t-font); color: var(--t-muted); flex: 1; }
+.terminal .live { color: var(--t-muted); font-family: var(--t-font); }
 .terminal-log {
   height: calc(100vh - 250px); min-height: 360px; overflow-y: auto; padding: 14px 16px 18px; display: block;
-  font: 0.86rem/1.6 var(--mono); color: #c9d1d9;
+  font: 0.86rem/1.6 var(--t-font); color: var(--t-text);
 }
 .t-line { display: grid; grid-template-columns: 5.6em 5.4em minmax(0, 1fr); gap: 10px; padding: 1px 0; }
-.t-time { color: #7d8590; }
-.t-tag { font-weight: 700; color: #8b949e; }
+.t-time { color: var(--t-dim); }
+.t-tag { font-weight: 700; color: var(--t-muted); }
 .t-text { overflow-wrap: anywhere; white-space: pre-wrap; }
-.t-text a { color: #58a6ff; }
-.t-day { color: #7d8590; text-align: center; margin: 10px 0 6px; }
-.t-line.wake .t-tag { color: #d2a8ff; }
+.t-text a { color: var(--t-blue); }
+.t-day { color: var(--t-dim); text-align: center; margin: 10px 0 6px; }
+.t-line.wake .t-tag { color: var(--t-purple); }
 .t-line.wake { margin-top: 8px; }
-.t-line.agent .t-tag, .t-line.say .t-tag { color: #58a6ff; }
-.t-line.say .t-text { color: #e6edf3; }
-.t-line.ok .t-tag { color: #3fb950; }
-.t-line.ask .t-tag { color: #d29922; }
-.t-line.bad .t-tag, .t-line.bad .t-text { color: #f85149; }
-.t-line.dim, .t-line.dim .t-tag { color: #7d8590; }
-.t-line.note .t-tag { color: #8b949e; }
-.t-line.tool .t-tag { color: #79c0ff; }
-.t-line.tool .t-text { color: #a5d6ff; }
-.t-line.refused .t-tag { color: #d29922; }
-.t-line.refused .t-text { color: #e3b341; }
-.t-text.typing::after { content: "▋"; color: #3fb950; margin-left: 1px; animation: blink 1s steps(1) infinite; }
-.terminal-log::after { content: "▋"; display: block; color: #3fb950; animation: blink 1s steps(1) infinite; margin-top: 4px; }
+.t-line.agent .t-tag, .t-line.say .t-tag { color: var(--t-blue); }
+.t-line.say .t-text { color: var(--t-strong); }
+.t-line.ok .t-tag { color: var(--t-green); }
+.t-line.ask .t-tag { color: var(--t-amber); }
+.t-line.bad .t-tag, .t-line.bad .t-text { color: var(--t-red); }
+.t-line.dim, .t-line.dim .t-tag { color: var(--t-dim); }
+.t-line.note .t-tag { color: var(--t-muted); }
+.t-line.tool .t-tag { color: var(--t-tool); }
+.t-line.tool .t-text { color: var(--t-tool-text); }
+.t-line.refused .t-tag { color: var(--t-amber); }
+.t-line.refused .t-text { color: var(--t-amber-text); }
+.t-text.typing::after { content: "▋"; color: var(--t-green); margin-left: 1px; animation: blink 1s steps(1) infinite; }
+.terminal-log::after { content: "▋"; display: block; color: var(--t-green); animation: blink 1s steps(1) infinite; margin-top: 4px; }
 @keyframes blink { 50% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .terminal-log::after, .t-text.typing::after { animation: none; } }
 
