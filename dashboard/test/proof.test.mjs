@@ -40,8 +40,29 @@ test("the browser makes the very proof Python made, and checks it against Arc", 
   assert.deepEqual(bundle, fixture.bundle);
   const result = await checkDecisionProof(fixture.bundle, anchors);
   assert.equal(result.ok, true);
-  assert.equal(result.proofs.length, 9);
+  assert.equal(result.listed, true);
+  assert.equal(result.proofs.length, 10);
   assert.ok(isDecisionProof(fixture.bundle));
+});
+
+test("a proof that leaves out an entry its manifest lists fails, as in Python", async () => {
+  for (const kind of ["POLICY", "RUN", "DECISION", "ANSWER", "PAYMENT", "SESSION"]) {
+    const cut = structuredClone(fixture.bundle);
+    cut.proofs.splice(cut.proofs.findIndex((p) => p.entry.kind === kind), 1);
+    const result = await checkDecisionProof(cut, anchors);
+    assert.deepEqual([result.ok, result.missing], [false, 1], kind);
+  }
+  const alone = structuredClone(fixture.bundle);
+  alone.proofs = alone.proofs.filter((p) => p.entry.kind === "AGENT" || p.entry.kind === "MANIFEST");
+  assert.equal((await checkDecisionProof(alone, anchors)).missing, 7);
+  alone.proofs = alone.proofs.filter((p) => p.entry.kind === "AGENT");
+  const bare = await checkDecisionProof(alone, anchors);
+  assert.deepEqual([bare.ok, bare.listed], [false, false]);
+
+  const later = structuredClone(fixture.bundle);
+  assert.equal(JSON.parse(later.proofs.at(-1).entry.body).status, "RECORDED");
+  later.proofs.pop();  // a payment state written after the manifest is not in it
+  assert.equal((await checkDecisionProof(later, anchors)).ok, true);
 });
 
 test("a changed entry, a stray entry or a root Arc never wrote fails", async () => {
@@ -67,7 +88,7 @@ test("one entry is proved with the first anchor that covers it", async () => {
   assert.equal(early.size, 4);
   assert.equal((await checkEntryProof(early, anchors)).ok, true);
   assert.equal((await make.entry(9)).size, entries.length);
-  await assert.rejects(() => make.entry(99), /entries 1 to 13/);
+  await assert.rejects(() => make.entry(99), /entries 1 to 16/);
   await assert.rejects(() => prover(data, anchors.slice(0, 1)).entry(9), NotAnchored);
 });
 
