@@ -22,6 +22,7 @@ what Sourcify verified.
 | `ShopPayablesFactory` | [`0x5D455dF984C85abe160E4585E0c1139ded5d2c3b`](https://explorer.testnet.arc.io/address/0x5D455dF984C85abe160E4585E0c1139ded5d2c3b) (source verified on [Sourcify](https://repo.sourcify.dev/5042002/0x5D455dF984C85abe160E4585E0c1139ded5d2c3b)) |
 | `ShopEarnFactory` | [`0xEDF589982F10CCC3c8489726FaB39124b1F683Aa`](https://explorer.testnet.arc.io/address/0xEDF589982F10CCC3c8489726FaB39124b1F683Aa) |
 | `JournalAnchor` | [`0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582`](https://explorer.testnet.arc.io/address/0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582) |
+| `DecisionVerifier` | [`0xE9ca18fa99251555DAbed0cE1414b7157B9aD516`](https://explorer.testnet.arc.io/address/0xE9ca18fa99251555DAbed0cE1414b7157B9aD516?tab=read_contract) (source verified on [Sourcify](https://repo.sourcify.dev/5042002/0xE9ca18fa99251555DAbed0cE1414b7157B9aD516)) |
 | Morpho USDC Vault (ERC-4626, not embco's) | [`0x8f2d33b5d4b9b5f02df635ae308f7b4c9da8d2dc`](https://explorer.testnet.arc.io/address/0x8f2d33b5d4b9b5f02df635ae308f7b4c9da8d2dc) |
 | EarnKit USDC Vault (ERC-4626, not embco's; deposits closed) | [`0xaabbef1d3971c710276ed41ec791bbe14cdb8e88`](https://explorer.testnet.arc.io/address/0xaabbef1d3971c710276ed41ec791bbe14cdb8e88) |
 | USDC (ERC-20 interface) | `0x3600000000000000000000000000000000000000` |

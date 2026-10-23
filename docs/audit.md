@@ -148,7 +148,8 @@ to paste from a decision proof:
 embco arc-proof decision.json --rpc-url <Arc Testnet node>
 ```
 
-Open the contract in the explorer, **Contract** > **Read/Write contract**, paste the value in
+Open the [contract](https://explorer.testnet.arc.io/address/0xE9ca18fa99251555DAbed0cE1414b7157B9aD516?tab=read_contract)
+in the explorer, **Contract** > **Read/Write contract**, paste the value in
 `verify` and press **Read**. No wallet is needed. Arc answers with `verified`, the shop and its
 owner, the invoice, the model's decision and reason, the amount, the supplier, the payment state
 and its transaction, when it was decided, how many records it rests on and when it was anchored.

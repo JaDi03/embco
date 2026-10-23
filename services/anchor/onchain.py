@@ -13,8 +13,8 @@ from agent.memory.sqlite import entry_text_of
 from services.anchor.audit import AuditError
 from services.anchor.client import Anchor
 
-# DecisionVerifier on Arc Testnet (contracts/script/DeployDecisionVerifier.s.sol): not deployed yet.
-DECISION_VERIFIER = ""
+# DecisionVerifier on Arc Testnet (contracts/script/DeployDecisionVerifier.s.sol).
+DECISION_VERIFIER = "0xE9ca18fa99251555DAbed0cE1414b7157B9aD516"
 ARC_EXPLORER = "https://explorer.testnet.arc.io"
 PROOF_TYPE = "(address,uint256,uint256,bytes32[],bytes)"  # DecisionVerifier.Proof
 
