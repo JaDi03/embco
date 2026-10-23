@@ -139,6 +139,11 @@ h3 { font-size: 0.95rem; margin: 16px 0 8px; }
 }
 .notice.error { background: var(--danger-soft); border-color: var(--danger-line); color: var(--danger); }
 .notice.success { background: var(--success-soft); border-color: var(--success-line); color: var(--success); }
+.notice:has(.notice-close) { display: flex; align-items: flex-start; gap: 12px; }
+.notice:has(.notice-close) > span { flex: 1; }
+.notice-close { flex: none; margin: -2px -4px 0 0; padding: 0 6px; border: 0; background: none; color: inherit;
+  font-size: 1.25rem; line-height: 1; cursor: pointer; opacity: 0.7; }
+.notice-close:hover, .notice-close:focus-visible { opacity: 1; }
 
 .btn {
   font: inherit; font-weight: 600; border-radius: 8px; padding: 9px 15px;

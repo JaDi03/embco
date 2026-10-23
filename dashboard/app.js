@@ -4,6 +4,7 @@
 import { ethers } from "./vendor/ethers-6.17.0.min.js";
 import { ARC_TESTNET, FAUCET_URL } from "./config.js";
 import { describeError } from "./errors.js";
+import { setNotice } from "./notice.js";
 import { pendingApprovals } from "./approvals.js";
 import * as activity from "./activity.js";
 import * as feed from "./feed.js";
@@ -40,9 +41,7 @@ function notify(text, kind = "info") {
   const open = document.querySelector("dialog[open] .modal-notice");
   for (const notice of [$("notice"), ...document.querySelectorAll(".modal-notice")]) {
     const here = notice === (open ?? $("notice"));
-    notice.textContent = here ? text : "";
-    notice.className = `${notice === $("notice") ? "notice" : "notice modal-notice"}${kind === "info" ? "" : ` ${kind}`}`;
-    notice.hidden = !here || !text;
+    setNotice(notice, here ? text : "", kind, notice === $("notice") ? "notice" : "notice modal-notice");
   }
 }
 
