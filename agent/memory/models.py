@@ -44,5 +44,10 @@ def chain_hash(previous_hash: str, content: dict) -> str:
     The domain tag keeps these hashes apart from any other hash of the same bytes and lets a
     future format change its rules without ambiguity.
     """
-    text = f"{DOMAIN}\n{previous_hash}\n{canonical(content)}"
-    return hashlib.sha256(text.encode()).hexdigest()
+    return hashlib.sha256(chain_text(previous_hash, content).encode()).hexdigest()
+
+
+def chain_text(previous_hash: str, content: dict) -> str:
+    """The exact text an entry's hash is taken of (what contracts/src/DecisionVerifier.sol
+    hashes on chain)."""
+    return f"{DOMAIN}\n{previous_hash}\n{canonical(content)}"
