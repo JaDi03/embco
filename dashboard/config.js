@@ -51,6 +51,10 @@ export const GATEWAY_WALLET_TESTNET = "0x0077777d7EBA4688BDeF3E311b846F25870A19B
 // each shop's journal, written by its agent.
 export const JOURNAL_ANCHOR_ADDRESS = "0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582";
 
+// DecisionVerifier on Arc Testnet (contracts/script/DeployDecisionVerifier.s.sol): checks one
+// decision's MANIFEST against JournalAnchor and returns the decision. No owner, view only.
+export const DECISION_VERIFIER_ADDRESS = "0xE9ca18fa99251555DAbed0cE1414b7157B9aD516";
+
 // ShopEarnFactory on Arc Testnet (contracts/script/DeployEarn.s.sol) and verified ERC-4626 vaults.
 export const EARN_FACTORY_ADDRESS = "0xEDF589982F10CCC3c8489726FaB39124b1F683Aa";
 export const EARN_VAULTS = [

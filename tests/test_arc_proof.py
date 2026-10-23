@@ -60,6 +60,14 @@ def test_the_contract_fixture_is_what_python_makes_now():
     assert json.loads(FIXTURE.read_text(encoding="utf-8")) == fixture()
 
 
+def test_the_dashboard_fixture_holds_the_value_python_makes():
+    """dashboard/test/arc-check.test.mjs checks the browser makes this same value."""
+    dash = json.loads((Path(__file__).parent.parent / "dashboard" / "test"
+                       / "decision-fixture.json").read_text(encoding="utf-8"))
+    anchors = [Anchor(a["root"], a["size"], None) for a in dash["anchors"]]
+    assert dash["arcValue"] == arc_proof(dash["bundle"], anchors)
+
+
 def test_the_value_holds_the_manifest_its_path_and_its_anchor():
     made = fixture()
     shop, position, index, path, text = decode([PROOF_TYPE], bytes.fromhex(made["proof"][2:]))[0]

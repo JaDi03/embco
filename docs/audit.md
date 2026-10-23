@@ -127,9 +127,27 @@ of one decision holds every entry it rests on, each with its own audit path:
   undoing JSON escapes.
 
 The proofs are made from the journal and the anchors when they are asked for: nothing is stored.
-The dashboard shows the result under each receipt, in **What the agent saw**, and puts every
-decision proof in the download under `decisions`. To share one decision without the rest of the
-journal, save that item as its own file. Check it on `/audit/` or with:
+
+**Share one decision with anyone.** Under a receipt, open **What the agent saw** and press **Copy a
+link anyone can check**. Whoever opens the link (an accountant, a supplier, a judge) needs no
+account and no code. On top is Arc's own answer: the page asks the `DecisionVerifier` contract (see
+below) and shows **Arc says: anchored and unchanged**, or what Arc refused. Then it says in plain
+words what the agent did, why, what the checks said, the limits it worked within, the payment and
+what it read, each record checked in their browser against the hashes the `MANIFEST` lists. If what
+the page shows differs from what Arc returned, it says so. **Check it yourself on Arc** gives the
+value and the steps to ask the contract in the explorer without the page. It can be printed or
+saved as a PDF. The proof travels inside the link, after the `#`, a part browsers never send to a
+server. To ask Arc, the page sends the decision's `MANIFEST` (its summary and the hashes of its
+records) to an Arc node through this site's connection; the records themselves stay in the
+browser. **Check it yourself on Arc** asks Arc without this site. Anyone with the link can read
+that decision and what the agent read for it. The link is offered only for decisions with a
+`MANIFEST`, the ones Arc can check.
+
+**Every decision of a journal.** Open a downloaded journal on `/audit/`: below the anchors, each
+decision is listed with its result, and **Open** shows it the same way.
+
+The download also carries every decision proof under `decisions`. The command line checks one
+saved as its own file:
 
 ```
 embco check-proof decision.json --rpc-url <Arc Testnet node>

@@ -32,8 +32,13 @@ export function canonicalContent(e) {
     + `"kind":${value(e.kind)},"run":${value(e.run)}}`;
 }
 
+/** The exact text an entry's hash is taken of (what DecisionVerifier hashes on Arc). */
+export function chainText(previous, entry) {
+  return `${DOMAIN}\n${previous}\n${canonicalContent(entry)}`;
+}
+
 export async function chainHash(previous, entry) {
-  return toHex(await sha256(encoder.encode(`${DOMAIN}\n${previous}\n${canonicalContent(entry)}`)));
+  return toHex(await sha256(encoder.encode(chainText(previous, entry))));
 }
 
 /** {ok: true} when every stored hash is the hash of its entry and the one before it. */
