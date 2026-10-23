@@ -3,6 +3,7 @@
 
 import { ARC_TESTNET } from "./config.js";
 import { describeError } from "./errors.js";
+import { setNotice } from "./notice.js";
 import { chooseWallet } from "./picker.js";
 import * as suppliers from "./suppliers.js";
 import "./theme.js";
@@ -12,10 +13,7 @@ const $ = (id) => document.getElementById(id);
 const txUrl = (hash) => `${ARC_TESTNET.explorer}/tx/${hash}`;
 
 function notify(text, kind = "info") {
-  const notice = $("notice");
-  notice.textContent = text;
-  notice.className = kind === "info" ? "notice" : `notice ${kind}`;
-  notice.hidden = !text;
+  setNotice($("notice"), text, kind);
 }
 
 function el(tag, props = {}, ...children) {
