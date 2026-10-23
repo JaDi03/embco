@@ -120,7 +120,11 @@ of one decision holds every entry it rests on, each with its own audit path:
   `POLICY` the run names;
 - the owner's `ANSWER` to that check, if any, and the session's `PAYMENT` entries for the invoice;
 - the `MANIFEST`: written by the journal right after the session, it lists the hash of each entry
-  above. It is anchored with the rest, so a proof that leaves an entry out does not check.
+  above. It is anchored with the rest, so a proof that leaves an entry out does not check. It also
+  says the decision in short, taken from those entries: the model's `choice` and reason, the
+  invoice `amount` and supplier, and the `payment` state and its transaction (`tx`). The reason and
+  the supplier are UTF-8 hex (`reason_hex`, `supplier_hex`), so they can be read on chain without
+  undoing JSON escapes.
 
 The proofs are made from the journal and the anchors when they are asked for: nothing is stored.
 The dashboard shows the result under each receipt, in **What the agent saw**, and puts every

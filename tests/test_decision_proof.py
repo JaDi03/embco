@@ -83,7 +83,9 @@ def test_the_manifest_lists_every_entry_written_before_it(data):
     manifest = next(n for n in numbers if entries[n - 1]["kind"] == "MANIFEST")
     body = json.loads(entries[manifest - 1]["body"])
     assert body == {"session": "s1",
-                    "entries": [entries[n - 1]["hash"] for n in numbers if n < manifest]}
+                    "entries": [entries[n - 1]["hash"] for n in numbers if n < manifest],
+                    "choice": "PAY_NOW", "reason_hex": b"ok".hex(), "amount": "125.5",
+                    "supplier_hex": b"S".hex(), "payment": "COMPLETE", "tx": ""}
 
 
 def test_a_decision_proof_checks_every_entry_against_arc(data):

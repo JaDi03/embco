@@ -55,6 +55,22 @@ def decision_entries(entries: Sequence[Mapping[str, Any]], session: str,
 
 def manifest_body(entries: Sequence[Mapping[str, Any]], session: str,
                   invoice: str) -> dict[str, Any]:
-    """The MANIFEST of a decision just written: the hashes of every entry it rests on so far."""
+    """The MANIFEST of a decision just written: the hashes of every entry it rests on so far, and
+    what it says in short, taken from those entries: the model's choice and reason, the invoice
+    amount and supplier from the rule check, and the payment's state and transaction. Free text is
+    UTF-8 hex, so a reader on chain (DecisionVerifier) never has to undo JSON escapes."""
     numbers = decision_entries(entries, session, invoice)
-    return {"session": session, "entries": [entries[n - 1]["hash"] for n in numbers]}
+    picked = [(entries[n - 1]["kind"], json.loads(entries[n - 1]["body"])) for n in numbers]
+    agent = next(b for k, b in picked if k == "AGENT")
+    check = next((b for k, b in picked if k == "DECISION"), {})
+    payments = [b for k, b in picked if k == "PAYMENT"]
+    return {
+        "session": session,
+        "entries": [entries[n - 1]["hash"] for n in numbers],
+        "choice": agent.get("choice", ""),
+        "reason_hex": agent.get("reason", "").encode().hex(),
+        "amount": check.get("amount") or (payments[-1]["amount"] if payments else ""),
+        "supplier_hex": check.get("supplier", "").encode().hex(),
+        "payment": payments[-1]["status"] if payments else "",
+        "tx": next((b["tx_hash"] for b in reversed(payments) if b.get("tx_hash")), ""),
+    }
