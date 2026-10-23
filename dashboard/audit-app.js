@@ -57,13 +57,18 @@ async function runDecision(bundle) {
   if (typeof bundle.shop !== "string") throw new Error("That decision proof does not say its shop.");
   const result = await checkDecisionProof(bundle, await journalAnchors(bundle.shop));
   const what = `the decision of the agent on ${bundle.invoice}`;
+  const bad = result.proofs.filter((p) => !p.ok).length;
   if (result.ok) {
-    setStatus(`✓ All ${result.proofs.length} journal entries of ${what} were anchored on Arc, unchanged.`, "ok");
+    setStatus(`✓ All ${result.proofs.length} journal entries of ${what} were anchored on Arc, unchanged, and none is missing.`, "ok");
   } else if (result.unlinked) {
     setStatus(`✗ This proof holds an entry that is not part of ${what}: ${result.unlinked}.`, "bad");
-  } else {
-    const bad = result.proofs.filter((p) => !p.ok).length;
+  } else if (bad) {
     setStatus(`✗ ${bad} of the ${result.proofs.length} entries of ${what} do not match Arc.`, "bad");
+  } else if (result.missing) {
+    setStatus(`✗ ${result.missing} entries of ${what} were left out of this proof: its manifest on Arc lists them.`, "bad");
+  } else {
+    setStatus(`The ${result.proofs.length} entries of ${what} were anchored on Arc, unchanged. It was written before `
+      + "decisions listed their entries, so nothing shows that none was left out.");
   }
 }
 
@@ -72,15 +77,20 @@ async function decisionsSentence(data, anchors) {
   const all = Array.isArray(data.decisions) ? data.decisions : [];
   if (!all.length) return "";
   let bad = 0;
+  let unlisted = 0;
   for (const d of all) {
     try {
-      if (!(await checkDecisionProof(d, anchors)).ok) bad += 1;
+      const result = await checkDecisionProof(d, anchors);
+      if (!result.listed && !result.unlinked && result.proofs.every((p) => p.ok)) unlisted += 1;
+      else if (!result.ok) bad += 1;
     } catch {
       bad += 1;
     }
   }
-  return bad ? ` ✗ ${bad} of its ${all.length} decision proofs do not check.`
-    : ` Its ${all.length} decision proofs check too.`;
+  const older = unlisted ? ` ${unlisted} of them were written before decisions listed their entries, so nothing `
+    + "shows that none of their entries was left out." : "";
+  return (bad ? ` ✗ ${bad} of its ${all.length} decision proofs do not check.`
+    : ` Its ${all.length} decision proofs check too.`) + older;
 }
 
 async function run(file) {

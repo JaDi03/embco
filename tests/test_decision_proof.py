@@ -72,16 +72,64 @@ def kinds(data, numbers):
 def test_the_entries_of_a_decision_are_its_session_check_policy_answer_and_payments(data):
     numbers = decision_entries(data["entries"], "s1", "PINV-1")
     assert kinds(data, numbers) == ["POLICY", "RUN", "DECISION", "ANSWER", "PAYMENT", "PAYMENT",
-                                    "SESSION", "AGENT", "PAYMENT"]
+                                    "SESSION", "AGENT", "MANIFEST", "PAYMENT"]
     # the earlier session's choice on PINV-1 and anything about PINV-2 are left out
     assert all(data["entries"][n - 1]["invoice"] != "PINV-2" for n in numbers)
+
+
+def test_the_manifest_lists_every_entry_written_before_it(data):
+    entries = data["entries"]
+    numbers = decision_entries(entries, "s1", "PINV-1")
+    manifest = next(n for n in numbers if entries[n - 1]["kind"] == "MANIFEST")
+    body = json.loads(entries[manifest - 1]["body"])
+    assert body == {"session": "s1",
+                    "entries": [entries[n - 1]["hash"] for n in numbers if n < manifest]}
 
 
 def test_a_decision_proof_checks_every_entry_against_arc(data):
     anchors = anchors_of(data)
     bundle = json.loads(json.dumps(make_decision_bundle(data, "s1", "PINV-1", anchors)))
     result = check_decision_bundle(bundle, anchors)
-    assert result.ok and len(result.proofs) == 9
+    assert result.ok and result.listed and result.missing == 0 and len(result.proofs) == 10
+
+
+@pytest.mark.parametrize("kind", ["POLICY", "RUN", "DECISION", "ANSWER", "PAYMENT", "SESSION"])
+def test_a_proof_that_leaves_out_an_entry_the_manifest_lists_fails(data, kind):
+    anchors = anchors_of(data)
+    bundle = make_decision_bundle(data, "s1", "PINV-1", anchors)
+    gone = next(p for p in bundle["proofs"] if p["entry"]["kind"] == kind)
+    bundle["proofs"].remove(gone)
+    result = check_decision_bundle(bundle, anchors)
+    assert not result.ok and result.missing == 1
+
+
+def test_a_proof_cut_down_to_the_choice_alone_fails(data):
+    anchors = anchors_of(data)
+    bundle = make_decision_bundle(data, "s1", "PINV-1", anchors)
+    bundle["proofs"] = [p for p in bundle["proofs"] if p["entry"]["kind"] in ("AGENT", "MANIFEST")]
+    assert check_decision_bundle(bundle, anchors).missing == 7  # all it lists but the AGENT
+    bundle["proofs"] = [p for p in bundle["proofs"] if p["entry"]["kind"] == "AGENT"]
+    result = check_decision_bundle(bundle, anchors)
+    assert not result.ok and not result.listed  # without its manifest it cannot pass either
+
+
+def test_a_payment_state_written_after_the_manifest_is_shown_but_not_required(data):
+    anchors = anchors_of(data)
+    bundle = make_decision_bundle(data, "s1", "PINV-1", anchors)
+    later = bundle["proofs"][-1]
+    assert json.loads(later["entry"]["body"])["status"] == "RECORDED"
+    bundle["proofs"].remove(later)
+    assert check_decision_bundle(bundle, anchors).ok
+
+
+def test_a_decision_proof_from_another_shops_journal_fails(data, tmp_path):
+    anchors = anchors_of(data)
+    bundle = make_decision_bundle(data, "s1", "PINV-1", anchors)
+    path = tmp_path / "other.sqlite3"
+    with SqliteJournal(path) as journal:
+        journal.record_session(session("s9", T0, rule("PINV-9")))
+    other = anchors_of({"entries": export_journal(path)})
+    assert not check_decision_bundle(bundle, other).ok
 
 
 def test_an_entry_from_another_decision_is_caught(data):

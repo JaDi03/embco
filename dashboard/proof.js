@@ -29,7 +29,7 @@ export class NotAnchored extends Error {
 
 /** The numbers (from 1) of the entries behind the agent's decision on `invoice` in `session`:
  * the session, the choice, the rule check it was made on, that check's run and policy, the owner's
- * answers to that check and the payments the session sent. */
+ * answers to that check, the payments the session sent and the MANIFEST that lists them all. */
 export function decisionEntries(entries, session, invoice) {
   const rows = entries.map((e, i) => ({ n: i + 1, e, b: bodyOf(e) }));
   const agent = rows.find((r) => r.e.kind === "AGENT" && r.e.invoice === invoice && r.b.session === session);
@@ -39,7 +39,7 @@ export function decisionEntries(entries, session, invoice) {
   const before = rows.filter((r) => r.n < agent.n);
   for (const r of rows) {
     if (r.e.kind === "SESSION" && r.b.id === session) found.add(r.n);
-    if (r.e.kind === "PAYMENT" && r.e.invoice === invoice && r.b.session === session) found.add(r.n);
+    if ((r.e.kind === "PAYMENT" || r.e.kind === "MANIFEST") && r.e.invoice === invoice && r.b.session === session) found.add(r.n);
   }
   for (const r of before) {
     if (r.e.kind === "ANSWER" && r.e.invoice === invoice && r.b.fingerprint === mark) found.add(r.n);
@@ -141,35 +141,51 @@ export async function checkEntryProof(bundle, anchors) {
 export const isDecisionProof = (data) => Boolean(data) && typeof data.session === "string"
   && typeof data.invoice === "string" && Array.isArray(data.proofs);
 
-/** Each proof against Arc, and that every proved entry belongs to this decision. */
+/** Each proof against Arc, that every proved entry belongs to this decision, and that none its
+ * MANIFEST lists was left out. `listed` is false for decisions written before the MANIFEST. */
 export async function checkDecisionProof(bundle, anchors) {
   if (!isDecisionProof(bundle) || !bundle.proofs.length) {
     throw new Error("not a decision proof: it needs the session, the invoice and the proofs");
   }
   const proofs = [];
   for (const p of bundle.proofs) proofs.push(await checkEntryProof(p, anchors));
-  const unlinked = unlinkedEntry(bundle.proofs.map((p) => p.entry), bundle.session, bundle.invoice);
-  return { proofs, unlinked, ok: unlinked === null && proofs.every((p) => p.ok) };
+  const unlinked = unlinkedEntry(bundle.proofs, bundle.session, bundle.invoice);
+  const manifests = bundle.proofs.filter((p) => p.entry?.kind === "MANIFEST");
+  const listed = manifests.length === 1;
+  const held = new Set(bundle.proofs.map((p) => p.entry?.hash));
+  const missing = listed ? (bodyOf(manifests[0].entry).entries ?? []).filter((h) => !held.has(h)).length : 0;
+  return { proofs, unlinked, listed, missing,
+    ok: unlinked === null && listed && missing === 0 && proofs.every((p) => p.ok) };
 }
 
-function unlinkedEntry(entries, session, invoice) {
-  const rows = entries.map((e) => ({ e, b: bodyOf(e) }));
+function unlinkedEntry(bundleProofs, session, invoice) {
+  // ordered by `index`, the place the audit path proves, not by the `number` the bundle states
+  const rows = bundleProofs.map((p) => ({ n: p.index, e: p.entry, b: bodyOf(p.entry) }));
   const agents = rows.filter((r) => r.e.kind === "AGENT");
   if (agents.length !== 1) return "a decision proof must hold exactly one AGENT entry";
+  const manifests = rows.filter((r) => r.e.kind === "MANIFEST");
+  if (manifests.length > 1) return "a decision proof must hold at most one MANIFEST entry";
+  const manifest = manifests[0];
   const mark = agents[0].b.fingerprint;
   const runs = new Map(rows.filter((r) => r.e.kind === "RUN").map((r) => [r.e.run, r.b.policy]));
   const checked = new Set(rows.filter((r) => r.e.kind === "DECISION").map((r) => r.e.run));
-  for (const { e, b } of rows) {
+  for (const { n, e, b } of rows) {
     const linked = {
       SESSION: b.id === session,
       AGENT: e.invoice === invoice && b.session === session,
       PAYMENT: e.invoice === invoice && b.session === session,
+      MANIFEST: e.invoice === invoice && b.session === session,
       ANSWER: e.invoice === invoice && b.fingerprint === mark,
       DECISION: e.invoice === invoice && b.fingerprint === mark && runs.has(e.run),
       RUN: checked.has(e.run),
       POLICY: [...runs.values()].includes(b.policy),
     }[e.kind] ?? false;
     if (!linked) return `the ${e.kind} entry at ${e.at} is not part of this decision`;
+    // only a payment state written after the manifest can be missing from it
+    if (manifest && e.kind !== "MANIFEST" && !(manifest.b.entries ?? []).includes(e.hash)
+      && !(e.kind === "PAYMENT" && n > manifest.n)) {
+      return `the ${e.kind} entry at ${e.at} is not in the decision's MANIFEST`;
+    }
   }
   return null;
 }

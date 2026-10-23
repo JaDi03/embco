@@ -22,12 +22,14 @@ from agent.guardrails.rules import Action, Decision, OwnerAnswer, PolicyConfig, 
 from agent.memory import schema
 from agent.memory.base import JournalError
 from agent.memory.changes import Change, ChangeKind
+from agent.memory.manifest import manifest_body
 from agent.memory.models import GENESIS, JournalEntry, canonical, chain_hash, digest
 from agent.memory.sessions import decision_body, decision_from, session_body, session_from
 from agent.models import AgentDecision, Session
 from services.payments.models import PaymentEvent, PaymentStatus
 
 CLOSED_NOTE = "no longer among the unpaid invoices in the ERP"
+EXPORT_FIELDS = ("kind", "run", "invoice", "at", "body", "hash")  # the columns of schema.ALL
 
 
 class SqliteJournal:
@@ -227,7 +229,8 @@ class SqliteJournal:
         return [_payment(row) for row in self._db.execute(schema.LATEST_PAYMENTS)]
 
     def record_session(self, session: Session) -> None:
-        """The session and each of its decisions, in one step."""
+        """The session and each of its decisions, in one step, then the MANIFEST of each decision:
+        the hashes of the entries it rests on, so a proof of it cannot leave one out."""
         stamp = _timestamp(session.at)
         with self._transaction():
             head = self._append(self._head(), "SESSION", None, None, stamp,
@@ -236,6 +239,13 @@ class SqliteJournal:
             for decision in session.decisions:
                 head = self._append(head, "AGENT", None, decision.invoice, stamp,
                                     {**decision_body(decision), **linked})
+            if not session.id:
+                return
+            entries = [dict(zip(EXPORT_FIELDS, row, strict=True))
+                       for row in self._db.execute(schema.ALL)]
+            for decision in session.decisions:
+                head = self._append(head, "MANIFEST", None, decision.invoice, stamp,
+                                    manifest_body(entries, session.id, decision.invoice))
 
     def sessions(self) -> list[Session]:
         """Every session, oldest first (decisions are read with latest_agent_decisions)."""
@@ -300,9 +310,7 @@ def export_journal(path: str | Path) -> list[dict[str, Any]]:
     writing: what anyone needs to recompute the hash chain and the Merkle root."""
     db = sqlite3.connect(f"file:{Path(path).as_posix()}?mode=ro", uri=True)
     try:
-        return [{"kind": kind, "run": run, "invoice": invoice, "at": at, "body": body,
-                 "hash": entry_hash} for kind, run, invoice, at, body, entry_hash
-                in db.execute(schema.ALL)]
+        return [dict(zip(EXPORT_FIELDS, row, strict=True)) for row in db.execute(schema.ALL)]
     finally:
         db.close()
 

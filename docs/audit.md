@@ -118,7 +118,9 @@ of one decision holds every entry it rests on, each with its own audit path:
 - the `AGENT` entry: its choice and its reason;
 - the `DECISION` it was made on (the rule checks, by its `fingerprint`), that check's `RUN` and the
   `POLICY` the run names;
-- the owner's `ANSWER` to that check, if any, and the session's `PAYMENT` entries for the invoice.
+- the owner's `ANSWER` to that check, if any, and the session's `PAYMENT` entries for the invoice;
+- the `MANIFEST`: written by the journal right after the session, it lists the hash of each entry
+  above. It is anchored with the rest, so a proof that leaves an entry out does not check.
 
 The proofs are made from the journal and the anchors when they are asked for: nothing is stored.
 The dashboard shows the result under each receipt, in **What the agent saw**, and puts every
@@ -129,9 +131,14 @@ journal, save that item as its own file. Check it on `/audit/` or with:
 embco check-proof decision.json --rpc-url <Arc Testnet node>
 ```
 
-The checker proves each entry against Arc and refuses an entry that does not belong to the
-decision: another session, another invoice or another rule check. Sessions written before
-sessions had an id have no decision proof; their receipts show the proof of the session entry.
+The checker proves each entry against Arc, refuses an entry that does not belong to the decision
+(another session, another invoice or another rule check) and refuses a proof that lacks an entry
+the `MANIFEST` lists. A payment followed up in a later cycle writes its final state after the
+`MANIFEST`: the proof shows it when it has it, but does not require it.
+
+Decisions written before the `MANIFEST` existed are proved entry by entry, and the result says
+that nothing shows none of their entries was left out. Sessions written before sessions had an id
+have no decision proof; their receipts show the proof of the session entry.
 
 ## 5. Keep a witness
 

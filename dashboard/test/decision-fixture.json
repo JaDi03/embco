@@ -58,12 +58,28 @@
    "hash": "0e27c1d6a0b341ab7978cafcfc356e7e3c0ada93ca901fa547030771ab0da6e1"
   },
   {
+   "kind": "MANIFEST",
+   "run": null,
+   "invoice": "PINV-1",
+   "at": "2026-10-20T06:01:00+00:00",
+   "body": "{\"entries\":[\"f9686a54d5fba7bb0f1b1eba0fda4daf16a342d4d125331b980e8384b687c1da\",\"960146c03affa2f7de5e0d6c1b965efba65fd6e6b7ce3ef5f00db69259a19c80\",\"ef328a363ad6ca929d734919f5fbfd51c969109dbf7502c7530b0b2cee52d08a\",\"d1f93460e8a25c851085c8f084d3d9b52686c0459db51562efb8e5189e8190a5\",\"3515746d803795d05b4f373e103f777241d71694a18a54903a6a1045ca6e9b20\"],\"session\":\"s0\"}",
+   "hash": "e65ff6b45abea2248f9cfbb8ebe1ab58feb5a7a4f2ff2b3d266f07fb50b54b1f"
+  },
+  {
+   "kind": "MANIFEST",
+   "run": null,
+   "invoice": "PINV-2",
+   "at": "2026-10-20T06:01:00+00:00",
+   "body": "{\"entries\":[\"f9686a54d5fba7bb0f1b1eba0fda4daf16a342d4d125331b980e8384b687c1da\",\"960146c03affa2f7de5e0d6c1b965efba65fd6e6b7ce3ef5f00db69259a19c80\",\"6f267b98b24a2d7667ed81a965fc8bdefbe40f464c9f0108eab4193ec983241e\",\"d1f93460e8a25c851085c8f084d3d9b52686c0459db51562efb8e5189e8190a5\",\"0e27c1d6a0b341ab7978cafcfc356e7e3c0ada93ca901fa547030771ab0da6e1\"],\"session\":\"s0\"}",
+   "hash": "2b21e3a16b0b47013a04de679095eb2b81bd5242307d2f37e633a1d0e8ab615a"
+  },
+  {
    "kind": "ANSWER",
    "run": null,
    "invoice": "PINV-1",
    "at": "2026-10-20T06:02:00+00:00",
    "body": "{\"answered_by\":\"owner\",\"fingerprint\":\"09285e8b40bb61e031605b8db0f0dd8111e83f617bce00791a828fdefebae0c1\",\"note\":\"\",\"verdict\":\"APPROVE\"}",
-   "hash": "8d97341986f955b7670515d75bd5437dbcb28b3fd667995eaa5f870fb1932437"
+   "hash": "010878bac84489e312483722b946fc432b68859b03674af3e31e9157b4c53130"
   },
   {
    "kind": "PAYMENT",
@@ -71,7 +87,7 @@
    "invoice": "PINV-1",
    "at": "2026-10-20T06:03:00+00:00",
    "body": "{\"amount\":\"125.5\",\"attempt\":0,\"circle_tx_id\":\"c1\",\"invoice_ref\":\"0x01\",\"payee\":\"0xabc\",\"reason\":\"\",\"session\":\"s1\",\"status\":\"SUBMITTED\",\"supplier\":\"S\",\"tx_hash\":null}",
-   "hash": "5e662587babea8b8bedb7d0cfa46db4653bd9066b3a61e572c632f2aadfa1da0"
+   "hash": "966ab99340a20199f9faa4c2f080196d2a443db56284466a01d3f2fc502d6d4c"
   },
   {
    "kind": "PAYMENT",
@@ -79,7 +95,7 @@
    "invoice": "PINV-1",
    "at": "2026-10-20T06:04:00+00:00",
    "body": "{\"amount\":\"125.5\",\"attempt\":0,\"circle_tx_id\":\"c1\",\"invoice_ref\":\"0x01\",\"payee\":\"0xabc\",\"reason\":\"\",\"session\":\"s1\",\"status\":\"COMPLETE\",\"supplier\":\"S\",\"tx_hash\":null}",
-   "hash": "312ace29afdd75256ba0c2c37d374c1aef2b35f616851f2bde180cd6cae1a9bb"
+   "hash": "7589181b8d09e2c35a04aca885d71a610f7b8039824c94b8c33b472ab928d975"
   },
   {
    "kind": "SESSION",
@@ -87,7 +103,7 @@
    "invoice": null,
    "at": "2026-10-20T06:03:00+00:00",
    "body": "{\"alarms\":[],\"decided\":[\"PINV-1\"],\"emails\":[],\"error\":\"\",\"finished\":true,\"funds_moved\":[],\"id\":\"s1\",\"model\":\"\",\"money\":null,\"notes\":[],\"replies\":[],\"seen_payments\":[],\"steps\":0,\"summary\":\"\",\"trace\":[],\"usage\":{\"cache_read\":0,\"cache_write\":0,\"input\":0,\"output\":0},\"wakes\":[{\"invoice\":null,\"key\":\"\",\"kind\":\"start\",\"text\":\"s\"}],\"wallet_notices\":[]}",
-   "hash": "2e49ef27bd00ed5d2661658d21c14938875ce6db5c1a1d8dbfa5d26e40e79486"
+   "hash": "162726aaf7df14d3c35127efe53d73464756651f988e775e752306b088afacf4"
   },
   {
    "kind": "AGENT",
@@ -95,7 +111,15 @@
    "invoice": "PINV-1",
    "at": "2026-10-20T06:03:00+00:00",
    "body": "{\"choice\":\"PAY_NOW\",\"fingerprint\":\"09285e8b40bb61e031605b8db0f0dd8111e83f617bce00791a828fdefebae0c1\",\"pay_on\":null,\"question\":\"\",\"reason\":\"ok\",\"recommendation\":\"\",\"session\":\"s1\"}",
-   "hash": "d313131191ab0491de43a47bb44541b0a3e9f435631f3595a0cd04adaadc9991"
+   "hash": "7e40edd4735cfe6e29d51305bf35f78b6844b8f21186cb14f29827a3c7c0592e"
+  },
+  {
+   "kind": "MANIFEST",
+   "run": null,
+   "invoice": "PINV-1",
+   "at": "2026-10-20T06:03:00+00:00",
+   "body": "{\"entries\":[\"f9686a54d5fba7bb0f1b1eba0fda4daf16a342d4d125331b980e8384b687c1da\",\"960146c03affa2f7de5e0d6c1b965efba65fd6e6b7ce3ef5f00db69259a19c80\",\"ef328a363ad6ca929d734919f5fbfd51c969109dbf7502c7530b0b2cee52d08a\",\"010878bac84489e312483722b946fc432b68859b03674af3e31e9157b4c53130\",\"966ab99340a20199f9faa4c2f080196d2a443db56284466a01d3f2fc502d6d4c\",\"7589181b8d09e2c35a04aca885d71a610f7b8039824c94b8c33b472ab928d975\",\"162726aaf7df14d3c35127efe53d73464756651f988e775e752306b088afacf4\",\"7e40edd4735cfe6e29d51305bf35f78b6844b8f21186cb14f29827a3c7c0592e\"],\"session\":\"s1\"}",
+   "hash": "dbaca463e217f08a8cec1ca804a35e6f5cab6964ccaf1a195e42d912a74b368b"
   },
   {
    "kind": "PAYMENT",
@@ -103,7 +127,7 @@
    "invoice": "PINV-1",
    "at": "2026-10-20T06:05:00+00:00",
    "body": "{\"amount\":\"125.5\",\"attempt\":0,\"circle_tx_id\":\"c1\",\"invoice_ref\":\"0x01\",\"payee\":\"0xabc\",\"reason\":\"\",\"session\":\"s1\",\"status\":\"RECORDED\",\"supplier\":\"S\",\"tx_hash\":null}",
-   "hash": "a3de732160d575846678615349923af1b87156162da46dc849b650c7c898ecd7"
+   "hash": "a1720bb9c4a7fa51354da56f1bc0c0269ca17af9e1381025603eea9ba72aaa2d"
   }
  ],
  "anchors": [
@@ -113,8 +137,8 @@
    "anchoredAt": "2026-10-20T06:00:00+00:00"
   },
   {
-   "root": "e56b4d92e25dda0ffe095e6fbbbc2a92aecfe6a4ecc9cb02e17a05746dffa232",
-   "size": 13,
+   "root": "2aad3a5d02c53b6b0ab156d9e5aa481dbf7a7f874b7aca7f6eaf8097aa0e9d6e",
+   "size": 16,
    "anchoredAt": "2026-10-20T06:00:00+00:00"
   }
  ],
@@ -122,12 +146,13 @@
   1,
   2,
   3,
-  8,
-  9,
   10,
   11,
   12,
-  13
+  13,
+  14,
+  15,
+  16
  ],
  "bundle": {
   "shop": "0x5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
@@ -199,70 +224,24 @@
    },
    {
     "shop": "0x5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
-    "number": 8,
-    "index": 7,
-    "size": 13,
-    "root": "e56b4d92e25dda0ffe095e6fbbbc2a92aecfe6a4ecc9cb02e17a05746dffa232",
-    "previous_hash": "0e27c1d6a0b341ab7978cafcfc356e7e3c0ada93ca901fa547030771ab0da6e1",
+    "number": 10,
+    "index": 9,
+    "size": 16,
+    "root": "2aad3a5d02c53b6b0ab156d9e5aa481dbf7a7f874b7aca7f6eaf8097aa0e9d6e",
+    "previous_hash": "2b21e3a16b0b47013a04de679095eb2b81bd5242307d2f37e633a1d0e8ab615a",
     "entry": {
      "kind": "ANSWER",
      "run": null,
      "invoice": "PINV-1",
      "at": "2026-10-20T06:02:00+00:00",
      "body": "{\"answered_by\":\"owner\",\"fingerprint\":\"09285e8b40bb61e031605b8db0f0dd8111e83f617bce00791a828fdefebae0c1\",\"note\":\"\",\"verdict\":\"APPROVE\"}",
-     "hash": "8d97341986f955b7670515d75bd5437dbcb28b3fd667995eaa5f870fb1932437"
+     "hash": "010878bac84489e312483722b946fc432b68859b03674af3e31e9157b4c53130"
     },
     "proof": [
-     "91dcb1ad5a119d1470f2acc56405447f7ae31d27737e68311f2e9203d26221c8",
-     "37c39cf3e6abbbe88208ede491baef4969f7fdfae1346389efe9b5c9e30d2556",
-     "d9df2fb894cc88a9e7dc98887d6fd84f9856bd4fcea8228d1d861ed1965081ad",
-     "00d0f64de3e1c2c7154387b1fe25e359d0441be00c0971a3fe3ad4b1ebec062d"
-    ],
-    "how_to_check": "embco check-proof <this file> --rpc-url <Arc Testnet node>"
-   },
-   {
-    "shop": "0x5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
-    "number": 9,
-    "index": 8,
-    "size": 13,
-    "root": "e56b4d92e25dda0ffe095e6fbbbc2a92aecfe6a4ecc9cb02e17a05746dffa232",
-    "previous_hash": "8d97341986f955b7670515d75bd5437dbcb28b3fd667995eaa5f870fb1932437",
-    "entry": {
-     "kind": "PAYMENT",
-     "run": null,
-     "invoice": "PINV-1",
-     "at": "2026-10-20T06:03:00+00:00",
-     "body": "{\"amount\":\"125.5\",\"attempt\":0,\"circle_tx_id\":\"c1\",\"invoice_ref\":\"0x01\",\"payee\":\"0xabc\",\"reason\":\"\",\"session\":\"s1\",\"status\":\"SUBMITTED\",\"supplier\":\"S\",\"tx_hash\":null}",
-     "hash": "5e662587babea8b8bedb7d0cfa46db4653bd9066b3a61e572c632f2aadfa1da0"
-    },
-    "proof": [
-     "d4f77ef72ff2f8ea15b7993cb5ec50ed7333615d9171aebe003fcb1f64fa8154",
-     "0f0de4804eef074c5c00260951e6cd5a878f754478a057b729d76bbe927978d2",
-     "58038d0e5d3059008b7cedbd364e0c10f583fcc060f53b79447338abb89988c1",
-     "b5dc27233d25446995f5ee8b77bf9b9b9ac24a85d5aebc628262b556fc75c01e"
-    ],
-    "how_to_check": "embco check-proof <this file> --rpc-url <Arc Testnet node>"
-   },
-   {
-    "shop": "0x5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
-    "number": 10,
-    "index": 9,
-    "size": 13,
-    "root": "e56b4d92e25dda0ffe095e6fbbbc2a92aecfe6a4ecc9cb02e17a05746dffa232",
-    "previous_hash": "5e662587babea8b8bedb7d0cfa46db4653bd9066b3a61e572c632f2aadfa1da0",
-    "entry": {
-     "kind": "PAYMENT",
-     "run": null,
-     "invoice": "PINV-1",
-     "at": "2026-10-20T06:04:00+00:00",
-     "body": "{\"amount\":\"125.5\",\"attempt\":0,\"circle_tx_id\":\"c1\",\"invoice_ref\":\"0x01\",\"payee\":\"0xabc\",\"reason\":\"\",\"session\":\"s1\",\"status\":\"COMPLETE\",\"supplier\":\"S\",\"tx_hash\":null}",
-     "hash": "312ace29afdd75256ba0c2c37d374c1aef2b35f616851f2bde180cd6cae1a9bb"
-    },
-    "proof": [
-     "e73309cd446797fa0a1a39d0bdecb268372723bee00929d693d83ed119858cd6",
-     "0f0de4804eef074c5c00260951e6cd5a878f754478a057b729d76bbe927978d2",
-     "58038d0e5d3059008b7cedbd364e0c10f583fcc060f53b79447338abb89988c1",
-     "b5dc27233d25446995f5ee8b77bf9b9b9ac24a85d5aebc628262b556fc75c01e"
+     "c0e37af155a5c14c84eacd539a0fae3b61c69f14d8d860a491fedd964b9af3db",
+     "3ade88505db49ed1b2b29ed71e7dc6f08854d85ac4d5274ad8d72968b03b0231",
+     "6b11fb784fbdb498ff248475d4b8c66a869d927113e321c5b4c7ad191a3528cc",
+     "d4ccc573e7ae4ebb62ad83a31268c3eff886ed682271e87234f458638699a3a9"
     ],
     "how_to_check": "embco check-proof <this file> --rpc-url <Arc Testnet node>"
    },
@@ -270,22 +249,22 @@
     "shop": "0x5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
     "number": 11,
     "index": 10,
-    "size": 13,
-    "root": "e56b4d92e25dda0ffe095e6fbbbc2a92aecfe6a4ecc9cb02e17a05746dffa232",
-    "previous_hash": "312ace29afdd75256ba0c2c37d374c1aef2b35f616851f2bde180cd6cae1a9bb",
+    "size": 16,
+    "root": "2aad3a5d02c53b6b0ab156d9e5aa481dbf7a7f874b7aca7f6eaf8097aa0e9d6e",
+    "previous_hash": "010878bac84489e312483722b946fc432b68859b03674af3e31e9157b4c53130",
     "entry": {
-     "kind": "SESSION",
+     "kind": "PAYMENT",
      "run": null,
-     "invoice": null,
+     "invoice": "PINV-1",
      "at": "2026-10-20T06:03:00+00:00",
-     "body": "{\"alarms\":[],\"decided\":[\"PINV-1\"],\"emails\":[],\"error\":\"\",\"finished\":true,\"funds_moved\":[],\"id\":\"s1\",\"model\":\"\",\"money\":null,\"notes\":[],\"replies\":[],\"seen_payments\":[],\"steps\":0,\"summary\":\"\",\"trace\":[],\"usage\":{\"cache_read\":0,\"cache_write\":0,\"input\":0,\"output\":0},\"wakes\":[{\"invoice\":null,\"key\":\"\",\"kind\":\"start\",\"text\":\"s\"}],\"wallet_notices\":[]}",
-     "hash": "2e49ef27bd00ed5d2661658d21c14938875ce6db5c1a1d8dbfa5d26e40e79486"
+     "body": "{\"amount\":\"125.5\",\"attempt\":0,\"circle_tx_id\":\"c1\",\"invoice_ref\":\"0x01\",\"payee\":\"0xabc\",\"reason\":\"\",\"session\":\"s1\",\"status\":\"SUBMITTED\",\"supplier\":\"S\",\"tx_hash\":null}",
+     "hash": "966ab99340a20199f9faa4c2f080196d2a443db56284466a01d3f2fc502d6d4c"
     },
     "proof": [
-     "69956ea1165d9b0512f6c4437623f8717b12fb44b278e1f12f3c5d026e7da0a1",
-     "ff28e8363aa66c6458f039b412a584e5725071405b99cbb4c81a543dea1ce566",
-     "58038d0e5d3059008b7cedbd364e0c10f583fcc060f53b79447338abb89988c1",
-     "b5dc27233d25446995f5ee8b77bf9b9b9ac24a85d5aebc628262b556fc75c01e"
+     "da2b732c06dc9f171cd3f9aba3870e5313cc7c4c06fca58fffa026724cded72c",
+     "2dba6d7ad7b9085f2a304ce364d597f33a7d773156ebfccb004d05b0c9ba27a9",
+     "6b11fb784fbdb498ff248475d4b8c66a869d927113e321c5b4c7ad191a3528cc",
+     "d4ccc573e7ae4ebb62ad83a31268c3eff886ed682271e87234f458638699a3a9"
     ],
     "how_to_check": "embco check-proof <this file> --rpc-url <Arc Testnet node>"
    },
@@ -293,22 +272,22 @@
     "shop": "0x5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
     "number": 12,
     "index": 11,
-    "size": 13,
-    "root": "e56b4d92e25dda0ffe095e6fbbbc2a92aecfe6a4ecc9cb02e17a05746dffa232",
-    "previous_hash": "2e49ef27bd00ed5d2661658d21c14938875ce6db5c1a1d8dbfa5d26e40e79486",
+    "size": 16,
+    "root": "2aad3a5d02c53b6b0ab156d9e5aa481dbf7a7f874b7aca7f6eaf8097aa0e9d6e",
+    "previous_hash": "966ab99340a20199f9faa4c2f080196d2a443db56284466a01d3f2fc502d6d4c",
     "entry": {
-     "kind": "AGENT",
+     "kind": "PAYMENT",
      "run": null,
      "invoice": "PINV-1",
-     "at": "2026-10-20T06:03:00+00:00",
-     "body": "{\"choice\":\"PAY_NOW\",\"fingerprint\":\"09285e8b40bb61e031605b8db0f0dd8111e83f617bce00791a828fdefebae0c1\",\"pay_on\":null,\"question\":\"\",\"reason\":\"ok\",\"recommendation\":\"\",\"session\":\"s1\"}",
-     "hash": "d313131191ab0491de43a47bb44541b0a3e9f435631f3595a0cd04adaadc9991"
+     "at": "2026-10-20T06:04:00+00:00",
+     "body": "{\"amount\":\"125.5\",\"attempt\":0,\"circle_tx_id\":\"c1\",\"invoice_ref\":\"0x01\",\"payee\":\"0xabc\",\"reason\":\"\",\"session\":\"s1\",\"status\":\"COMPLETE\",\"supplier\":\"S\",\"tx_hash\":null}",
+     "hash": "7589181b8d09e2c35a04aca885d71a610f7b8039824c94b8c33b472ab928d975"
     },
     "proof": [
-     "3c781b7012d51e2c0b5e7bed31d983a9502c30b12a2bf89441f46002a888fe76",
-     "ff28e8363aa66c6458f039b412a584e5725071405b99cbb4c81a543dea1ce566",
-     "58038d0e5d3059008b7cedbd364e0c10f583fcc060f53b79447338abb89988c1",
-     "b5dc27233d25446995f5ee8b77bf9b9b9ac24a85d5aebc628262b556fc75c01e"
+     "89913163454625402418adf18246aa692fc98b66511d08ca54d45c02b76aa2c0",
+     "2dba6d7ad7b9085f2a304ce364d597f33a7d773156ebfccb004d05b0c9ba27a9",
+     "6b11fb784fbdb498ff248475d4b8c66a869d927113e321c5b4c7ad191a3528cc",
+     "d4ccc573e7ae4ebb62ad83a31268c3eff886ed682271e87234f458638699a3a9"
     ],
     "how_to_check": "embco check-proof <this file> --rpc-url <Arc Testnet node>"
    },
@@ -316,20 +295,91 @@
     "shop": "0x5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
     "number": 13,
     "index": 12,
-    "size": 13,
-    "root": "e56b4d92e25dda0ffe095e6fbbbc2a92aecfe6a4ecc9cb02e17a05746dffa232",
-    "previous_hash": "d313131191ab0491de43a47bb44541b0a3e9f435631f3595a0cd04adaadc9991",
+    "size": 16,
+    "root": "2aad3a5d02c53b6b0ab156d9e5aa481dbf7a7f874b7aca7f6eaf8097aa0e9d6e",
+    "previous_hash": "7589181b8d09e2c35a04aca885d71a610f7b8039824c94b8c33b472ab928d975",
+    "entry": {
+     "kind": "SESSION",
+     "run": null,
+     "invoice": null,
+     "at": "2026-10-20T06:03:00+00:00",
+     "body": "{\"alarms\":[],\"decided\":[\"PINV-1\"],\"emails\":[],\"error\":\"\",\"finished\":true,\"funds_moved\":[],\"id\":\"s1\",\"model\":\"\",\"money\":null,\"notes\":[],\"replies\":[],\"seen_payments\":[],\"steps\":0,\"summary\":\"\",\"trace\":[],\"usage\":{\"cache_read\":0,\"cache_write\":0,\"input\":0,\"output\":0},\"wakes\":[{\"invoice\":null,\"key\":\"\",\"kind\":\"start\",\"text\":\"s\"}],\"wallet_notices\":[]}",
+     "hash": "162726aaf7df14d3c35127efe53d73464756651f988e775e752306b088afacf4"
+    },
+    "proof": [
+     "03f3ea627cf886912008a1415fa0f1f517681a1e45ae07307113754a573eaea3",
+     "eed4824d88b2949410dcabe8ec16e6840806b9b86c13f2dbea0ad00e76945148",
+     "87a9086cb7b203fed47efe2c27ff6193c6d9afbc65f85f8145a3fbd366a70898",
+     "d4ccc573e7ae4ebb62ad83a31268c3eff886ed682271e87234f458638699a3a9"
+    ],
+    "how_to_check": "embco check-proof <this file> --rpc-url <Arc Testnet node>"
+   },
+   {
+    "shop": "0x5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+    "number": 14,
+    "index": 13,
+    "size": 16,
+    "root": "2aad3a5d02c53b6b0ab156d9e5aa481dbf7a7f874b7aca7f6eaf8097aa0e9d6e",
+    "previous_hash": "162726aaf7df14d3c35127efe53d73464756651f988e775e752306b088afacf4",
+    "entry": {
+     "kind": "AGENT",
+     "run": null,
+     "invoice": "PINV-1",
+     "at": "2026-10-20T06:03:00+00:00",
+     "body": "{\"choice\":\"PAY_NOW\",\"fingerprint\":\"09285e8b40bb61e031605b8db0f0dd8111e83f617bce00791a828fdefebae0c1\",\"pay_on\":null,\"question\":\"\",\"reason\":\"ok\",\"recommendation\":\"\",\"session\":\"s1\"}",
+     "hash": "7e40edd4735cfe6e29d51305bf35f78b6844b8f21186cb14f29827a3c7c0592e"
+    },
+    "proof": [
+     "8c8af2d0cd6b9fed0fac969f51a39474782a04e1f4ef07ec29eacad017b071fd",
+     "eed4824d88b2949410dcabe8ec16e6840806b9b86c13f2dbea0ad00e76945148",
+     "87a9086cb7b203fed47efe2c27ff6193c6d9afbc65f85f8145a3fbd366a70898",
+     "d4ccc573e7ae4ebb62ad83a31268c3eff886ed682271e87234f458638699a3a9"
+    ],
+    "how_to_check": "embco check-proof <this file> --rpc-url <Arc Testnet node>"
+   },
+   {
+    "shop": "0x5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+    "number": 15,
+    "index": 14,
+    "size": 16,
+    "root": "2aad3a5d02c53b6b0ab156d9e5aa481dbf7a7f874b7aca7f6eaf8097aa0e9d6e",
+    "previous_hash": "7e40edd4735cfe6e29d51305bf35f78b6844b8f21186cb14f29827a3c7c0592e",
+    "entry": {
+     "kind": "MANIFEST",
+     "run": null,
+     "invoice": "PINV-1",
+     "at": "2026-10-20T06:03:00+00:00",
+     "body": "{\"entries\":[\"f9686a54d5fba7bb0f1b1eba0fda4daf16a342d4d125331b980e8384b687c1da\",\"960146c03affa2f7de5e0d6c1b965efba65fd6e6b7ce3ef5f00db69259a19c80\",\"ef328a363ad6ca929d734919f5fbfd51c969109dbf7502c7530b0b2cee52d08a\",\"010878bac84489e312483722b946fc432b68859b03674af3e31e9157b4c53130\",\"966ab99340a20199f9faa4c2f080196d2a443db56284466a01d3f2fc502d6d4c\",\"7589181b8d09e2c35a04aca885d71a610f7b8039824c94b8c33b472ab928d975\",\"162726aaf7df14d3c35127efe53d73464756651f988e775e752306b088afacf4\",\"7e40edd4735cfe6e29d51305bf35f78b6844b8f21186cb14f29827a3c7c0592e\"],\"session\":\"s1\"}",
+     "hash": "dbaca463e217f08a8cec1ca804a35e6f5cab6964ccaf1a195e42d912a74b368b"
+    },
+    "proof": [
+     "6f6b3f82d07dcc3fca81f93ddd0f50f195235c68b690e8a85cf9501f9154aa7c",
+     "853b44c0b456ab8c15ea18b4aba015818e34c77c4be21d6129ae9fc9fcf7892e",
+     "87a9086cb7b203fed47efe2c27ff6193c6d9afbc65f85f8145a3fbd366a70898",
+     "d4ccc573e7ae4ebb62ad83a31268c3eff886ed682271e87234f458638699a3a9"
+    ],
+    "how_to_check": "embco check-proof <this file> --rpc-url <Arc Testnet node>"
+   },
+   {
+    "shop": "0x5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c",
+    "number": 16,
+    "index": 15,
+    "size": 16,
+    "root": "2aad3a5d02c53b6b0ab156d9e5aa481dbf7a7f874b7aca7f6eaf8097aa0e9d6e",
+    "previous_hash": "dbaca463e217f08a8cec1ca804a35e6f5cab6964ccaf1a195e42d912a74b368b",
     "entry": {
      "kind": "PAYMENT",
      "run": null,
      "invoice": "PINV-1",
      "at": "2026-10-20T06:05:00+00:00",
      "body": "{\"amount\":\"125.5\",\"attempt\":0,\"circle_tx_id\":\"c1\",\"invoice_ref\":\"0x01\",\"payee\":\"0xabc\",\"reason\":\"\",\"session\":\"s1\",\"status\":\"RECORDED\",\"supplier\":\"S\",\"tx_hash\":null}",
-     "hash": "a3de732160d575846678615349923af1b87156162da46dc849b650c7c898ecd7"
+     "hash": "a1720bb9c4a7fa51354da56f1bc0c0269ca17af9e1381025603eea9ba72aaa2d"
     },
     "proof": [
-     "2041d980f48e81d729741ce1230f49fb83fc91b8eae51056411e4be7d703aa66",
-     "b5dc27233d25446995f5ee8b77bf9b9b9ac24a85d5aebc628262b556fc75c01e"
+     "ca586f7f989ccde715a062f4535edbdf60d5031e9cc9d8874aea59508c116c3b",
+     "853b44c0b456ab8c15ea18b4aba015818e34c77c4be21d6129ae9fc9fcf7892e",
+     "87a9086cb7b203fed47efe2c27ff6193c6d9afbc65f85f8145a3fbd366a70898",
+     "d4ccc573e7ae4ebb62ad83a31268c3eff886ed682271e87234f458638699a3a9"
     ],
     "how_to_check": "embco check-proof <this file> --rpc-url <Arc Testnet node>"
    }
