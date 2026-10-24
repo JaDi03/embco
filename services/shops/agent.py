@@ -15,6 +15,7 @@ from typing import Any
 from agent.cost import estimate, shown
 from agent.guardrails.rules import PolicyConfig
 from agent.memory import JournalError, SqliteJournal
+from agent.memory.files import ShopMemory
 from agent.models import Autonomy, Choice, Wake
 from agent.reflexes.cycle import CycleReport, run_cycle
 from agent.reflexes.report import format_report
@@ -289,7 +290,8 @@ def run_shop(
     if brain:
         log.info("shop %s: agent brain on (%s, %s)", shop, brain.brain.model,
                  brain.autonomy.value)
-        brain = replace(brain, live=activity.LiveActivity(store.folder(shop)))
+        brain = replace(brain, live=activity.LiveActivity(store.folder(shop)),
+                        memory=ShopMemory(store.folder(shop)))
 
     def wallet_of(supplier: str) -> str | None:
         try:

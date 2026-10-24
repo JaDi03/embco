@@ -14,6 +14,8 @@ from datetime import UTC, date, datetime, timedelta, tzinfo
 from decimal import Decimal
 from typing import Any
 
+from anthropic.lib.tools import ToolError as MemoryToolError
+
 from agent.guardrails.controls.base import Outcome, fmt, short
 from agent.guardrails.controls.payee_wallet import WAITING_FOR_SIGNATURE
 from agent.guardrails.gate import pay_refusal, schedule_refusal
@@ -99,6 +101,7 @@ class Toolbox:
     trace: list[dict[str, Any]] = field(default_factory=list)  # every tool call, in order
     on_step: Callable[[dict[str, Any]], None] | None = None  # told of each call as it happens
     session: str = ""  # the session's id, written with each payment it sends
+    memory: Any = None  # the session's memory files (agent.memory.files.SessionMemory)
 
     def __post_init__(self) -> None:
         self._by_invoice = {d.invoice: d for d in self.decisions}
@@ -127,6 +130,11 @@ class Toolbox:
             self.on_step(step)
 
     def _run(self, name: str, args: Mapping[str, Any]) -> str:
+        if name == "memory" and self.memory is not None:  # Claude's memory tool, its own inputs
+            try:
+                return self.memory.run(dict(args))
+            except MemoryToolError as error:
+                raise ToolError(str(error)) from None
         if name not in INPUTS:
             raise ToolError(f"there is no tool called {name}")
         if set(args) != INPUTS[name] or not all(isinstance(v, str) for v in args.values()):
