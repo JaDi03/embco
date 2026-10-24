@@ -494,6 +494,14 @@ button.side-link { font: inherit; border: 0; background: none; width: 100%; text
   background: var(--surface); color: var(--text); border: 1px solid var(--line); box-shadow: 0 4px 14px rgb(0 0 0 / 0.1);
 }
 .chat-launch:hover { border-color: var(--accent); color: var(--accent-ink); }
+/* new messages from the agent, like any chat */
+.chat-launch { position: relative; }
+.chat-unread {
+  position: absolute; top: -7px; right: -7px; min-width: 20px; height: 20px; padding: 0 6px;
+  display: grid; place-items: center; border-radius: 999px; font-size: 0.72rem; font-weight: 700;
+  background: var(--danger-solid); color: #ffffff; box-shadow: 0 0 0 2px var(--surface);
+}
+.chat-unread[hidden] { display: none; }
 .chat-panel {
   width: min(400px, calc(100vw - 32px)); height: min(560px, calc(100vh - 120px)); display: flex; flex-direction: column;
   background: var(--chat-bg); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;

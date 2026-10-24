@@ -40,6 +40,40 @@ export function linkParts(text) {
 
 export const VIA_TELEGRAM = "owner via Telegram";  // who wrote it, as the bot records it
 
+/** The newest entry from the hub (the owner's own unsent copy is not one). */
+export function lastSeq(entries) {
+  return entries.reduce((top, e) => (e.local ? top : Math.max(top, Number(e.seq) || 0)), 0);
+}
+
+/** How many messages from the agent (and the service) came after the last one the owner saw. */
+export function unreadCount(entries, seen) {
+  return entries.filter((e) => e.from !== "owner" && !e.local && Number(e.seq) > seen).length;
+}
+
+/** The badge on the chat button: nothing at 0, at most "9+". */
+export const unreadText = (n) => (n <= 0 ? "" : n > 9 ? "9+" : String(n));
+
+const seenKey = (shop) => `embco-chat-seen:${String(shop).toLowerCase()}`;
+
+/** The last message this browser showed the owner, or null the first time. Only a convenience
+ * of this browser: without storage the badge counts from this visit. */
+export function readSeen(shop, storage = globalThis.localStorage) {
+  try {
+    const value = storage?.getItem(seenKey(shop));
+    return value == null ? null : Number(value) || 0;
+  } catch {
+    return null;
+  }
+}
+
+export function writeSeen(shop, seq, storage = globalThis.localStorage) {
+  try {
+    storage?.setItem(seenKey(shop), String(seq));
+  } catch {
+    // no storage (private window): the count lasts for this visit only
+  }
+}
+
 /** One bubble per entry: the owner on the right, the agent and the service on the left. What
  * the owner wrote on Telegram, and what also went to their Telegram chat, says so. */
 export function bubbleOf(entry) {
