@@ -35,7 +35,9 @@ and acts on what happened. A smart contract sets the limits it cannot cross.
   stops a payment, it looks up why and tells the owner what only they can fix. Every payment is
   recorded back in ERPNext.
 - **Talks** with the owner on the dashboard and on Telegram: questions, instructions, notices.
-- **Remembers** every decision and answer in a hash-chained journal that nobody can rewrite
+- **Learns** what the owner tells it and how each supplier behaves, in a few short memory files
+  it reads every time it is woken.
+- **Records** every decision and answer in a hash-chained journal that nobody can rewrite
   unnoticed.
 
 ## How it works
@@ -48,7 +50,8 @@ and acts on what happened. A smart contract sets the limits it cannot cross.
 </picture>
 
 1. Code only decides **when** to wake the model: a new or changed bill, a due date, an alarm the
-   model set, the owner's money moving, a message, or the daily round. No reason, no session.
+   model set, the owner's money moving, a message or an answer, a supplier signing for its
+   wallet or getting an email in the ERP, or the daily round. No reason, no session.
 2. The model decides **what** to do, using tools: read the invoice and its checks, look at the
    cash on every chain, bring funds, park or withdraw from Earn, pay, schedule, hold, or ask.
 3. It sees what came back (the transaction, or the contract's or Circle's error) and acts on it.
@@ -120,7 +123,7 @@ embco/
 │   ├── tools/           what the agent can read and do
 │   ├── reflexes/        what wakes it, and the cycle every 15 minutes
 │   ├── guardrails/      the controls, the fixed rule (HOLD, ASK, notes) and the gate
-│   ├── memory/          the hash-chained journal
+│   ├── memory/          the hash-chained journal and the agent's memory files
 │   └── explain/         plain-language explanations for the owner
 ├── services/            what the agent stands on
 │   ├── erp/             the ERPNext adapter
