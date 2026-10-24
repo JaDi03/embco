@@ -27,10 +27,8 @@ from services.payments import (
 )
 from services.payments.chain import ArcRpc, revert_reason
 from services.payments.encoding import (
-    MEMO_CONTRACT,
     EncodingError,
     invoice_ref,
-    memo_call,
     pay_call,
     ref_scope,
     usdc_units,
@@ -158,23 +156,18 @@ def test_usdc_units_are_exact_and_never_rounded():
             usdc_units(Decimal(bad))
 
 
-def test_memo_call_wraps_the_pay_call_with_the_invoice_number():
+def test_the_pay_call_carries_the_payee_the_amount_and_the_invoice_reference():
     ref = invoice_ref("ACC-PINV-2026-00001")
     assert ref == keccak(text="ACC-PINV-2026-00001")
-    inner = pay_call(WALLET_A, 125_500_000, ref)
-    data = memo_call(SHOP, inner, ref, "ACC-PINV-2026-00001")
-    assert data[:4] == keccak(text="memo(address,bytes,bytes32,bytes)")[:4]
-    target, forwarded, memo_id, memo = decode(["address", "bytes", "bytes32", "bytes"], data[4:])
-    assert (target.lower(), forwarded, memo_id, memo) == (SHOP, inner, ref,
-                                                          b"ACC-PINV-2026-00001")
-    assert inner[:4] == keccak(text="pay(address,uint256,bytes32)")[:4]
-    assert decode(["address", "uint256", "bytes32"], inner[4:])[1] == 125_500_000
+    data = pay_call(WALLET_A, 125_500_000, ref)
+    assert data[:4] == keccak(text="pay(address,uint256,bytes32)")[:4]
+    payee, units, sent_ref = decode(["address", "uint256", "bytes32"], data[4:])
+    assert (payee.lower(), units, sent_ref) == (WALLET_A.lower(), 125_500_000, ref)
 
 
-def test_revert_reason_unwraps_memo_and_names_the_shop_error():
-    inner = keccak(text="PayeeNotApproved(address)")[:4] + encode(["address"], [WALLET_A])
-    wrapped = keccak(text="MemoFailed(bytes)")[:4] + encode(["bytes"], [inner])
-    assert revert_reason(wrapped) == "PayeeNotApproved"
+def test_revert_reason_names_the_shop_error():
+    error = keccak(text="PayeeNotApproved(address)")[:4] + encode(["address"], [WALLET_A])
+    assert revert_reason(error) == "PayeeNotApproved"
     message = keccak(text="Error(string)")[:4] + encode(["string"], ["allowance exceeded"])
     assert revert_reason(message) == "allowance exceeded"
     assert revert_reason(b"") == "reverted without a reason"
@@ -243,8 +236,10 @@ def test_a_planned_invoice_is_simulated_sent_and_completed(journal):
     assert [e.status for e in result.events] == [PaymentStatus.SUBMITTED, PaymentStatus.COMPLETE]
     [sent] = circle.sent
     [(to, simulated, sender)] = chain.simulated
-    assert (to, sender) == (MEMO_CONTRACT, AGENT)
-    assert sent["data"] == simulated and sent["contract"] == MEMO_CONTRACT
+    # straight to the shop contract, nothing in between: a gasless agent (a smart contract
+    # account) is not tx.origin of its own transactions
+    assert (to.lower(), sender) == (SHOP.lower(), AGENT)
+    assert sent["data"] == simulated and sent["contract"].lower() == SHOP.lower()
     assert sent["ref_id"] == "PINV-1"
     last = journal.latest_payment("PINV-1")
     assert last.status is PaymentStatus.COMPLETE and last.tx_hash == "0x" + "11" * 32

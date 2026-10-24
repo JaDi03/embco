@@ -13,7 +13,6 @@ import {
   HISTORY_MAX_PAGES,
   JOURNAL_ANCHOR_ADDRESS,
   LOG_CHUNK_BLOCKS,
-  MEMO_ADDRESS,
   RPC_BATCH_MAX,
   rpcUrl,
   USDC_ADDRESS,
@@ -151,49 +150,4 @@ export async function shopHistory(shop) {
   return decodeHistory(logs);
 }
 
-const MEMO_EVENT = new ethers.Interface([
-  "event Memo(address indexed sender, address indexed target, bytes32 callDataHash, bytes32 indexed memoId, bytes memo, uint256 memoIndex)",
-]);
-
-/** The memo text of each payment, by its invoice reference: what the agent wrote on chain. */
-export function decodeMemos(logs) {
-  const names = new Map();
-  for (const log of logs) {
-    let parsed;
-    try {
-      parsed = MEMO_EVENT.parseLog({ topics: log.topics, data: log.data });
-    } catch {
-      continue;
-    }
-    if (!parsed) continue;
-    try {
-      names.set(parsed.args.memoId.toLowerCase(), ethers.toUtf8String(parsed.args.memo));
-    } catch {
-      // not text: shown by its reference
-    }
-  }
-  return names;
-}
-
-/** The Memo events whose target is this shop, from the node, from the factory deployment on. */
-async function memoLogs(shop, provider) {
-  const topics = [MEMO_EVENT.getEvent("Memo").topicHash, null, ethers.zeroPadValue(shop, 32)];
-  const latest = await provider.getBlockNumber();
-  const logs = [];
-  for (let start = FACTORY_DEPLOY_BLOCK; start <= latest; start += LOG_CHUNK_BLOCKS) {
-    const end = Math.min(start + LOG_CHUNK_BLOCKS - 1, latest);
-    logs.push(...await provider.getLogs({ address: MEMO_ADDRESS, topics, fromBlock: start, toBlock: end }));
-  }
-  return logs;
-}
-
-/** Invoice names from the payments' memos on Arc; empty when the node does not answer. */
-export async function memoNames(shop) {
-  try {
-    return decodeMemos(await read((provider) => memoLogs(shop, provider)));
-  } catch {
-    return new Map();
-  }
-}
-
-export { explorerLogs, memoLogs, nodeLogs };
+export { explorerLogs, nodeLogs };

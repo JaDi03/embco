@@ -38,19 +38,12 @@ _ERRORS = [
     "ZeroShares()", "ZeroAssets()",
 ]
 _KNOWN = {keccak(text=sig)[:4]: sig.split("(")[0] for sig in _ERRORS}
-_MEMO_FAILED = keccak(text="MemoFailed(bytes)")[:4]
 _ERROR_STRING = keccak(text="Error(string)")[:4]
 
 
 def revert_reason(data: bytes) -> str:
-    """Name a revert: unwraps Memo's MemoFailed(bytes) and reads the shop's custom errors."""
+    """Name a revert: the shop's custom errors, or the message of an Error(string)."""
     selector, rest = data[:4], data[4:]
-    if selector == _MEMO_FAILED:
-        try:
-            (inner,) = decode(["bytes"], rest)
-        except Exception:  # noqa: BLE001  (undecodable revert data is still a revert)
-            return "MemoFailed"
-        return revert_reason(inner)
     if selector == _ERROR_STRING:
         try:
             (message,) = decode(["string"], rest)

@@ -30,10 +30,6 @@ export const RPC_BATCH_MAX = 10;
 // If the explorer fails, history is read from the node, in ranges it accepts (under 100,000 blocks).
 export const LOG_CHUNK_BLOCKS = 99999;
 
-// Arc's predeployed Memo contract: the agent pays through it, so each payment carries the
-// invoice name on chain (docs.arc.io, transaction memos).
-export const MEMO_ADDRESS = "0x5294E9927c3306DcBaDb03fe70b92e01cCede505";
-
 export function rpcUrl(origin = window.location.origin) {
   return new URL(RPC_PATH, origin).href;
 }

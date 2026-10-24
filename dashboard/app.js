@@ -18,7 +18,7 @@ import { agentView, groupTasks, PLAIN_ANSWERS, QUICK_ANSWERS, raisedLimits, task
 import * as suppliers from "./suppliers.js";
 import * as unified from "./unified.js";
 import * as earn from "./earn.js";
-import { factory, journalAnchors, memoNames, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
+import { factory, journalAnchors, read, shopContract, shopHistory, shopsOf, shopState, usdc } from "./shop.js";
 import * as journalCheck from "./journal.js";
 import * as proofs from "./proof.js";
 import { proofLink } from "./share.js";
@@ -1266,9 +1266,8 @@ async function renderHistory(isOwner) {
   if (!payments.childElementCount) payments.replaceChildren(loading());
 
   let history;
-  let memos;
   try {
-    [history, memos] = await Promise.all([shopHistory(session.shop), memoNames(session.shop)]);
+    history = await shopHistory(session.shop);
   } catch (error) {
     const unavailable = () =>
       Object.assign(document.createElement("li"), { className: "empty", textContent: describeError(error) });
@@ -1308,15 +1307,8 @@ async function renderHistory(isOwner) {
             textContent: `${formatUsdc(p.amount)} USDC`,
           });
           const detail = document.createElement("span");
-          const name = memos.get(p.invoiceRef.toLowerCase());
-          detail.append(`to ${shortAddress(p.payee)}, paid by ${who}, `);
-          if (name) {
-            detail.append("invoice ", el("b", { textContent: name }), " ",
-              el("span", { className: "memo-tag", textContent: "memo on Arc", title: "The invoice name is written on chain with the payment, through Arc's Memo contract: anyone can check it on the explorer." }), " ");
-          } else {
-            detail.append(`invoice reference ${p.invoiceRef.slice(0, 10)}... `);
-          }
-          detail.append(link("view", txUrl(p.tx)));
+          detail.append(`to ${shortAddress(p.payee)}, paid by ${who}, `,
+            `invoice reference ${p.invoiceRef.slice(0, 10)}... `, link("view", txUrl(p.tx)));
           li.append(amount, detail);
           return li;
         })
