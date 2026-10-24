@@ -6,8 +6,8 @@ in `contracts/` (Solidity 0.8.37, Arc Foundry).
 ## Deployed on Arc Testnet
 
 Every embco contract below, and every shop contract that exists today, has its source verified
-(exact match) on [Sourcify](https://repo.sourcify.dev) and in the explorer. The vaults, USDC and
-Memo are not embco's. A contract an owner creates later is verified the same way, with the
+(exact match) on [Sourcify](https://repo.sourcify.dev) and in the explorer. The vaults and USDC
+are not embco's. A contract an owner creates later is verified the same way, with the
 source in this repository:
 
 ```
@@ -26,7 +26,6 @@ what Sourcify verified.
 | Morpho USDC Vault (ERC-4626, not embco's) | [`0x8f2d33b5d4b9b5f02df635ae308f7b4c9da8d2dc`](https://explorer.testnet.arc.io/address/0x8f2d33b5d4b9b5f02df635ae308f7b4c9da8d2dc) |
 | EarnKit USDC Vault (ERC-4626, not embco's; deposits closed) | [`0xaabbef1d3971c710276ed41ec791bbe14cdb8e88`](https://explorer.testnet.arc.io/address/0xaabbef1d3971c710276ed41ec791bbe14cdb8e88) |
 | USDC (ERC-20 interface) | `0x3600000000000000000000000000000000000000` |
-| Memo (predeployed) | `0x5294E9927c3306DcBaDb03fe70b92e01cCede505` |
 | Pilot shop's agent wallet (Circle EOA, from before shops got their own gasless agent) | [`0x2309ed4a43e3b1ab4222f6938538a6c88bd27dd8`](https://explorer.testnet.arc.io/address/0x2309ed4a43e3b1ab4222f6938538a6c88bd27dd8) |
 
 ## Who can do what

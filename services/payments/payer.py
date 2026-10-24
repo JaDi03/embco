@@ -43,11 +43,9 @@ from services.erp.models import SettledPayment
 from services.payments.approvals import write_approvals
 from services.payments.chain import ArcRpc, ChainError, Reverted
 from services.payments.encoding import (
-    MEMO_CONTRACT,
     USDC_DECIMALS,
     EncodingError,
     invoice_ref,
-    memo_call,
     pay_call,
     usdc_units,
 )
@@ -406,16 +404,16 @@ class Payer:
             return blocked(approve_wallet_reason(payee))
         if units > remaining:
             return None
-        data = memo_call(self.shop, pay_call(payee, units, ref), ref, name)
+        data = pay_call(payee, units, ref)
         try:
-            self.chain.call(MEMO_CONTRACT, data, sender=agent)
+            self.chain.call(self.shop, data, sender=agent)
         except Reverted as error:
             return blocked(f"the contract would refuse it: {error.reason}")
         attempt = book.payment_attempts(name)
         if attempt >= MAX_ATTEMPTS:
             return blocked(f"{attempt} transactions for this invoice failed; check it by hand")
         tx = self.circle.execute_contract(
-            self.wallet_id, MEMO_CONTRACT, data,
+            self.wallet_id, self.shop, data,
             idempotency_key=idempotency_key(self.shop, ref, payee, units, attempt),
             ref_id=name,
         )

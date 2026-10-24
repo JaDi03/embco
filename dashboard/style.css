@@ -587,10 +587,6 @@ button.side-link { font: inherit; border: 0; background: none; width: 100%; text
 .bubble.me .meta { color: inherit; opacity: 1; }
 .bubble a { font-family: var(--mono); font-size: 0.85em; }
 .bubble.me a { color: inherit; text-decoration: underline; }
-.memo-tag {
-  font-size: 0.8rem; font-weight: 600; padding: 1px 7px; border-radius: 999px; cursor: help;
-  border: 1px solid var(--line); color: var(--accent-ink); white-space: nowrap;
-}
 .chat-status { flex: none; margin: 0; padding: 0 16px; }
 .chat-status:empty { display: none; }
 .chat-status.working::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 8px;
