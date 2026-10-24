@@ -54,18 +54,21 @@ export function bubbleOf(entry) {
 /**
  * The agent's question as a card with two answers, when only the owner's yes is missing: the
  * supplier and amount on top, the question, and the answers sent as the same quick answers the
- * bills page uses. `bill` is that invoice's decision, when the page has it. Null for any other
- * entry.
+ * bills page uses. `bill` is that invoice's decision, when the page has it. On an invoice the
+ * checks hold (`answers: "plain"`) the answers are a plain yes and no. Null for any other entry.
  */
-export function questionCard(entry, bill, answers) {
+export function questionCard(entry, bill, answers, plainAnswers) {
   if (entry.from !== "agent" || !entry.buttons || !entry.invoice) return null;
   const asked = entry.question ? ` (you asked: ${entry.question})` : "";
   const about = `About ${entry.invoice}${asked}: `;
+  const plain = entry.answers === "plain";
+  const words = plain ? plainAnswers : answers;
   return {
     title: bill ? `${bill.supplier} · ${bill.amount} USDC` : "Needs your answer",
     text: entry.question || entry.text,
-    yes: about + answers.yes,
-    no: about + answers.no,
+    yes: about + words.yes,
+    no: about + words.no,
+    labels: plain ? ["Yes", "No"] : ["Yes, pay it", "No, hold it"],
   };
 }
 

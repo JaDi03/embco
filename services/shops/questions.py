@@ -7,6 +7,9 @@ code writes nothing of it, it only decides the form.
   agent decides, and the contract still sets the limits.
 - something needs the owner's wallet first (approve the supplier's wallet, raise a limit, add
   money, authorize or resume payments): no buttons, since a yes cannot do that.
+- the checks hold the invoice (no proven wallet yet): it cannot be paid, so the two answers are a
+  plain yes and no to what the agent proposed (for example, to ask the supplier to confirm its
+  wallet), never "pay it".
 """
 
 from collections.abc import Callable, Iterable, Mapping
@@ -20,12 +23,15 @@ from agent.models import AgentDecision, Choice
 from services.shops import chat
 
 YES, NO = "yes", "no"
+PLAIN = "plain"  # the answers of a question about a held invoice
 
 
-def answer_text(invoice: str, answer: str, question: str = "") -> str:
+def answer_text(invoice: str, answer: str, question: str = "", plain: bool = False) -> str:
     """The message a quick answer sends to the agent (the dashboard sends the same words). The
     question goes with it, so the agent knows what the yes answers."""
     asked = f" (you asked: {question})" if question else ""
+    if plain:
+        return f"About {invoice}{asked}: {answer}."
     if answer == YES:
         return f"About {invoice}{asked}: yes, go ahead and pay it."
     return f"About {invoice}{asked}: no, hold it for now."
@@ -68,22 +74,24 @@ def new_questions(folder, decisions: Iterable[Decision], agent: Mapping[str, Age
     sent = {e.get("asks") for e in chat.read_chat(folder, limit=chat.MAX_ENTRIES)}
     asked = [(d, agent[d.invoice]) for d in decisions
              if d.invoice in agent and agent[d.invoice].choice is Choice.ASK
-             and d.action in (Action.PAY, Action.ASK)
              and agent[d.invoice].fingerprint == fingerprint(d)]
     if not asked:
         return []
-    money = funds() if funds else None
-    left = room() if room else None
+    payable = [d for d, _ in asked if d.action in (Action.PAY, Action.ASK)]
+    money = funds() if funds and payable else None
+    left = room() if room and payable else None
     entries = []
     for decision, choice in asked:
-        steps = wallet_steps(decision, policy, money, left, paused)
-        kind = "wallet" if steps else "yes"
+        held = decision.action is Action.HOLD
+        steps = [] if held else wallet_steps(decision, policy, money, left, paused)
+        kind = PLAIN if held else "wallet" if steps else "yes"
         if question_key(choice, kind) in sent:
             continue
         entries.append({"from": chat.AGENT, "at": at.isoformat(),
                         "text": choice.question or choice.reason,
                         "asks": question_key(choice, kind), "invoice": decision.invoice,
-                        "question": choice.question, "buttons": not steps})
+                        "question": choice.question, "buttons": not steps,
+                        **({"answers": PLAIN} if held else {})})
     return entries
 
 
