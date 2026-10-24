@@ -116,6 +116,8 @@ export function taskFor(decision, facts = {}, { waiting = false, answer = null }
 
 /** The owner's two quick answers, as the agent reads them after the invoice and its question. */
 export const QUICK_ANSWERS = { yes: "yes, go ahead and pay it.", no: "no, hold it for now." };
+/** On an invoice the checks hold a yes cannot pay it: a plain yes or no to what the agent proposed. */
+export const PLAIN_ANSWERS = { yes: "yes.", no: "no." };
 
 /** When the agent asks the owner something and only their yes is missing, two quick answers it
  * reads in the chat (with the question, so it knows what the yes answers); the owner can also

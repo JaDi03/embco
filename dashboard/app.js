@@ -14,7 +14,7 @@ import * as ledger from "./ledger.js";
 import { renderEarnCard } from "./treasury-chart.js";
 import * as console_ from "./terminal.js";
 import * as nav from "./nav.js";
-import { agentView, groupTasks, QUICK_ANSWERS, raisedLimits, taskFor } from "./needs.js";
+import { agentView, groupTasks, PLAIN_ANSWERS, QUICK_ANSWERS, raisedLimits, taskFor } from "./needs.js";
 import * as suppliers from "./suppliers.js";
 import * as unified from "./unified.js";
 import * as earn from "./earn.js";
@@ -762,7 +762,7 @@ function billOf(invoice) {
 }
 
 function bubble(entry) {
-  const card = chat.questionCard(entry, billOf(entry.invoice), QUICK_ANSWERS);
+  const card = chat.questionCard(entry, billOf(entry.invoice), QUICK_ANSWERS, PLAIN_ANSWERS);
   if (card) return questionBubble(card, entry);
   const b = chat.bubbleOf(entry);
   const quick = b.side === "me" ? feed.quickAnswer(b.text) : null;
@@ -785,7 +785,7 @@ function questionBubble(card, entry) {
     return node;
   }
   const row = el("div", { className: "row" });
-  for (const [label, text, style] of [["Yes, pay it", card.yes, "btn-primary"], ["No, hold it", card.no, "btn-ghost"]]) {
+  for (const [label, text, style] of [[card.labels[0], card.yes, "btn-primary"], [card.labels[1], card.no, "btn-ghost"]]) {
     const button = el("button", { className: `btn btn-small ${style}`, type: "button", textContent: label });
     button.addEventListener("click", async () => {
       for (const b of row.querySelectorAll("button")) b.disabled = true;

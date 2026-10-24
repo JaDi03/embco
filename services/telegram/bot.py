@@ -30,7 +30,7 @@ from services.circle import CircleClient, CircleError
 from services.hub.units import UnitError, Units
 from services.shops import chat
 from services.shops.activity import append_activity, switched
-from services.shops.questions import NO, YES, answer_text
+from services.shops.questions import NO, PLAIN, YES, answer_text
 from services.shops.store import ShopError, ShopStore
 from services.telegram import links
 from services.telegram.api import BUSY_POLL_SECONDS, POLL_SECONDS, TelegramApi, TelegramError
@@ -41,12 +41,18 @@ PAUSE_CALL = keccak(text="pause()")[:4]
 LINK_TRIES = 5  # per chat and hour
 WORKING_AT_MOST = timedelta(minutes=10)  # an owner's message older than this unanswered: not shown
 ANSWERS = (("Yes, pay it", YES), ("No, hold it", NO))  # quick answers to the agent's questions
+PLAIN_ANSWERS = (("Yes", YES), ("No", NO))  # on a held invoice: a yes cannot pay it
 HELP = ("Commands:\n/stop - turn the agent off now (no checks, no Claude, no payments)\n"
         "/pause - pause payments; the agent keeps watching and answering\n/status - how it is\n"
         "Anything else is a message to your agent.")
 NOT_PRIVATE = "For your shop's safety I only work in a private chat with its owner, not in a group."
 NOT_LINKED = ("This chat is not linked to a shop. In the embco dashboard, Agent card, choose "
               "Connect Telegram and send me /link followed by the code.")
+
+
+def answers_of(entry: dict[str, Any]) -> tuple[tuple[str, str], ...]:
+    """The two buttons under one of the agent's questions, as the dashboard shows them."""
+    return PLAIN_ANSWERS if entry.get("answers") == PLAIN else ANSWERS
 
 
 def contract_pauser(circle: CircleClient, store: ShopStore) -> Callable[[str], str]:
@@ -124,7 +130,7 @@ class Bot:
                 buttons = None
                 if entry.get("asks") and entry.get("buttons"):
                     buttons = [(label, f"{shop}:{entry['seq']}:{answer}")
-                               for label, answer in ANSWERS]
+                               for label, answer in answers_of(entry)]
                 try:
                     self.api.send(int(link["chat_id"]), f"{entry['text']}{cost}", buttons)
                 except TelegramError as error:
@@ -241,13 +247,14 @@ class Bot:
             reply = "This question is no longer open."
         else:
             reply = self._to_agent(shop, answer_text(asked["invoice"], answer,
-                                                     asked.get("question", "")))
+                                                     asked.get("question", ""),
+                                                     plain=asked.get("answers") == PLAIN))
         self.api.answer_button(str(query.get("id")), reply)
         try:
             self.api.drop_buttons(chat_id, int(message.get("message_id", 0)))
         except TelegramError:
             log.warning("could not take the buttons off a question of %s", shop)
-        label = next(lbl for lbl, a in ANSWERS if a == answer)
+        label = next(lbl for lbl, a in answers_of(asked or {}) if a == answer)
         self.api.send(chat_id, f"{label}: {reply}")
 
     def _still_asked(self, shop: str, key: str) -> bool:

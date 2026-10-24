@@ -75,10 +75,30 @@ def test_only_a_question_that_still_stands_is_sent(tmp_path):
     d = decision()
     other = decision(action=Action.HOLD)
     assert questions(tmp_path, d, asks(d, fingerprint_of=other)) == []
-    assert questions(tmp_path, other) == []
-    held = AgentDecision(invoice=d.invoice, fingerprint=fingerprint(d), choice=Choice.HOLD,
+    held =AgentDecision(invoice=d.invoice, fingerprint=fingerprint(d), choice=Choice.HOLD,
                          reason="wait")
     assert questions(tmp_path, d, held) == []
+
+
+def test_a_question_on_a_held_invoice_reaches_the_chat_with_a_plain_yes_and_no(tmp_path):
+    # Glocery, 2026-10-24 02:49 UTC: the checks hold Ikeja's first invoice (wallet not signed)
+    # and the agent asked this; it never reached the owner's chat
+    d = decision(invoice="ACC-PINV-2026-00001", action=Action.HOLD, amount="75", findings=(
+        Finding("payee_wallet", Outcome.HOLD, "the supplier has not signed for its wallet"),))
+    question = ("Ikeja Fresh Produce Ltd, 75 USDC for 5 cases of eggs, due today. Its wallet was "
+                "entered in the ERP by Administrator at 03:47 and the supplier has not signed to "
+                "confirm it. Should I ask the supplier to confirm the wallet now?")
+    read = []
+    [entry] = new_questions(tmp_path, [d], {d.invoice: asks(d, question)}, NOW, policy=POLICY,
+                            funds=lambda: read.append(1), room=lambda: read.append(1),
+                            paused=True)
+    assert entry["text"] == question and entry["buttons"] is True and entry["answers"] == "plain"
+    assert read == []  # a yes cannot pay it: the money does not decide the form
+    chat.append_chat(tmp_path, [entry])
+    assert new_questions(tmp_path, [d], {d.invoice: asks(d, question)}, NOW, policy=POLICY) == []
+    assert answer_text(d.invoice, YES, question, plain=True) == (
+        f"About ACC-PINV-2026-00001 (you asked: {question}): yes.")
+    assert answer_text(d.invoice, NO, plain=True) == "About ACC-PINV-2026-00001: no."
 
 
 def test_the_chain_is_read_only_while_a_question_stands(tmp_path):

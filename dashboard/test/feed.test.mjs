@@ -62,6 +62,8 @@ test("a quick answer shows the answer and the invoice, not the question again", 
   assert.deepEqual(quickAnswer(yes.text), { invoice: "ACC-PINV-2026-00019", text: "Yes, go ahead and pay it." });
   assert.deepEqual(quickAnswer(no.text), { invoice: "ACC-PINV-2026-00019", text: "No, hold it for now." });
   assert.equal(quickAnswer("About ACC-PINV-2026-00019, why is it on hold?"), null);  // the owner's own words
+  const held = "About ACC-PINV-2026-00001 (you asked: Should I ask the supplier to confirm the wallet now?): yes.";
+  assert.deepEqual(quickAnswer(held), { invoice: "ACC-PINV-2026-00001", text: "Yes." });
 });
 
 test("the chat shows each payment and move of funds as a receipt, where it happened", () => {

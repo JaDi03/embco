@@ -219,6 +219,24 @@ def test_a_question_comes_with_buttons_and_a_press_is_a_message_to_the_agent(bot
     assert bot.api.last(OWNER_CHAT).startswith("Yes, pay it: Your agent is reading it")
 
 
+def test_a_question_on_a_held_invoice_has_a_plain_yes_and_no(bot):
+    bot.store.write_last_run(SHOP, {"decisions": [
+        {"invoice": INVOICE, "fingerprint": PRINT, "agent": {"choice": "ASK"}}]})
+    linked(bot)
+    chat.append_chat(bot.store.folder(SHOP), [{
+        "from": chat.AGENT, "text": "Should I ask the supplier to confirm the wallet now?",
+        "asks": f"{INVOICE}:{PRINT}:plain", "invoice": INVOICE, "answers": "plain",
+        "question": "Should I ask the supplier to confirm the wallet now?", "buttons": True}])
+    bot.forward()
+    buttons = bot.api.buttons[-1][1]
+    assert [label for label, _ in buttons] == ["Yes", "No"]
+    bot.handle(press(OWNER_CHAT, buttons[0][1]))
+    [taken] = chat.take_messages(bot.store.folder(SHOP))
+    assert taken["text"] == ("About ACC-PINV-2026-00012 (you asked: Should I ask the supplier "
+                             "to confirm the wallet now?): yes.")
+    assert bot.api.last(OWNER_CHAT).startswith("Yes: Your agent is reading it")
+
+
 def test_a_press_from_another_chat_or_a_group_does_nothing(bot):
     buttons = asked(bot)
     for chat_id, kind in ((STRANGER, "private"), (OWNER_CHAT, "group")):

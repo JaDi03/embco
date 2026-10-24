@@ -142,7 +142,9 @@ TOOLS: list[dict[str, Any]] = [
     _tool("ask_owner",
           "Ask the owner a question about this invoice; it is not paid until the owner answers. "
           "Ask only what the owner really has to decide, so that yes means pay it and no means "
-          "hold it, and say what you recommend. It reaches the owner as you write it (with "
+          "hold it, and say what you recommend. On an invoice the checks hold, a yes cannot pay "
+          "it: ask about the one step you propose (for example, sending the supplier the wallet "
+          "notice), so yes means do it. It reaches the owner as you write it (with "
           "yes/no buttons when only their yes is missing), so make it stand on its own. When "
           "the owner must first do something in the dashboard (approve a wallet, raise a limit, "
           "add money), their yes cannot do it: ask what they should check before doing it.",

@@ -66,6 +66,17 @@ test("a question with buttons is a card: who and how much, the question, two ans
   assert.equal(card.title, "Northern Grains & Cereals Co. · 92.0 USDC");
   assert.equal(card.text, entry.question);
   assert.equal(card.yes, `About ACC-PINV-2026-00022 (you asked: ${entry.question}): yes, go ahead and pay it.`);
+  assert.deepEqual(card.labels, ["Yes, pay it", "No, hold it"]);
   assert.equal(chat.questionCard({ ...entry, buttons: false }, null, answers), null);
   assert.equal(chat.questionCard({ from: "agent", text: "Paid." }, null, answers), null);
+});
+
+test("a question on a held invoice is a card with a plain yes and no, never pay it", () => {
+  const plain = { yes: "yes.", no: "no." };
+  const entry = { from: "agent", text: "t", invoice: "ACC-PINV-2026-00001", buttons: true, answers: "plain",
+    question: "Should I ask the supplier to confirm the wallet now?" };
+  const card = chat.questionCard(entry, null, { yes: "yes, go ahead and pay it.", no: "no, hold it for now." }, plain);
+  assert.deepEqual(card.labels, ["Yes", "No"]);
+  assert.equal(card.yes, `About ACC-PINV-2026-00001 (you asked: ${entry.question}): yes.`);
+  assert.equal(card.no, `About ACC-PINV-2026-00001 (you asked: ${entry.question}): no.`);
 });

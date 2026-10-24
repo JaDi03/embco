@@ -3,7 +3,7 @@
 // that opens to its steps. The owner's quick answers read as the answer they gave.
 
 import { timeline } from "./activity.js";
-import { QUICK_ANSWERS } from "./needs.js";
+import { PLAIN_ANSWERS, QUICK_ANSWERS } from "./needs.js";
 
 /** Lines the owner should see as they are (what stopped, what changed, what they did); the rest
  * of the checks fold. */
@@ -85,7 +85,7 @@ export function chatOf(entries, events) {
  * sent to the agent also carries the question, so the agent knows what the yes is for. */
 export function quickAnswer(text) {
   const match = /^About (\S+) \(you asked: [\s\S]*\): (.+)$/.exec(String(text ?? ""));
-  if (!match || !Object.values(QUICK_ANSWERS).includes(match[2])) return null;
+  if (!match || ![...Object.values(QUICK_ANSWERS), ...Object.values(PLAIN_ANSWERS)].includes(match[2])) return null;
   const answer = match[2];
   return { invoice: match[1], text: answer[0].toUpperCase() + answer.slice(1) };
 }
