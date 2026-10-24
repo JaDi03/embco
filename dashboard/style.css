@@ -415,6 +415,13 @@ button.side-link { font: inherit; border: 0; background: none; width: 100%; text
   border-radius: 12px; overflow: hidden; background: var(--t-bg); border: 1px solid var(--t-line);
   box-shadow: 0 10px 30px rgb(0 0 0 / 0.12);
 }
+/* on a wide screen the activity page fits below the top bar (56px) and the page padding (26px + 96px):
+   the terminal takes whatever the header and the journal strip leave */
+@media (min-width: 901px) {
+  .page[data-page="activity"] { height: calc(100vh - 178px); grid-template-rows: auto auto minmax(0, 1fr); }
+  .page[data-page="activity"] .terminal { display: flex; flex-direction: column; min-height: 0; }
+  .page[data-page="activity"] .terminal-log { height: auto; flex: 1; }
+}
 :root[data-theme="light"] .terminal {
   --t-bg: #f6f8fa; --t-bar: #eaeef2; --t-line: #d0d7de; --t-text: #1f2328; --t-strong: #1f2328;
   --t-muted: #59636e; --t-dim: #656d76; --t-blue: #0969da; --t-green: #1a7f37; --t-amber: #9a6700;
