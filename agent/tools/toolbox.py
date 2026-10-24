@@ -602,7 +602,16 @@ class Toolbox:
             f" (after its due date {decision.due_date})" if late else "")
 
     def _hold(self, invoice: str, reason: str) -> str:
-        self._choose(self._decision(invoice), Choice.HOLD, reason)
+        decision = self._decision(invoice)
+        asked = self.standing.get(invoice)
+        if (invoice not in self.chosen and not self.messages and asked is not None
+                and asked.choice is Choice.ASK and asked.fingerprint == fingerprint(decision)):
+            # seen: a session woken by something else held it while saying it still waited for
+            # the owner's yes, and the question's buttons stopped working
+            raise ToolError("your question to the owner on this invoice is still open, and it "
+                            "already keeps the invoice unpaid: leave it as it is to wait for "
+                            "their answer. Holding it would close the question.")
+        self._choose(decision, Choice.HOLD, reason)
         return f"{invoice}: held"
 
     def _ask_owner(self, invoice: str, question: str, recommendation: str) -> str:

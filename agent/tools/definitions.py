@@ -137,7 +137,9 @@ TOOLS: list[dict[str, Any]] = [
           "decide again with what you see then.",
           invoice=INVOICE, pay_on=_text("The date to pay, YYYY-MM-DD."), reason=REASON),
     _tool("hold",
-          "Do not pay this invoice for now. Use it for anything you are not sure about.",
+          "Do not pay this invoice for now. Use it for anything you are not sure about. An "
+          "open question of yours to the owner already keeps an invoice unpaid: leave it, so "
+          "the owner can still answer it.",
           invoice=INVOICE, reason=REASON),
     _tool("ask_owner",
           "Ask the owner a question about this invoice; it is not paid until the owner answers. "
