@@ -41,6 +41,7 @@ from services.shops.inbox import take_answers, take_signatures
 from services.shops.owner_view import decision_view
 from services.shops.questions import new_questions
 from services.shops.store import ShopStore
+from services.shops.supplier_reach import reach_now, reach_wakes, remember_reach
 from services.shops.supplier_view import supplier_view
 from services.telegram import links
 from services.unified_balance import OwnerFunds, UnifiedBalanceError
@@ -270,6 +271,7 @@ def run_shop(
     read_limits = limits(settings)
     policy = {"now": settings.policy}
     notice = getattr(live, "email_wallet_notice", None)
+    has_email = getattr(live, "has_email", None)
     room, funds = room_of(payments), funds_of(payments)
     unified = owner_funds_of(settings, payments)
     earn = owner_earn_of(payments, lambda: store.liquidity_strategy(shop))
@@ -283,7 +285,7 @@ def run_shop(
     brain = brain_setup(settings, room, funds,
                         getattr(live, "email_supplier", None),
                         (lambda s: notice(s, settings.supplier_site)) if notice else None,
-                        unified, earn, has_email=getattr(live, "has_email", None))
+                        unified, earn, has_email=has_email)
     if brain:
         log.info("shop %s: agent brain on (%s, %s)", shop, brain.brain.model,
                  brain.autonomy.value)
@@ -366,6 +368,10 @@ def run_shop(
                     folder, policy["now"].weekly_budget * balances.WAKE_SHARE)
                 if moved:
                     wakes.append(Wake("money", moved))
+                # the suppliers the last check left waiting: an email added in the ERP wakes it
+                reach = (reach_now(last_check["decisions"], last_check["done"], has_email)
+                         if has_email else {})
+                wakes.extend(reach_wakes(folder, reach))
                 if waiting:
                     wakes.append(Wake("message", f"The owner wrote to you ({len(waiting)} "
                                                  "message(s)); answer with reply_owner."))
@@ -405,6 +411,8 @@ def run_shop(
             session =report.thought.session if report.thought else None
             if (session and session.finished) or balances.read_seen(folder) is None:
                 balances.remember_seen(folder)  # what the agent saw, or the first baseline
+            if session and session.finished:
+                remember_reach(folder, reach)
             store.write_supplier_view(shop, supplier_view(report, journal, settings.company,
                                                           signatures, wallet_of=wallet_of))
             log.info("shop %s: %s", shop, format_report(report))
