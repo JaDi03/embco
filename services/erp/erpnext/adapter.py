@@ -104,6 +104,10 @@ class ErpnextAdapter:
         """Write to the supplier from the shop's own ERPNext; returns the address used."""
         return mail.email_supplier_message(self._frappe, supplier, self._company, subject, body)
 
+    def has_email(self, supplier: str) -> bool:
+        """Whether the ERP has an email for this supplier, so a notice or a message can reach it."""
+        return bool(mail.supplier_email(self._frappe, supplier))
+
     def email_wallet_notice(self, supplier: str, site: str) -> str:
         """The standard notice asking the supplier to confirm the wallet on file on its page
         (the same one the owner sends from the dashboard); returns the address used."""

@@ -79,6 +79,7 @@ def brain_setup(
     wallet_notice: Callable[[str], str] | None = None,
     owner_funds: OwnerFunds | None = None,
     owner_earn: OwnerEarn | None = None,
+    has_email: Callable[[str], bool] | None = None,
 ) -> BrainSetup | None:
     if not settings.brain:
         return None
@@ -96,6 +97,7 @@ def brain_setup(
         **({"funds": funds} if funds else {}),
         **({"mailer": mailer} if mailer else {}),
         **({"wallet_notice": wallet_notice} if wallet_notice else {}),
+        **({"has_email": has_email} if has_email else {}),
         **({"owner_funds": owner_funds} if owner_funds else {}),
         **({"owner_earn": owner_earn} if owner_earn else {}),
     )
