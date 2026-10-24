@@ -1651,7 +1651,9 @@ function wireActions() {
       notify(describeError(error), "error");
       return;
     }
-    act(button, "Change limits", (shop) => shop.setLimits(maxPerPayment, weeklyCap)).then((ok) => ok && form.reset());
+    // the agent decides with the contract's limits: check now, so it reads the new ones and is told
+    act(button, "Change limits", (shop) => shop.setLimits(maxPerPayment, weeklyCap))
+      .then((ok) => { if (ok) { form.reset(); checkAndWait(); } });
   });
 
   $("open-create").addEventListener("click", () => {
