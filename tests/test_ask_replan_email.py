@@ -215,3 +215,97 @@ def test_the_wallet_notice_is_the_standard_one_with_the_wallet_on_record():
     assert "app.embco.xyz/supplier" in form["content"]
     assert Supplier.wallet_address in form["content"]
     assert "http" not in form["content"]
+
+
+# ---- what the agent knows before it offers to write to a supplier
+
+WALLET = "0x4Ed878DEa2293Ea7412BC5fdc0A43887d835f154"
+
+
+class Ledger:
+    def get_supplier(self, name):
+        from services.erp.models import Supplier
+        return Supplier(name=name, wallet_address=WALLET)
+
+    def list_supplier_invoices(self, supplier):
+        return []
+
+    def list_payments(self, supplier):
+        return []
+
+
+class Chain:
+    def __init__(self, approved=None, fails=False):
+        self.approved, self.fails, self.asked = approved or set(), fails, []
+
+    def is_approved(self, shop, payee):
+        from services.payments import ChainError
+        if self.fails:
+            raise ChainError("node down")
+        self.asked.append((shop, payee))
+        return payee in self.approved
+
+
+class Payer:
+    shop = "0xShop"
+
+    def __init__(self, chain):
+        self.chain = chain
+
+
+def profile(journal, **kw):
+    return Toolbox(decisions=[UNSIGNED], ledger=Ledger(), journal=journal, policy=POLICY, now=NOW,
+                   zone=LAGOS, **kw).call("supplier_profile", {"supplier": UNSIGNED.supplier})
+
+
+def test_the_profile_says_whether_the_supplier_can_be_reached_and_the_wallet_approved(tmp_path):
+    import json
+    with SqliteJournal(tmp_path / "j.sqlite3") as journal:
+        known = json.loads(profile(journal, has_email=lambda s: False, wallet_notice=lambda s: "",
+                                   payer=Payer(Chain())))
+        unknown = json.loads(profile(journal))
+    assert known["email_on_file"] is False and known["shop_sends_email"] is True
+    assert known["wallet_approved_in_contract"] is False
+    assert known["wallet_notice_sent"] is None
+    assert unknown["email_on_file"] is None and unknown["shop_sends_email"] is False
+    assert unknown["wallet_approved_in_contract"] is None
+
+
+def test_the_profile_reads_the_approval_on_chain_and_says_when_a_notice_went(tmp_path):
+    import json
+    chain = Chain(approved={WALLET})
+    with SqliteJournal(tmp_path / "j.sqlite3") as journal:
+        seen = json.loads(profile(journal, has_email=lambda s: True, payer=Payer(chain),
+                                  notices_sent={UNSIGNED.supplier: NOW - timedelta(days=1)}))
+        down = json.loads(profile(journal, payer=Payer(Chain(fails=True))))
+    assert chain.asked == [("0xShop", WALLET)] and seen["wallet_approved_in_contract"] is True
+    assert seen["email_on_file"] is True
+    assert seen["wallet_notice_sent"] == "2026-10-09T10:00+01:00"
+    assert down["wallet_approved_in_contract"] is None  # a node that fails is not a "no"
+
+
+def test_the_notices_the_agent_sent_are_remembered_across_sessions():
+    from agent.think import wallet_notices_sent
+    old = Session(at=NOW - timedelta(days=2), wakes=(), finished=True, wallet_notices=("A", "B"))
+    new = Session(at=NOW - timedelta(days=1), wakes=(), finished=True, wallet_notices=("A",))
+    assert wallet_notices_sent([new, old]) == {"A": new.at, "B": old.at}
+
+
+def test_the_adapter_says_whether_the_erp_has_an_email_for_the_supplier():
+    from services.erp.erpnext.adapter import ErpnextAdapter
+
+    class Frappe:
+        def __init__(self, email):
+            self.email = email
+
+        def get_doc(self, doctype, name):
+            return {"email_id": self.email}
+
+        def list_rows(self, *args, **kwargs):
+            return []
+
+    adapter = ErpnextAdapter.__new__(ErpnextAdapter)
+    adapter._frappe = Frappe("orders@ikeja.example")
+    assert adapter.has_email("Ikeja Fresh Produce Ltd") is True
+    adapter._frappe = Frappe("")
+    assert adapter.has_email("Ikeja Fresh Produce Ltd") is False

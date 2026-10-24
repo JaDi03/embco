@@ -283,7 +283,7 @@ def run_shop(
     brain = brain_setup(settings, room, funds,
                         getattr(live, "email_supplier", None),
                         (lambda s: notice(s, settings.supplier_site)) if notice else None,
-                        unified, earn)
+                        unified, earn, has_email=getattr(live, "has_email", None))
     if brain:
         log.info("shop %s: agent brain on (%s, %s)", shop, brain.brain.model,
                  brain.autonomy.value)

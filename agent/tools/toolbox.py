@@ -76,6 +76,8 @@ class Toolbox:
     funds: Callable[[], dict[str, str] | None] = lambda: None  # reset time, balance, authorization
     mailer: Callable[[str, str, str], str] | None = None  # writes to a supplier from the ERP
     wallet_notice: Callable[[str], str] | None = None  # the standard wallet notice, from the ERP
+    has_email: Callable[[str], bool] | None = None  # whether the ERP has an email for a supplier
+    notices_sent: Mapping[str, datetime] = field(default_factory=dict)  # last wallet notice sent
     emails_today: int = 0  # emails the agent already sent today, for the daily cap
     past_notes: tuple[Note, ...] = ()
     messages: tuple[str, ...] = ()  # what the owner wrote since the agent's last reply
@@ -214,6 +216,10 @@ class Toolbox:
             "wallet_problem": info.wallet_problem,
             "wallet_proven_by_signature": bool(
                 proof and wallet and proof.wallet.lower() == wallet.lower()),
+            "wallet_approved_in_contract": self._wallet_approved(wallet),
+            "email_on_file": self._email_on_file(supplier),
+            "shop_sends_email": self.wallet_notice is not None,
+            "wallet_notice_sent": self._notice_sent(supplier),
             "recent_invoices": [{"invoice": i.name, "date": _day(i.posting_date),
                                  "total": fmt(i.grand_total),
                                  "outstanding": fmt(i.outstanding_amount)} for i in invoices],
@@ -222,6 +228,31 @@ class Toolbox:
                                 for p in payments],
             "your_notes": [n.text for n in self._notes_about(supplier)],
         }
+
+    def _wallet_approved(self, wallet: str) -> bool | None:
+        """Whether the owner approved this wallet in the shop contract; None when unknown."""
+        if self.payer is None or not wallet:
+            return None
+        try:
+            return bool(self.payer.chain.is_approved(self.payer.shop, wallet))
+        except ChainError:
+            return None
+
+    def _email_on_file(self, supplier: str) -> bool | None:
+        """Whether a notice or a message can reach this supplier; None when unknown."""
+        if self.has_email is None:
+            return None
+        try:
+            return self.has_email(supplier)
+        except LedgerError:
+            return None
+
+    def _notice_sent(self, supplier: str) -> str | None:
+        """When the agent last sent this supplier the wallet notice, if it did."""
+        if supplier in self.notified_wallets:
+            return "in this session"
+        at = self.notices_sent.get(supplier)
+        return at.astimezone(self.zone).isoformat(timespec="minutes") if at else None
 
     def _price_history(self, supplier: str, item_code: str) -> list[dict[str, Any]]:
         rows = []

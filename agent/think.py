@@ -77,6 +77,7 @@ class BrainSetup:
     funds: Callable[[], dict[str, str] | None] = field(default=lambda: None)
     mailer: Callable[[str, str, str], str] | None = None  # writes to a supplier from the ERP
     wallet_notice: Callable[[str], str] | None = None  # the standard wallet notice, from the ERP
+    has_email: Callable[[str], bool] | None = None  # whether the ERP has an email for a supplier
     owner_funds: Any = None  # the owner's Unified Balance (services.unified_balance.OwnerFunds)
     owner_earn: Any = None  # the owner's Arc Earn vaults (services.earn.OwnerEarn)
     live: Any = None  # told what the agent does as it does it: started(at, wakes), step(at, step)
@@ -153,7 +154,8 @@ def think(
                       now=now, zone=setup.zone, done=set(done), standing=standing,
                       room=setup.room, funds=setup.funds, mailer=setup.mailer,
                       wallet_notice=setup.wallet_notice, owner_funds=setup.owner_funds,
-                      owner_earn=setup.owner_earn,
+                      owner_earn=setup.owner_earn, has_email=setup.has_email,
+                      notices_sent=wallet_notices_sent(sessions),
                       emails_today=emails_today(sessions, setup.zone, now),
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), payer=payer,
@@ -220,7 +222,8 @@ def converse(
                       now=now, zone=setup.zone, done=set(done), standing=standing,
                       room=setup.room, funds=setup.funds, mailer=setup.mailer,
                       wallet_notice=setup.wallet_notice, owner_funds=setup.owner_funds,
-                      owner_earn=setup.owner_earn,
+                      owner_earn=setup.owner_earn, has_email=setup.has_email,
+                      notices_sent=wallet_notices_sent(sessions),
                       emails_today=emails_today(sessions, setup.zone, now),
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), require_all=False, payer=payer,
@@ -272,6 +275,16 @@ def money_after(setup: BrainSetup, toolbox: Toolbox,
     if not (toolbox.payments or toolbox.funds_moved):
         return before
     return setup.funds() or before
+
+
+def wallet_notices_sent(sessions: Sequence[Session]) -> dict[str, datetime]:
+    """When each supplier was last sent the wallet notice by the agent."""
+    sent: dict[str, datetime] = {}
+    for session in sessions:
+        for supplier in session.wallet_notices:
+            if supplier not in sent or session.at > sent[supplier]:
+                sent[supplier] = session.at
+    return sent
 
 
 def emails_today(sessions: Sequence[Session], zone: tzinfo, now: datetime) -> int:

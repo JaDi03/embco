@@ -51,8 +51,10 @@ TOOLS: list[dict[str, Any]] = [
           "answer, the payment state and the history of decisions on it.",
           invoice=INVOICE),
     _tool("supplier_profile",
-          "A supplier: its wallet and whether it was proven by signature, its recent invoices, "
-          "its recent payments, and your notes about it.",
+          "A supplier: its wallet, whether it was proven by signature and whether the owner "
+          "approved it in the contract, whether the ERP has an email for it and the shop sends "
+          "email, when you last sent it the wallet notice, its recent invoices, its recent "
+          "payments, and your notes about it. Check it before you offer to write to a supplier.",
           supplier=_text("The supplier name exactly as listed.")),
     _tool("price_history",
           "Rates a supplier charged for one item over time, from its invoices, oldest first.",
@@ -185,8 +187,10 @@ TOOLS: list[dict[str, Any]] = [
           "Send the supplier the standard notice to confirm the wallet the ERP holds for it: it "
           "tells the supplier to type the shop's supplier page itself and sign in with that "
           "wallet, with no link. Use it for a supplier whose wallet is waiting for its "
-          "signature, only after the owner agreed in this conversation. The text is fixed; you "
-          "do not write it.",
+          "signature, only after the owner agreed in this conversation. It needs an email for "
+          "the supplier in the ERP (email_on_file in supplier_profile); without one, tell the "
+          "owner to add it to the supplier's contact in ERPNext. The text is fixed; you do not "
+          "write it.",
           supplier=_text("The supplier name exactly as listed.")),
     _tool("finish",
           "End the session once every open invoice has your decision. The summary is what the "
