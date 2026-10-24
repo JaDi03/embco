@@ -1,0 +1,1030 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A payables agent for the ERPNext you already run. It decides, it remembers, it pays in USDC on Arc.">
+      
+      
+      
+        <link rel="canonical" href="https://jadi03.github.io/embco/architecture/">
+      
+      
+        <link rel="prev" href="../how-it-works/">
+      
+      
+        <link rel="next" href="../contracts/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/brand/logo.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Architecture - embco</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#architecture" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="embco" class="md-header__button md-logo" aria-label="embco" data-md-component="logo">
+      
+  <img src="../assets/brand/logo.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            embco
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Architecture
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/JaDi03/embco" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    JaDi03/embco
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../how-it-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How it works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Architecture
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../contracts/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Smart contracts
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../audit/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Audit the agent
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../connect/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Connect your ERPNext
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../server/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Run your own server
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="embco" class="md-nav__button md-logo" aria-label="embco" data-md-component="logo">
+      
+  <img src="../assets/brand/logo.svg" alt="logo">
+
+    </a>
+    embco
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/JaDi03/embco" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    JaDi03/embco
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../how-it-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How it works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#system-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#trust-boundaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trust boundaries
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#principles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Principles
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#module-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Module map
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#erp-independence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ERP independence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model-independence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model independence
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contracts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Smart contracts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit the agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../connect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connect your ERPNext
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run your own server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#system-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#trust-boundaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trust boundaries
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#principles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Principles
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#module-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Module map
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#erp-independence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ERP independence
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#model-independence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Model independence
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/JaDi03/embco/edit/main/docs/architecture.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h1>
+<p>embco is four layers with one rule between them: the model may shape a decision, but it never
+releases money. The money moves only when the shop contract accepts the call.</p>
+<h2 id="system-overview">System overview<a class="headerlink" href="#system-overview" title="Permanent link">&para;</a></h2>
+<figure class="diagram">
+<p><img alt="System overview: ERPNext feeds the agent (reflexes, controls, rules, the model, the gate); the services pay through Circle and the ShopPayables contract on Arc; the journal records decisions and payments; the owner approves, pauses and sets limits on the contract" src="../assets/diagrams/system-overview.svg#only-light" title="System overview" />
+<img alt="System overview: ERPNext feeds the agent (reflexes, controls, rules, the model, the gate); the services pay through Circle and the ShopPayables contract on Arc; the journal records decisions and payments; the owner approves, pauses and sets limits on the contract" src="../assets/diagrams/system-overview-dark.svg#only-dark" title="System overview" /></p>
+</figure>
+<h2 id="trust-boundaries">Trust boundaries<a class="headerlink" href="#trust-boundaries" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Actor</th>
+<th>Can do</th>
+<th>Cannot do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Owner (MetaMask wallet)</td>
+<td>Create the shop contract, set limits, approve supplier wallets, pause or resume, change the agent's address</td>
+<td>No limit applies to the owner, and every change the owner makes is public on chain</td>
+</tr>
+<tr>
+<td>Agent (Circle wallet of the shop: a smart contract account whose gas Circle pays; shops made before that have one EOA)</td>
+<td>Pay an approved supplier, within the per-payment and weekly cap, once per invoice; pause; as the owner's delegate on a chain, bring USDC from the owner's Unified Balance to the owner's own wallet on Arc</td>
+<td>Raise a limit, approve a payee, pay an unapproved wallet, pay twice, resume after a pause, send the owner's Unified Balance anywhere but the owner's wallet on Arc</td>
+</tr>
+<tr>
+<td>Supplier</td>
+<td>Sign a challenge with its wallet to prove the address is theirs</td>
+<td>Change a payee on its own: the owner still approves it</td>
+</tr>
+<tr>
+<td>AI model</td>
+<td>Decide what to pay and when, send the payment itself and act on what happened, and talk to the owner</td>
+<td>Override HOLD, pay what the checks do not allow, or bypass the contract</td>
+</tr>
+</tbody>
+</table>
+<h2 id="principles">Principles<a class="headerlink" href="#principles" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Money is <code>Decimal</code>, never <code>float</code>, and every amount is an exact integer on chain (6 decimals).</li>
+<li>The core talks only to <code>LedgerAdapter</code>, never to a specific ERP.</li>
+<li>The model starts a payment, but never alone: the checks must allow it and the contract must
+   accept it.</li>
+<li>The limits live in a contract the agent cannot change.</li>
+</ol>
+<p>The agent lives in <code>agent/</code>: its brain (<code>agent.py</code>), <code>tools/</code>, <code>reflexes/</code>, <code>guardrails/</code> and
+<code>memory/</code>. What it stands on lives in <code>services/</code> (ERP, Circle, payments, the hosted service).
+The contracts live in <code>contracts/</code>.</p>
+<h2 id="module-map">Module map<a class="headerlink" href="#module-map" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent/agent.py</code>, <code>prompt.py</code>, <code>think.py</code>, <code>plan.py</code></td>
+<td>The brain. When a reflex wakes it, the model (today Claude Haiku 5.5, at high effort) reads a short briefing and calls tools until every open invoice has its decision: pay now, pay on a date, hold, or ask the owner, each with a reason, plus alarms and notes for later and a summary for the owner. It pays during the session and reads what happened (paid with its transaction, refused by the contract, or Circle's own error), then acts on it: looks up why, holds, or tells the owner what only they can fix. Capped per session (turns, tokens, 10 payments) and per day (USD 1 of model use by default, estimated from the tokens and the public prices; past it the agent is not woken until the next day, and the owner is told once). A payment it sent stands even if the session is cut off; its other choices count once the session finishes. The rules still decide what may be paid; the agent decides what is paid and when, and pays it. On by default, and nothing is paid without it; <code>EMBCO_AUTONOMY=observe</code> decides and explains without paying</td>
+</tr>
+<tr>
+<td><code>services/telegram</code></td>
+<td>The agent on Telegram, a process of its own (<code>embco telegram</code>). A chat is linked with a one-time code from the dashboard (hashed, 10 minutes, once); any other chat can do nothing. <code>/stop</code> turns the whole agent off and pauses the contract from the agent's wallet, <code>/pause</code> pauses payments while the agent keeps watching and answering, <code>/status</code> tells its state: none of them go through the model, and only the dashboard turns it on again. Any other text is a message to the agent, whose answers come back to the chat. The agent's questions about invoices arrive once: with two buttons (yes, pay it / no, hold it) when only the owner's yes is missing, or a plain yes / no on an invoice the rules hold (a yes cannot pay it: it answers the step the agent proposed), where a press from the linked chat, while the question is still open, is only a message to the agent; as a reminder to use the dashboard, followed by the agent's question, when the owner's wallet is needed (approve a wallet, raise a limit, add money, authorize or resume payments). What the agent writes to the owner is one topic, short and without full hashes: a longer text goes back to the model to be rewritten. The bot token never reaches a log or an error</td>
+</tr>
+<tr>
+<td><code>agent/tools</code></td>
+<td>What the agent can call. To read: the open invoices (with the last state of each payment), a search over them (supplier, due date, what the checks say), one invoice in full, a supplier's profile, an item's price history, the cash position (with the owner's USDC on other chains), the state of a payment, and its own wallet (balance for network fees, whether the contract has it as its agent, whether the contract is paused). To act: pay now (sent at once, with the result back to the agent), deposit the owner's USDC on another chain into their Unified Balance through their ShopFunding there, estimate and bring funds from the Unified Balance to their wallet on Arc (which chains and how much are the agent's choice), schedule (on that day the agent is woken to pay), hold, ask the owner, set an alarm, keep a note, keep and edit its memory files (the standard memory tool, <code>memory_20250818</code>), finish. To talk: reply to the owner's message, notify the owner of something to act on (at most 3 per session), and email a supplier from the shop's ERPNext, only after the owner agreed. Every call, with the values the model chose and what came back (done, with its transaction, or refused and why), is kept with its session and shown in the activity the moment it returns</td>
+</tr>
+<tr>
+<td><code>agent/guardrails/gate.py</code></td>
+<td>Refuses a payment the rules do not allow (HOLD, ASK, already paid, over this week's room in the contract) before anything is sent, and the refusal goes back to the agent</td>
+</tr>
+<tr>
+<td><code>agent/reflexes/wake.py</code></td>
+<td>When to wake the agent: an invoice new, changed or without its decision, a payment failed or blocked (not again for a result it already saw), the day it planned to pay something, a due date close with nothing planned, an owner answer or supplier signature, a supplier waiting on the shop that gets an email in the ERP (<code>services/shops/supplier_reach.py</code>), a limit change, an alarm it set, the daily round. What the agent did itself is not a reason: an invoice it paid does not wake it when it changes, an alarm about it does not ring, its own payments are not a change of money, and a hold it chose that only lost reasons since still holds. No reason, no model call</td>
+</tr>
+<tr>
+<td><code>services/erp</code></td>
+<td>Domain models, <code>LedgerAdapter</code> protocol, <code>erpnext/</code> adapter (client, mappers, adapter). Reads, plus one write through <code>PaymentWriter</code>: a payment final on chain becomes a submitted Payment Entry (on testnet, a draft marked TESTNET, so test USDC never closes a real invoice), drafted by ERPNext from the invoice and checked against what was paid (party, amount, invoice) before it is written, with the transaction hash and payee wallet in its custom fields. The same transaction is never written twice</td>
+</tr>
+<tr>
+<td><code>agent/guardrails/controls</code></td>
+<td>Context builder and one small module per control: three-way match, payee wallet, duplicates, price anomaly, payment limit, supplier status. Each returns PASS, HOLD (an unproven wallet, a duplicate bill), ASK (a first payment to a new wallet) or NOTE (evidence for the agent to weigh: receipt and quantities, price, limit, disabled supplier). A wallet never paid before is held until the supplier signs a challenge with it (proof the address is right and theirs), then the owner is asked to approve, since only a person knows whether the supplier really asked for the change. The question says who set the wallet in the ERP and when, from the supplier's change history</td>
+</tr>
+<tr>
+<td><code>services/hub</code>, <code>services/shops</code></td>
+<td>The hosted service behind the dashboard, a process of its own (<code>embco hub</code>). A shop's owner signs in with their wallet; the hub creates the shop's two Circle wallets before its contract, so the contract is created with its agent: a smart contract account that is the agent and sends every transaction, with its gas paid by Circle Gas Station, and an EOA in the same wallet set that only signs the owner's Unified Balance spends as their delegate (a smart contract account cannot). A shop made before this has one EOA that does both and pays its own gas. It stores each shop's ERPNext connection encrypted, tests it, and starts, stops and restarts the shop's agent through systemd</td>
+</tr>
+<tr>
+<td><code>services/signing</code></td>
+<td>EIP-712 wallet ownership message bound to embco and Arc testnet, and signer recovery (ordinary wallets; smart contract wallets need EIP-1271 on chain)</td>
+</tr>
+<tr>
+<td><code>agent/guardrails/rules</code></td>
+<td>Fixed combining rule (HOLD, then ASK, then PAY; a NOTE changes nothing and goes to the agent as something to weigh), policy config, the weekly-budget planner and owner answers: an approved ASK becomes PAY, a rejected one HOLD, only while the decision is unchanged. The owner answers with the CLI, on the invoice in ERPNext (an owner-only field, accepted only from <code>EMBCO_OWNER_USERS</code> per the ERP's change history, once per question), or, for a new wallet, by approving it in the contract. HOLD is never overridden</td>
+</tr>
+<tr>
+<td><code>agent/memory</code></td>
+<td>Memory between runs, stored as changes: every run, each new or changed decision, the policy when it changes, invoices that leave the unpaid list, owner answers, wallet challenges and the signatures that answer them, AI explanations, and each payment (blocked, submitted, complete, failed, or recorded in the ERP). One append-only, hash-chained sequence; it grows with events, not with runs. <code>DecisionJournal</code> protocol, SQLite store. Apart from the journal, <code>files.py</code>: the agent's memory files under <code>&lt;shop&gt;/memories/</code> (what the owner wants, each supplier, the shop), read and edited with the memory tool on the SDK's filesystem backend. <code>owner.md</code> changes only in a session where the owner wrote; no wallet address, flat Markdown files only, at most 30 of 3000 characters; each session works on a copy kept only if it finishes</td>
+</tr>
+<tr>
+<td><code>agent/reflexes</code></td>
+<td>One cycle (verify memory, decide, apply owner answers, remember, issue wallet challenges, explain, follow payments already sent and write the final ones in the ERP, then the agent's session), the interval loop that survives an ERP outage and stops on a tampered memory, and the text report</td>
+</tr>
+<tr>
+<td><code>services/settings</code>, <code>services/cli</code></td>
+<td>Settings from the environment or <code>.env</code>, checked once, secrets never shown; the <code>embco</code> command: <code>run</code>, <code>watch</code>, <code>answer</code>, <code>challenge</code>, <code>sign-wallet</code>, <code>history</code>, <code>verify</code>, <code>create-wallet</code>, <code>shop</code>, <code>hub</code>, <code>telegram</code></td>
+</tr>
+<tr>
+<td><code>agent/explain</code></td>
+<td>A plain-language summary and next step for each HOLD or ASK decision, through the model with structured output (today Claude Haiku 5.5, at low effort; with Claude Opus and Sonnet 5.x it also gets the server-side refusal fallback). Explained once per decision and stored; a failure is logged and retried next cycle; never changes a decision. Off unless <code>EMBCO_EXPLAIN=on</code></td>
+</tr>
+<tr>
+<td><code>services/circle</code></td>
+<td>Circle developer-controlled wallets over REST: a fresh entity secret ciphertext (RSA-OAEP, SHA-256) on every write, idempotency keys, wallet creation (EOA or smart contract account), contract execution and transaction state. Reads are retried when the connection drops; errors never carry credentials</td>
+</tr>
+<tr>
+<td><code>services/payments</code></td>
+<td>Pays one invoice when the agent calls pay now, and gives back what happened, refusals and Circle errors word for word: re-reads the invoice and supplier from the ERP (same amount, USD, valid wallet), skips what the contract already marks paid or what does not fit under its weekly cap, lists for the dashboard any wallet the owner has not approved in the contract yet, including invoices asked about only because their wallet is new (approving the wallet there then counts as the owner's answer, saved in the journal like any other; a wallet approved before the question answers nothing) (<code>EMBCO_APPROVALS_FILE</code>: wallet, invoice and amount only, no supplier names), simulates the exact <code>ShopPayables.pay</code> call through the Arc node and names the contract's error if it would fail, sends the same bytes through Circle with an idempotency key per invoice and attempt, follows it to a final state, records every step, then writes it into the ERP. At most 3 failed transactions per invoice. Amounts become exact 6-decimal integers or are refused</td>
+</tr>
+<tr>
+<td><code>services/unified_balance</code></td>
+<td>The owner's Unified Balance (Circle Gateway) through Circle's Unified Balance Kit 1.8.0 and its Circle Wallets adapter, in a small Node script (<code>kit/</code>, pnpm, Node 22) the agent runs once per call, with Circle's credentials only in its environment. At start it gives the agent's Circle wallet the same address on each source chain (<code>deriveWalletByAddress</code>); then it reads the owner's balance per chain and whether the agent is a delegate there, estimates fees, and spends with the split the model chose, always minted to the contract owner's wallet on Arc through Circle's Forwarding Service. The dashboard gets the same per-chain view after each check</td>
+</tr>
+<tr>
+<td><code>dashboard/</code></td>
+<td>Static owner page (ethers 6.17.0 vendored, no build). Connects MetaMask, adds Arc Testnet, creates the shop from the factory, and lets the owner set the allowance and limits, approve suppliers (with one click for the wallets the agent is waiting to pay, from the agent's file), choose the chains the agent can pay from (each one turned on creates the owner's funding contract there with the shop's limits, approves it and authorizes the agent in Gateway, in one batched confirmation when the wallet supports EIP-5792; Circle's Unified Balance Kit 1.8.0 with its viem adapter, bundled once into <code>vendor/</code>), pause or resume the agent, and read suppliers and payments from the contract's events. Money is parsed and shown as exact 6-decimal integers. Chain reads go through the site's own <code>/rpc</code> proxy, which adds the node credential on the server, so the page never holds one. The shop console is a sidebar of pages: Bills (due this week, overdue, what can pay them, and one row per bill with the agent's reason that opens its steps), Payments, Suppliers, Treasury (where the owner's USDC is, and what the agent's planned payments leave in the wallet over two weeks), the agent's activity (a live console: what woke it, each tool it called and what came back, at the time it returned, then its decisions and what it said) and Settings. Earn, cross-chain funds and the connections (ERPNext and the shop contract) open over the page. The chat with the agent stays closed until the owner opens it. There the agent writes like a colleague: one topic per message, at most 300 characters, suppliers by name, nothing the activity already shows; its questions show as cards with two answers (yes, pay it / no, hold it). Text carrying the model's tool-call markup is refused before it reaches the owner. When the owner's sign-in ends (it lasts 12 hours and survives a restart of the hub, which keeps only a hash of each session token), every page says so, with a button to sign in again. Served with a strict Content Security Policy</td>
+</tr>
+<tr>
+<td><code>contracts/</code> (Solidity)</td>
+<td><code>ShopFunding</code>, one per owner on each source chain (Base Sepolia, Ethereum Sepolia), created from <code>ShopFundingFactory</code>: the agent may only move the owner's USDC there into the owner's own Gateway balance, within a per-move and a weekly cap. <code>ShopPayables</code>, one per shop, created by its owner from <code>ShopPayablesFactory</code>. The money stays in the owner's wallet; the agent can only pay approved suppliers, once per invoice, within a per-payment and a weekly cap; owner or agent can pause, only the owner resumes or changes limits. Unit and fuzz tests, plus a fork test against Arc Testnet's real USDC</td>
+</tr>
+</tbody>
+</table>
+<h2 id="erp-independence">ERP independence<a class="headerlink" href="#erp-independence" title="Permanent link">&para;</a></h2>
+<p>The core never imports ERPNext. Adding Odoo or SolidInvoice means a new adapter under
+<code>services/erp/</code> that satisfies the same protocol.</p>
+<h2 id="model-independence">Model independence<a class="headerlink" href="#model-independence" title="Permanent link">&para;</a></h2>
+<p>The agent talks to the AI model through two interfaces: <code>Brain</code> (<code>agent/agent.py</code>) for its
+decisions and <code>Explainer</code> (<code>agent/explain/base.py</code>) for the explanations. Today the only
+implementation is Claude, by Anthropic, which needs an <code>ANTHROPIC_API_KEY</code>. Another provider
+means a new class that satisfies the same interfaces. The rules, the gate and the shop
+contract do not change: they never depend on which model is behind them.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.action.edit", "search.highlight"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../javascripts/diagrams.js"></script>
+      
+    
+  </body>
+</html>

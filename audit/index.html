@@ -1,0 +1,1147 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A payables agent for the ERPNext you already run. It decides, it remembers, it pays in USDC on Arc.">
+      
+      
+      
+        <link rel="canonical" href="https://jadi03.github.io/embco/audit/">
+      
+      
+        <link rel="prev" href="../contracts/">
+      
+      
+        <link rel="next" href="../connect/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/brand/logo.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Audit the agent - embco</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#audit-the-agent" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="embco" class="md-header__button md-logo" aria-label="embco" data-md-component="logo">
+      
+  <img src="../assets/brand/logo.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            embco
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Audit the agent
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/JaDi03/embco" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    JaDi03/embco
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../how-it-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How it works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../architecture/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Architecture
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../contracts/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Smart contracts
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Audit the agent
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../connect/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Connect your ERPNext
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../server/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Run your own server
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="embco" class="md-nav__button md-logo" aria-label="embco" data-md-component="logo">
+      
+  <img src="../assets/brand/logo.svg" alt="logo">
+
+    </a>
+    embco
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/JaDi03/embco" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    JaDi03/embco
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../how-it-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How it works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contracts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Smart contracts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit the agent
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Audit the agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-you-can-prove" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What you can prove
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-get-the-journal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Get the journal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-check-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Check it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-the-root-is-computed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the root is computed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-prove-one-entry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Prove one entry
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-prove-one-decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Prove one decision
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-keep-a-witness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Keep a witness
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-root-does-not-pin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the root does not pin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-this-does-not-prove" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this does not prove
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../connect/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connect your ERPNext
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run your own server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-you-can-prove" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What you can prove
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-get-the-journal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Get the journal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-check-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Check it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-the-root-is-computed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the root is computed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-prove-one-entry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Prove one entry
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-prove-one-decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Prove one decision
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-keep-a-witness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Keep a witness
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-root-does-not-pin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the root does not pin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-this-does-not-prove" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this does not prove
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/JaDi03/embco/edit/main/docs/audit.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="audit-the-agent">Audit the agent<a class="headerlink" href="#audit-the-agent" title="Permanent link">&para;</a></h1>
+<p>Every time the agent works it writes what woke it, each tool it called, the exact answer it read
+and what it decided into a journal. After money moves, and at least once a day, it writes one
+number summarizing the whole journal on Arc: the Merkle root. This page shows how to check a copy
+of the journal against those numbers, without trusting embco's server.</p>
+<h2 id="what-you-can-prove">What you can prove<a class="headerlink" href="#what-you-can-prove" title="Permanent link">&para;</a></h2>
+<ul>
+<li>A copy of the journal is the one the agent anchored: no entry was changed, removed or reordered
+  since. A single changed letter gives a different root.</li>
+<li>What the agent saw and decided before a payment or an Earn move, as it was written that day.</li>
+</ul>
+<p>The root does not say what changed, only that something did. That is why the owner keeps a
+downloaded copy: with an old good copy and a new one, the entries that differ are the ones that
+changed.</p>
+<h2 id="1-get-the-journal">1. Get the journal<a class="headerlink" href="#1-get-the-journal" title="Permanent link">&para;</a></h2>
+<p>In the dashboard, open <strong>Agent activity</strong> and press <strong>Download journal</strong>. The file has:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shop</code></td>
+<td>The shop contract the journal belongs to</td>
+</tr>
+<tr>
+<td><code>entries</code></td>
+<td>Every entry exactly as stored: <code>kind</code>, <code>run</code>, <code>invoice</code>, <code>at</code>, <code>body</code>, <code>hash</code></td>
+</tr>
+<tr>
+<td><code>merkle</code></td>
+<td>The root of the whole file, computed by the browser that downloaded it. A convenience: recompute it</td>
+</tr>
+<tr>
+<td><code>anchors_on_arc</code></td>
+<td>The roots read from Arc at download time, and whether each matches this file</td>
+</tr>
+<tr>
+<td><code>chain_intact</code></td>
+<td>Whether each entry's hash follows from the one before it</td>
+</tr>
+<tr>
+<td><code>decisions</code></td>
+<td>One proof per decision of the agent that is anchored already (see <a href="#4-prove-one-decision">Prove one decision</a>)</td>
+</tr>
+<tr>
+<td><code>decisions_not_anchored_yet</code></td>
+<td>How many decisions the next anchor will cover</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-check-it">2. Check it<a class="headerlink" href="#2-check-it" title="Permanent link">&para;</a></h2>
+<p><strong>In the browser, nothing to install.</strong> Open <code>/audit/</code> on the dashboard's site, choose the file
+and read the result. The file never leaves your computer and no sign-in is needed. The page reads
+the roots from the contract on Arc, not from the file.</p>
+<p><strong>On the command line.</strong> From a clone of the repository, with any Arc Testnet node:</p>
+<div class="highlight"><pre><span></span><code>embco audit embco-journal-0xbb7b11-2026-10-22.json --rpc-url &lt;Arc Testnet node&gt;
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>Journal of 0xbb7b118c...: 1158 entries
+Hash chain: intact
+Merkle root of the whole file: cc7722bb390a9e96...
+
+  #  entries  written on Arc         root on Arc     root from the file
+  1     1156  2026-10-22 08:20 UTC   ba19b1bb5356..  ba19b1bb5356..      OK
+  2     1158  2026-10-22 08:33 UTC   cc7722bb390a..  cc7722bb390a..      OK
+
+RESULT: the file matches every anchor on Arc; the last covers 1158 of its 1158 entries.
+</code></pre></div>
+<p>It exits with 0 when everything matches and 1 when something does not.</p>
+<p><strong>By hand.</strong> Each anchor is an <code>Anchored(shop, index, root, size, agent)</code> event of the
+<code>JournalAnchor</code> contract. Read them in the <strong>Logs</strong> tab of the
+<a href="https://explorer.testnet.arc.io/address/0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582">contract</a>.
+If the explorer shows the raw <code>data</code>, the first 64 hex characters are the <code>root</code> and the next 64
+the <code>size</code>. Then compute the root of the first <code>size</code> entries of the file and compare.</p>
+<h2 id="how-the-root-is-computed">How the root is computed<a class="headerlink" href="#how-the-root-is-computed" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Each entry's hash is SHA-256 of <code>embco-journal-v1</code>, the previous entry's hash and the entry's
+   content, in canonical JSON (sorted keys, no spaces). The first entry follows 64 zeros.</li>
+<li>The leaves are those hashes, in order. The root is the Merkle tree hash of
+   <a href="https://www.rfc-editor.org/rfc/rfc9162">RFC 9162</a> (the one Certificate Transparency uses):
+   leaves hashed with a <code>0x00</code> prefix, nodes with <code>0x01</code>.</li>
+<li>The anchor of size N covers the first N entries, so a journal that keeps growing still matches
+   every older anchor.</li>
+</ol>
+<p>The implementations are <code>agent/memory/models.py</code> and <code>agent/memory/merkle.py</code> (Python) and
+<code>dashboard/journal.js</code> (browser). Both pass the Certificate Transparency reference vectors and
+produce the same hashes for the same journal.</p>
+<h2 id="3-prove-one-entry">3. Prove one entry<a class="headerlink" href="#3-prove-one-entry" title="Permanent link">&para;</a></h2>
+<p>For a dispute you rarely need the whole journal. <code>embco prove</code> makes a proof for one entry: the
+entry itself, the hash of the entry before it, and the Merkle audit path (RFC 9162) from the
+entry to the root of the first anchored entries.</p>
+<div class="highlight"><pre><span></span><code>embco prove embco-journal-0xbb7b11-2026-10-22.json --entry 1158 --out proof-1158.json --rpc-url &lt;Arc Testnet node&gt;
+</code></pre></div>
+<p><code>--entry</code> counts from 1, as the entries are listed in the file. The proof uses the first anchor
+on Arc that covers that entry. Anyone checks it with:</p>
+<div class="highlight"><pre><span></span><code>embco check-proof proof-1158.json --rpc-url &lt;Arc Testnet node&gt;
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>Entry 1158 of the journal of 0xbb7b118c...: SESSION at 2026-10-22T08:32:15.759680+00:00
+Its text: {"alarms":[],"decided":[],...  [7156 characters in the proof file]
+
+Its hash follows from the entry before it:  yes
+It is in the tree of the first 1158 entries:  yes
+That tree's root is written on Arc:  yes, 2026-10-22T08:33:24+00:00
+
+RESULT: this entry was anchored on Arc, unchanged.
+</code></pre></div>
+<p>The checker recomputes the entry's hash from its text and the previous hash, follows the audit
+path to the root, and reads the root from Arc. A proof file that claims a root Arc never wrote
+fails. The proof does not contain the other entries. It does contain this entry's full text, so
+send only what the dispute needs.</p>
+<h2 id="4-prove-one-decision">4. Prove one decision<a class="headerlink" href="#4-prove-one-decision" title="Permanent link">&para;</a></h2>
+<p>A decision of the agent is more than one entry. Each session of the agent has an id, written in its
+<code>SESSION</code> entry, in the <code>AGENT</code> entry of each choice it made and in each <code>PAYMENT</code> it sent. The proof
+of one decision holds every entry it rests on, each with its own audit path:</p>
+<ul>
+<li>the <code>SESSION</code>: what woke the agent, each tool it called and what it read;</li>
+<li>the <code>AGENT</code> entry: its choice and its reason;</li>
+<li>the <code>DECISION</code> it was made on (the rule checks, by its <code>fingerprint</code>), that check's <code>RUN</code> and the
+  <code>POLICY</code> the run names;</li>
+<li>the owner's <code>ANSWER</code> to that check, if any, and the session's <code>PAYMENT</code> entries for the invoice;</li>
+<li>the <code>MANIFEST</code>: written by the journal right after the session, it lists the hash of each entry
+  above. It is anchored with the rest, so a proof that leaves an entry out does not check. It also
+  says the decision in short, taken from those entries: the model's <code>choice</code> and reason, the
+  invoice <code>amount</code> and supplier, and the <code>payment</code> state and its transaction (<code>tx</code>). The reason and
+  the supplier are UTF-8 hex (<code>reason_hex</code>, <code>supplier_hex</code>), so they can be read on chain without
+  undoing JSON escapes.</li>
+</ul>
+<p>The proofs are made from the journal and the anchors when they are asked for: nothing is stored.</p>
+<p><strong>Share one decision with anyone.</strong> Under a receipt, open <strong>What the agent saw</strong> and press <strong>Copy a
+link anyone can check</strong>. Whoever opens the link (an accountant, a supplier, a judge) needs no
+account and no code. On top is Arc's own answer: the page asks the <code>DecisionVerifier</code> contract (see
+below) and shows <strong>Arc says: anchored and unchanged</strong>, or what Arc refused. Then it says in plain
+words what the agent did, why, what the checks said, the limits it worked within, the payment and
+what it read, each record checked in their browser against the hashes the <code>MANIFEST</code> lists. If what
+the page shows differs from what Arc returned, it says so. <strong>Check it yourself on Arc</strong> gives the
+value and the steps to ask the contract in the explorer without the page. It can be printed or
+saved as a PDF. The proof travels inside the link, after the <code>#</code>, a part browsers never send to a
+server. To ask Arc, the page sends the decision's <code>MANIFEST</code> (its summary and the hashes of its
+records) to an Arc node through this site's connection; the records themselves stay in the
+browser. <strong>Check it yourself on Arc</strong> asks Arc without this site. Anyone with the link can read
+that decision and what the agent read for it. The link is offered only for decisions with a
+<code>MANIFEST</code>, the ones Arc can check.</p>
+<p><strong>Every decision of a journal.</strong> Open a downloaded journal on <code>/audit/</code>: below the anchors, each
+decision is listed with its result, and <strong>Open</strong> shows it the same way.</p>
+<p>The download also carries every decision proof under <code>decisions</code>. The command line checks one
+saved as its own file:</p>
+<div class="highlight"><pre><span></span><code>embco check-proof decision.json --rpc-url &lt;Arc Testnet node&gt;
+</code></pre></div>
+<p>The checker proves each entry against Arc, refuses an entry that does not belong to the decision
+(another session, another invoice or another rule check) and refuses a proof that lacks an entry
+the <code>MANIFEST</code> lists. A payment followed up in a later cycle writes its final state after the
+<code>MANIFEST</code>: the proof shows it when it has it, but does not require it.</p>
+<p><strong>On Arc's explorer, with no code.</strong> <code>DecisionVerifier</code> is a contract with no owner that checks a
+decision's <code>MANIFEST</code> against the anchor itself and returns the decision it holds. Make the value
+to paste from a decision proof:</p>
+<div class="highlight"><pre><span></span><code>embco arc-proof decision.json --rpc-url &lt;Arc Testnet node&gt;
+</code></pre></div>
+<p>Open the <a href="https://explorer.testnet.arc.io/address/0xE9ca18fa99251555DAbed0cE1414b7157B9aD516?tab=read_contract">contract</a>
+in the explorer, <strong>Contract</strong> &gt; <strong>Read/Write contract</strong>, paste the value in
+<code>verify</code> and press <strong>Read</strong>. No wallet is needed. Arc answers with <code>verified</code>, the shop and its
+owner, the invoice, the model's decision and reason, the amount, the supplier, the payment state
+and its transaction, when it was decided, how many records it rests on and when it was anchored.
+If one letter of the manifest changed, <code>verified</code> is <code>false</code> and nothing else is shown.</p>
+<p>The explorer shows the decision, not what the agent read: the other records are checked against
+the hashes the <code>MANIFEST</code> lists, on <code>/audit/</code> or with <code>embco check-proof</code>. Arc knows the shop by
+its contract address, not by its name: compare it with the address the business gives you.</p>
+<p>Decisions written before the <code>MANIFEST</code> existed are proved entry by entry, and the result says
+that nothing shows none of their entries was left out. Sessions written before sessions had an id
+have no decision proof; their receipts show the proof of the session entry.</p>
+<h2 id="5-keep-a-witness">5. Keep a witness<a class="headerlink" href="#5-keep-a-witness" title="Permanent link">&para;</a></h2>
+<p>An anchor is written by the agent's wallet. A <strong>witness</strong> is a record kept by someone else, which
+shows when each anchor was first seen and compares it with a copy of the journal:</p>
+<div class="highlight"><pre><span></span><code>embco witness --shop 0xBB7b118C8d6640e7Cb168e71A385A56147CB952d --journal embco-journal-0xbb7b11-2026-10-22.json --rpc-url &lt;Arc Testnet node&gt;
+</code></pre></div>
+<p>Run it on a schedule with your latest copy of the journal. The first run records each anchor it
+finds on Arc with the time it was first seen, and checks the ones your copy covers:</p>
+<ul>
+<li><code>matches your copy</code>: the anchor is the first entries of your copy.</li>
+<li><code>not checked yet</code>: the anchor covers more entries than your copy. Download a newer journal.</li>
+<li><code>ALERT</code>: an anchor does not match your copy, an anchor seen before changed or disappeared, or
+  your copy breaks the hash chain. Exit code 1, so a scheduler can notify you.</li>
+</ul>
+<p>The record is a file (<code>witness-&lt;shop&gt;.json</code> by default). Keep it somewhere the agent's operator
+cannot change: the copy in your own hands is what makes it a witness.</p>
+<h2 id="what-the-root-does-not-pin">What the root does not pin<a class="headerlink" href="#what-the-root-does-not-pin" title="Permanent link">&para;</a></h2>
+<p>A Merkle root alone does not say how many entries it covers. Each anchor on Arc carries its size,
+and both <code>audit</code> and <code>check-proof</code> require the size to match an anchor with that root. A proof
+that claims a different size fails, even though the path would compute the same root.</p>
+<h2 id="what-this-does-not-prove">What this does not prove<a class="headerlink" href="#what-this-does-not-prove" title="Permanent link">&para;</a></h2>
+<ul>
+<li>That an entry was true when it was written: the journal records what the agent read and said,
+  not that the ERP or the chain told it the truth.</li>
+<li>That nothing is missing after the last anchor: the newest entries are covered by the next one.</li>
+<li>Anything before the first anchor.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "content.code.copy", "content.action.edit", "search.highlight"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../javascripts/diagrams.js"></script>
+      
+    
+  </body>
+</html>
