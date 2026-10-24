@@ -105,6 +105,15 @@ export function nextCheck(events, intervalMinutes, now = Date.now()) {
   return { state: "waiting", seconds: Math.max(0, Math.round((due - now) / 1000)) };
 }
 
+/** The live dot and its line: amber and pulsing while the agent works (a check, or an answer to the
+ * owner), green once it is done and waiting for the next check. */
+export function liveState(next, answering) {
+  if (next.state === "checking") return { dot: "working", text: "Checking now..." };
+  if (answering) return { dot: "working", text: "Answering you..." };
+  if (next.state !== "waiting") return { dot: "", text: "" };
+  return { dot: "done", text: next.seconds > 0 ? `Done · next check in ${countdown(next.seconds)}` : "Done · next check any moment" };
+}
+
 export function countdown(seconds) {
   const m = Math.floor(seconds / 60);
   const s = String(seconds % 60).padStart(2, "0");

@@ -869,13 +869,10 @@ async function pollChat() {
 }
 
 function paintNextCheck() {
-  const next = activity.nextCheck(terminal.events, terminal.interval);
-  $("live-dot").className = next.state === "checking" ? "dot on" : "dot";
-  $("next-check").textContent = next.state === "checking"
-    ? "Checking now..."
-    : next.state === "waiting"
-      ? next.seconds > 0 ? `Next check in ${activity.countdown(next.seconds)}` : "Next check any moment"
-      : "";
+  const live = activity.liveState(activity.nextCheck(terminal.events, terminal.interval), terminal.waiting);
+  $("live-dot").className = `dot ${live.dot}`.trim();
+  $("activity-log").classList.toggle("working", live.dot === "working");
+  $("next-check").textContent = live.text;
 }
 
 // What the agent needs from the owner: one checklist per invoice, each step with its button.
