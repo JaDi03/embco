@@ -14,6 +14,7 @@ from typing import Any, Protocol
 
 import anthropic
 
+from agent.memory.files import MEMORY_TOOL
 from agent.models import Usage
 from agent.prompt import SYSTEM
 from agent.tools import TOOLS, Toolbox, ToolError
@@ -68,6 +69,7 @@ class ClaudeBrain:
 
     def run(self, toolbox: Toolbox, briefing: str) -> SessionRun:
         messages: list[dict[str, Any]] = [{"role": "user", "content": briefing}]
+        tools = [*TOOLS, MEMORY_TOOL] if toolbox.memory is not None else TOOLS
         usage, steps = Usage(), 0
 
         def ended(error: str = "") -> SessionRun:
@@ -75,7 +77,7 @@ class ClaudeBrain:
 
         for _ in range(self.max_turns):
             try:
-                response = self._ask(messages)
+                response = self._ask(messages, tools)
             except BrainError as error:
                 return ended(str(error))
             usage = usage + _usage(response)
@@ -105,13 +107,13 @@ class ClaudeBrain:
                 return ended(f"the session used more than {self.max_tokens} tokens")
         return ended(f"no finish after {self.max_turns} turns")
 
-    def _ask(self, messages: list[dict[str, Any]]) -> Any:
+    def _ask(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> Any:
         try:
             return self._client.messages.create(
                 model=self.model,
                 max_tokens=MAX_OUTPUT_TOKENS,
                 system=[{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
-                tools=TOOLS,
+                tools=tools,
                 messages=messages,
                 output_config={"effort": self.effort},
                 cache_control={"type": "ephemeral"},  # the conversation so far, turn by turn

@@ -81,6 +81,7 @@ class BrainSetup:
     owner_funds: Any = None  # the owner's Unified Balance (services.unified_balance.OwnerFunds)
     owner_earn: Any = None  # the owner's Arc Earn vaults (services.earn.OwnerEarn)
     live: Any = None  # told what the agent does as it does it: started(at, wakes), step(at, step)
+    memory: Any = None  # the shop's memory files (agent.memory.files.ShopMemory)
 
 
 def live_hooks(setup: BrainSetup, at: datetime, wakes: Sequence[Wake]) -> Any:
@@ -160,7 +161,8 @@ def think(
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), payer=payer,
                       can_pay=setup.autonomy is Autonomy.ACT,
-                      on_step=live_hooks(setup, now, wakes), session=session_id)
+                      on_step=live_hooks(setup, now, wakes), session=session_id,
+                      memory=session_memory(setup, messages))
     text = briefing(toolbox, wakes, pending_alarms(sessions, now, done), recent_notes(sessions),
                     conversation, already_told(sessions, setup.zone, now))
     try:
@@ -169,6 +171,7 @@ def think(
     except Exception:  # a surprise in the loop must not stop the reflexes
         log.exception("agent session crashed")
         finished, error, steps, usage = False, "the session crashed", 0, None
+    keep_memory(toolbox, finished)
     session = Session(
         at=now, wakes=tuple(wakes), finished=finished, summary=toolbox.summary or "",
         money=money_after(setup, toolbox, money),
@@ -228,7 +231,8 @@ def converse(
                       past_notes=tuple(recent_notes(sessions)),
                       messages=tuple(messages), require_all=False, payer=payer,
                       can_pay=setup.autonomy is Autonomy.ACT,
-                      on_step=live_hooks(setup, now, wakes), session=session_id)
+                      on_step=live_hooks(setup, now, wakes), session=session_id,
+                      memory=session_memory(setup, messages))
     text = chat_briefing(toolbox, pending_alarms(sessions, now, done), recent_notes(sessions),
                          conversation, already_told(sessions, setup.zone, now))
     try:
@@ -237,6 +241,7 @@ def converse(
     except Exception:  # a surprise in the loop must not stop the reflexes
         log.exception("agent chat session crashed")
         finished, error, steps, usage = False, "the session crashed", 0, None
+    keep_memory(toolbox, finished)
     session = Session(
         at=now, wakes=wakes,
         finished=finished, summary=toolbox.summary or "",
@@ -256,6 +261,30 @@ def converse(
     journal.record_session(session)
     return Thought(agent={**standing, **{d.invoice: d for d in session.decisions}},
                    session=session, last=session, payments=tuple(toolbox.payments))
+
+
+def session_memory(setup: BrainSetup, messages: Sequence[str]) -> Any:
+    """The session's copy of the shop's memory; owner.md may change only when the owner wrote."""
+    if setup.memory is None:
+        return None
+    try:
+        return setup.memory.session(owner_wrote=bool(messages))
+    except OSError:
+        log.exception("memory not opened; the session goes on without it")
+        return None
+
+
+def keep_memory(toolbox: Toolbox, finished: bool) -> None:
+    """Like its other choices, only a finished session's memory is kept."""
+    if toolbox.memory is None:
+        return
+    try:
+        if finished:
+            toolbox.memory.commit()
+        else:
+            toolbox.memory.discard()
+    except OSError:
+        log.exception("memory not kept")
 
 
 def kept_decisions(toolbox: Toolbox, finished: bool) -> tuple[AgentDecision, ...]:

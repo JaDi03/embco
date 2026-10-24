@@ -15,7 +15,8 @@ from typing import Any
 
 MAX_VALUE = 60
 MAX_REFUSAL = 160
-WORDS = frozenset({"reason", "text", "body", "subject", "summary", "question", "recommendation"})
+WORDS = frozenset({"reason", "text", "body", "subject", "summary", "question", "recommendation",
+                   "file_text", "old_str", "new_str", "insert_text"})  # memory's text: in its file
 # Reading tools whose answer the agent decides on; their answer is kept as `saw`.
 SEEN = frozenset({"list_open_invoices", "search_invoices", "get_invoice", "supplier_profile",
                   "price_history", "cash_position", "payment_status", "agent_wallet",
