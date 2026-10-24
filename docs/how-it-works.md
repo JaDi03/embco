@@ -84,6 +84,26 @@ it. Anyone can check a downloaded copy: see [Audit the agent](audit.md).
 ![Memory: each journal event stores the hash of the one before it, so the events form a chain](assets/diagrams/memory-dark.svg#only-dark "Memory")
 </figure>
 
+### What the agent learns
+
+The journal records what happened. What stays true, and is in no ERP record, the agent keeps in
+a few short memory files of its own (the AI model's standard memory tool):
+
+- `owner.md`: what the owner told it they want, for example "never pay this supplier more than
+  500 USDC at once without asking me",
+- one file per supplier: what it learned seeing it more than once,
+- `shop.md`: facts about the shop that change how it works.
+
+Every time it is woken, it reads `owner.md` in full and the title of every other file. Code
+holds a few lines whatever the model writes:
+
+- `owner.md` changes only when the owner wrote to the agent in that session, so what an invoice
+  or an email says can never pass for the owner's wish,
+- no wallet address is kept: the ERP holds it and the supplier proves it by signing,
+- only a session that finished keeps what it wrote, like its other choices,
+- memory is never authority: limits, approved wallets and signatures are still enforced by the
+  contract and the rules.
+
 ## Owner answers
 
 When the agent asks, the owner answers in one of three places. Each answer counts once and
@@ -95,5 +115,12 @@ only for the question the agent last showed:
 
 On Telegram the owner can talk to the agent, pause payments or stop it, but an answer to a
 question still goes through one of the three places above.
+
+The agent's questions also reach the owner's chat, in the dashboard and on Telegram, once and in
+its own words. When only the owner's yes is missing they come with two buttons (yes, pay it / no,
+hold it). On an invoice the rules hold, a yes cannot pay it, so the buttons are a plain yes and
+no to the step the agent proposes, such as sending the supplier the request to confirm its
+wallet. A button press is only a message to the agent: it wakes it, and the agent decides. The
+chat button shows how many messages the agent sent since the owner last looked.
 
 See [Connect your ERPNext](connect.md) for the ERP side.
