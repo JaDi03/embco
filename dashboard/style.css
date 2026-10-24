@@ -466,7 +466,12 @@ button.side-link { font: inherit; border: 0; background: none; width: 100%; text
 .t-line.refused .t-tag { color: var(--t-amber); }
 .t-line.refused .t-text { color: var(--t-amber-text); }
 .t-text.typing::after { content: "▋"; color: var(--t-green); margin-left: 1px; animation: blink 1s steps(1) infinite; }
-.terminal-log::after { content: "▋"; display: block; color: var(--t-green); animation: blink 1s steps(1) infinite; margin-top: 4px; }
+/* the cursor says what the live dot says: amber and blinking while the agent works, steady green once done */
+.terminal-log::after { content: "▋"; display: block; color: var(--t-green); margin-top: 4px; }
+.terminal-log.working::after { color: var(--t-amber); animation: blink 1s steps(1) infinite; }
+.terminal .dot.working { background: var(--t-amber); }
+.terminal .dot.done { background: var(--t-green); }
+@media (prefers-reduced-motion: reduce) { .terminal-log.working::after { animation: none; } }
 @keyframes blink { 50% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .terminal-log::after, .t-text.typing::after { animation: none; } }
 
@@ -601,9 +606,11 @@ button.side-link { font: inherit; border: 0; background: none; width: 100%; text
 /* live dot */
 .live { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 0.8rem; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
-.dot.on { background: var(--success); animation: pulse 1.6s infinite; }
-@keyframes pulse { 70% { box-shadow: 0 0 0 6px transparent; } 0% { box-shadow: 0 0 0 0 var(--success-line); } }
-@media (prefers-reduced-motion: reduce) { .dot.on { animation: none; } }
+/* amber and pulsing while the agent works, green once it is done */
+.dot.working { background: var(--warn); animation: pulse 1.2s infinite; }
+.dot.done { background: var(--success); }
+@keyframes pulse { 70% { box-shadow: 0 0 0 6px transparent; } 0% { box-shadow: 0 0 0 0 var(--warn-soft); } }
+@media (prefers-reduced-motion: reduce) { .dot.working { animation: none; } }
 
 /* settings aside */
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

@@ -98,3 +98,11 @@ test("a session says why it started, in words that do not sound idle", () => {
   assert.equal(activity.whyText("The agent started working. Your alarm: bring funds."), "Why: Your alarm: bring funds.");
   assert.equal(activity.whyText("Woke the agent. The owner wrote to you."), "Why: The owner wrote to you.");  // older events
 });
+
+test("the live dot pulses amber while the agent works and turns green once it is done", () => {
+  assert.deepEqual(activity.liveState({ state: "checking" }, false), { dot: "working", text: "Checking now..." });
+  assert.deepEqual(activity.liveState({ state: "waiting", seconds: 845 }, true), { dot: "working", text: "Answering you..." });
+  assert.deepEqual(activity.liveState({ state: "waiting", seconds: 845 }, false), { dot: "done", text: "Done · next check in 14:05" });
+  assert.deepEqual(activity.liveState({ state: "waiting", seconds: 0 }, false), { dot: "done", text: "Done · next check any moment" });
+  assert.deepEqual(activity.liveState({ state: "unknown" }, false), { dot: "", text: "" });
+});
