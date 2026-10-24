@@ -80,3 +80,26 @@ test("a question on a held invoice is a card with a plain yes and no, never pay 
   assert.equal(card.yes, `About ACC-PINV-2026-00001 (you asked: ${entry.question}): yes.`);
   assert.equal(card.no, `About ACC-PINV-2026-00001 (you asked: ${entry.question}): no.`);
 });
+
+test("the chat button counts the agent's messages the owner has not seen, like any chat", async () => {
+  const { lastSeq, readSeen, unreadCount, unreadText, writeSeen } = await import("../chat.js");
+  const entries = [
+    { seq: 4, from: "agent", text: "Paid Lekki Oils." },
+    { seq: 5, from: "owner", text: "Thanks" },
+    { seq: 6, from: "agent", text: "Should I ask Ikeja to confirm its wallet?" },
+    { seq: 7, from: "system", text: "The agent could not answer." },
+    { seq: Number.MAX_SAFE_INTEGER, from: "owner", text: "sending...", local: true },
+  ];
+  assert.equal(lastSeq(entries), 7);
+  assert.equal(unreadCount(entries, 4), 2);  // what the owner wrote is never new to them
+  assert.equal(unreadCount(entries, 7), 0);
+  assert.deepEqual([0, 3, 12].map(unreadText), ["", "3", "9+"]);
+  const store = new Map();
+  const storage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) };
+  assert.equal(readSeen("0xABC", storage), null);  // first visit: nothing counted yet
+  writeSeen("0xABC", 7, storage);
+  assert.equal(readSeen("0xabc", storage), 7);
+  const blocked = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
+  assert.equal(readSeen("0xabc", blocked), null);
+  writeSeen("0xabc", 8, blocked);  // no storage: no error
+});

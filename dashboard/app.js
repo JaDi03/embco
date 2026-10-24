@@ -857,6 +857,7 @@ async function pollChat() {
   const fresh = body.entries ?? [];
   terminal.chat = activity.merge(terminal.chat, fresh, 200);
   terminal.waiting = Boolean(body.waiting);
+  paintUnread();
   if (fresh.length || !$("chat-log").childElementCount) paintChat();
   showWorking();
   if (terminal.waiting && !terminal.fastChat) {  // waiting for an answer: look every second
@@ -1461,6 +1462,25 @@ function chatPanel(open) {
     $("chat-log").scrollTop = $("chat-log").scrollHeight;
     $("chat-input").focus();
   }
+  paintUnread();
+}
+
+/** The count of new messages on the chat button, like any chat. Open, everything is seen; the
+ * first visit in this browser starts with nothing new. */
+function paintUnread() {
+  const shop = terminal.shop;
+  if (!shop) return;
+  const latest = chat.lastSeq(terminal.chat);
+  let seen = chat.readSeen(shop);
+  if (!$("chat-panel").hidden || seen === null) {
+    chat.writeSeen(shop, latest);
+    seen = latest;
+  }
+  const text = chat.unreadText(chat.unreadCount(terminal.chat, seen));
+  const badge = $("chat-unread");
+  badge.hidden = !text;
+  badge.textContent = text;
+  $("chat-launch").setAttribute("aria-label", text ? `Ask the agent, ${text} new` : "Ask the agent");
 }
 
 function wireActions() {
