@@ -472,6 +472,33 @@ def test_the_agent_reads_its_own_wallet(journal):
     assert info["is_the_contracts_agent"].startswith("no") and info["contract_paused"] == "yes"
 
 
+@pytest.mark.parametrize(("change", "reason"), [
+    ({"docstatus": 2}, "no longer submitted in the ERP"),
+    ({"supplier": "Other"}, "supplier changed since the decision"),
+    ({"on_hold": True}, "the invoice is on hold in the ERP"),
+    ({"on_hold": True, "on_hold_until": NOW.date() + timedelta(days=3)}, "on hold in the ERP"),
+])
+def test_an_invoice_changed_in_the_erp_since_the_decision_is_not_paid(journal, change, reason):
+    ledger = usd_ledger()
+    ledger.pending = [ledger.pending[0].model_copy(update=change)]
+    payer, chain, circle = make_payer(ledger)
+    with pytest.raises(PaymentRefused, match=reason):
+        payer.pay(decision(), journal)
+    assert circle.sent == [] and chain.simulated == []
+
+
+def test_payments_held_for_the_supplier_in_the_erp_are_not_sent(journal):
+    ledger = usd_ledger()
+    ledger.supplier = ledger.supplier.model_copy(update={"payments_on_hold": True})
+    payer, _, circle = make_payer(ledger)
+    with pytest.raises(PaymentRefused, match="payments to the supplier are on hold"):
+        payer.pay(decision(), journal)
+    ledger.supplier = ledger.supplier.model_copy(update={"on_hold_until": NOW.date()
+                                                         - timedelta(days=1)})
+    payer.pay(decision(), journal)  # released yesterday: paid
+    assert len(circle.sent) == 1
+
+
 def test_a_refused_payment_says_the_real_reason_every_time(journal):
     payer, chain, circle = make_payer()
     chain.revert = "PayeeNotApproved"

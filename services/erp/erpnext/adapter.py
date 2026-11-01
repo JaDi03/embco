@@ -81,7 +81,7 @@ class ErpnextAdapter:
         accounts = bank_wallets.active_accounts(self._frappe, self._wallet_bank, name)
         wallet, problem = bank_wallets.wallet_on_file(accounts, self._wallet_bank)
         return Supplier(name=doc["name"], wallet_address=wallet, wallet_problem=problem,
-                        disabled=bool(doc.get("disabled")))
+                        disabled=bool(doc.get("disabled")), **mappers.supplier_holds(doc))
 
     def get_purchase_order(self, name: str) -> PurchaseOrder:
         return mappers.to_purchase_order(self._frappe.get_doc("Purchase Order", name))

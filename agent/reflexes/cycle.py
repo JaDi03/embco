@@ -81,7 +81,8 @@ def run_cycle(
     when; `wakes` are reasons to wake it found outside the cycle (owner answers, signatures)."""
     now = at or datetime.now(UTC)
     journal.verify()
-    raw = DecisionEngine(ledger, policy, proofs=journal).decide_all()
+    raw = DecisionEngine(ledger, policy, proofs=journal,
+                         today=now.astimezone(UTC).date()).decide_all()
     decisions = apply_answers(raw, answers_for(journal, raw))
     if payments:
         decisions = apply_answers(decisions, _answers_from_chain(payments, decisions, journal))

@@ -10,11 +10,22 @@ class _Frozen(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
+def held_on(on_hold: bool, until: date | None, today: date) -> bool:
+    """On hold on `today` (UTC): with no release date, until a person lifts it. The release day
+    itself still holds, since the ERP's own date can be a day behind UTC."""
+    return on_hold and (until is None or until >= today)
+
+
 class Supplier(_Frozen):
     name: str
     wallet_address: str | None = None
     wallet_problem: str | None = None  # why the ERP gives no single wallet, when it says
     disabled: bool = False
+    payments_on_hold: bool = False  # the ERP holds payments to this supplier
+    on_hold_until: date | None = None  # the hold's release date, when it has one
+
+    def payments_held(self, today: date) -> bool:
+        return held_on(self.payments_on_hold, self.on_hold_until, today)
 
 
 class DocumentLine(_Frozen):
@@ -71,6 +82,11 @@ class PurchaseInvoice(_Frozen):
     outstanding_amount: Decimal
     docstatus: int
     lines: tuple[DocumentLine, ...] = ()
+    on_hold: bool = False  # a person put this invoice on hold in the ERP
+    on_hold_until: date | None = None  # the hold's release date, when it has one
+
+    def held(self, today: date) -> bool:
+        return held_on(self.on_hold, self.on_hold_until, today)
 
 
 class SettledPayment(_Frozen):
