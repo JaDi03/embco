@@ -1,7 +1,8 @@
 """Pay the invoices the plan says to pay now, through the shop contract, with the agent's wallet.
 
 Every payment, in this order:
-1. Re-read the invoice and the supplier from the ERP: still unpaid for the same amount, in USD,
+1. Re-read the invoice and the supplier from the ERP: still submitted, for the same supplier,
+   not on hold (the invoice, or payments to the supplier), unpaid for the same amount, in USD,
    to a valid wallet.
 2. Skip it if the contract already marks the invoice paid, or if the contract's weekly cap
    has no room left (it waits; nothing is recorded).
@@ -57,6 +58,7 @@ from services.payments.models import PaymentEvent, PaymentStatus, PendingApprova
 log = logging.getLogger("services.payments")
 
 PAYABLE_CURRENCY = "USD"  # the shop contract pays USDC
+SUBMITTED_DOC = 1  # an ERP document in force: not a draft (0), not cancelled (2)
 NATIVE_DECIMALS = 18  # Arc's native balance, which pays network fees in USDC
 IN_FLIGHT = (PaymentStatus.SUBMITTED, PaymentStatus.COMPLETE, PaymentStatus.RECORDED)
 FOREIGN_REF = ("the contract already has a payment with this invoice's reference that the agent "
@@ -393,11 +395,22 @@ class Payer:
             return [event]
 
         invoice = self.ledger.get_purchase_invoice(name)
+        today = self.clock().astimezone(UTC).date()
+        if invoice.docstatus != SUBMITTED_DOC:
+            return blocked("the invoice is no longer submitted in the ERP (cancelled or a draft)")
+        if invoice.supplier != decision.supplier:
+            return blocked("the invoice's supplier changed since the decision; deciding again "
+                           "next cycle")
+        if invoice.held(today):
+            return blocked("the invoice is on hold in the ERP")
         if invoice.currency != PAYABLE_CURRENCY:
             return blocked(f"the invoice is in {invoice.currency}; the contract pays USD (USDC)")
         if invoice.outstanding_amount != decision.amount:
             return blocked("the amount due changed since the decision; deciding again next cycle")
-        wallet = self.ledger.get_supplier(decision.supplier).wallet_address or ""
+        supplier = self.ledger.get_supplier(decision.supplier)
+        if supplier.payments_held(today):
+            return blocked("payments to the supplier are on hold in the ERP")
+        wallet = supplier.wallet_address or ""
         if not is_evm_address(wallet):
             return blocked("the supplier has no valid wallet on file")
         payee = to_checksum_address(wallet)

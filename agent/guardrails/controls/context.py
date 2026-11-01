@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import UTC, date, datetime
 
 from agent.guardrails.controls.confirmations import WalletProof, WalletProofSource
 from services.erp import LedgerAdapter
@@ -25,6 +26,7 @@ class Context:
     payments: tuple[PaymentRecord, ...]
     wallet_proof: WalletProof | None = None
     wallet_changes: tuple[WalletChange, ...] = ()
+    today: date = date.min  # the day (UTC) the checks run; the earliest day keeps any hold
 
 
 @dataclass
@@ -33,6 +35,7 @@ class ContextBuilder:
 
     ledger: LedgerAdapter
     proofs: WalletProofSource | None = None
+    today: date = field(default_factory=lambda: datetime.now(UTC).date())
     _suppliers: dict[str, Supplier] = field(default_factory=dict)
     _invoices: dict[str, tuple[PurchaseInvoice, ...]] = field(default_factory=dict)
     _payments: dict[str, tuple[PaymentRecord, ...]] = field(default_factory=dict)
@@ -58,6 +61,7 @@ class ContextBuilder:
             payments=self._payments[name],
             wallet_proof=self._proofs[name],
             wallet_changes=self._changes[name],
+            today=self.today,
         )
 
     def _wallet_changes(self, name: str) -> tuple[WalletChange, ...]:

@@ -4,6 +4,8 @@ The rule is deterministic: any HOLD means HOLD, otherwise any ASK means ASK, oth
 NOTE changes nothing here: it is evidence the agent weighs when it decides what to do.
 """
 
+from datetime import date
+
 from agent.guardrails.controls import (
     ContextBuilder,
     Control,
@@ -52,10 +54,11 @@ class DecisionEngine:
         config: PolicyConfig,
         *,
         proofs: WalletProofSource | None = None,
+        today: date | None = None,
     ) -> None:
         self._ledger = ledger
         self._controls = standard_controls(config)
-        self._contexts = ContextBuilder(ledger, proofs)
+        self._contexts = ContextBuilder(ledger, proofs, **({"today": today} if today else {}))
 
     def decide(self, invoice: PurchaseInvoice) -> Decision:
         context = self._contexts.build(invoice)

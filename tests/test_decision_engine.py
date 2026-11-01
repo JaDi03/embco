@@ -65,3 +65,40 @@ def test_the_plan_pays_the_most_urgent_first_and_defers_what_does_not_fit():
     assert [d.invoice for d in plan.pay_now] == ["PINV-B", "PINV-C"]
     assert [d.decision.invoice for d in plan.deferred] == ["PINV-A"]
     assert plan.budget_left == Decimal(500)
+
+
+TODAY = date(2026, 10, 6)
+
+
+def decide_on(ledger: FakeLedger, today=TODAY):
+    return DecisionEngine(ledger, CONFIG, today=today).decide_all()[0]
+
+
+def test_an_invoice_on_hold_in_the_erp_is_held_until_its_release_date():
+    ledger = FakeLedger()
+    ledger.pending = [make_invoice(on_hold=True)]
+    assert decide_on(ledger).reasons == ("the invoice is on hold in the ERP",)
+    for release, action in ((date(2026, 10, 7), Action.HOLD), (TODAY, Action.HOLD),
+                            (date(2026, 10, 5), Action.PAY)):
+        ledger.pending = [make_invoice(on_hold=True, on_hold_until=release)]
+        assert decide_on(ledger).action is action, release
+    ledger.pending = [make_invoice(on_hold=True, on_hold_until=date(2026, 10, 9))]
+    assert decide_on(ledger).reasons == ("the invoice is on hold in the ERP until 2026-10-09",)
+
+
+def test_payments_on_hold_for_the_supplier_hold_every_invoice_of_it():
+    ledger = FakeLedger()
+    ledger.supplier = ledger.supplier.model_copy(update={"payments_on_hold": True})
+    decision = decide_on(ledger)
+    assert decision.action is Action.HOLD
+    assert decision.reasons == ("payments to the supplier are on hold in the ERP",)
+    ledger.supplier = ledger.supplier.model_copy(update={"on_hold_until": date(2026, 10, 1)})
+    assert decide_on(ledger).action is Action.PAY  # released
+
+
+def test_a_disabled_supplier_is_still_only_weighed():
+    ledger = FakeLedger()
+    ledger.supplier = ledger.supplier.model_copy(update={"disabled": True})
+    decision = decide_on(ledger)
+    assert decision.action is Action.PAY
+    assert decision.reasons == ("to weigh: the supplier is disabled in the ERP",)

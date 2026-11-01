@@ -116,3 +116,22 @@ def test_invalid_json_raises_ledger_error():
 def test_missing_document_raises_ledger_error():
     with pytest.raises(LedgerError):
         make_adapter(lambda r: json_response('{"message": "x"}')).get_supplier("Acme")
+
+
+def test_invoice_hold_and_its_release_date_come_from_the_erp():
+    body = INVOICE.replace('"docstatus": 1,', '"docstatus": 1, "on_hold": 1, '
+                                             '"release_date": "2026-10-20",')
+    invoice = make_adapter(lambda r: json_response(body)).get_purchase_invoice("PINV-0001")
+    assert invoice.on_hold is True and invoice.on_hold_until == date(2026, 10, 20)
+    plain = make_adapter(lambda r: json_response(INVOICE)).get_purchase_invoice("PINV-0001")
+    assert plain.on_hold is False and plain.on_hold_until is None
+
+
+@pytest.mark.parametrize(("hold_type", "held"), [("All", True), ("Payments", True),
+                                                 ("Invoices", False), (None, True)])
+def test_a_supplier_hold_stops_payments_as_erpnext_reads_it(hold_type, held):
+    doc = {"name": "Acme", "on_hold": 1, "hold_type": hold_type, "release_date": "2026-10-20"}
+    body = json.dumps({"data": doc})
+    supplier = make_adapter(lambda r: json_response(body)).get_supplier("Acme")
+    assert supplier.payments_on_hold is held
+    assert supplier.on_hold_until == date(2026, 10, 20)

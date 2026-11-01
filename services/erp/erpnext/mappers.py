@@ -51,7 +51,15 @@ def to_supplier(row: dict[str, Any], wallet_field: str) -> Supplier:
         name=row["name"],
         wallet_address=row.get(wallet_field) or None,
         disabled=bool(row.get("disabled")),
+        **supplier_holds(row),
     )
+
+
+def supplier_holds(row: dict[str, Any]) -> dict[str, Any]:
+    """ERPNext's supplier hold, as its own Supplier.is_blocked_for("Payments") reads it: a hold
+    of type All or Payments (All when none is set) stops payments until its release date."""
+    held = bool(row.get("on_hold")) and (row.get("hold_type") or "All") in ("All", "Payments")
+    return {"payments_on_hold": held, "on_hold_until": to_date(row.get("release_date"))}
 
 
 def to_payment(row: dict[str, Any], wallet_field: str) -> PaymentRecord:
@@ -99,4 +107,6 @@ def to_purchase_invoice(row: dict[str, Any]) -> PurchaseInvoice:
         outstanding_amount=to_decimal(row.get("outstanding_amount")),
         docstatus=int(row.get("docstatus", 0)),
         lines=_lines(row),
+        on_hold=bool(row.get("on_hold")),
+        on_hold_until=to_date(row.get("release_date")),
     )
