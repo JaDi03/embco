@@ -1,6 +1,7 @@
 """The agent on Telegram: a linked chat can stop it at once, without the model; any other chat
 can do nothing; messages reach the agent and its answers come back."""
 
+import json
 import secrets
 from datetime import UTC, datetime, timedelta
 
@@ -10,6 +11,7 @@ import pytest
 from services.circle import CircleError
 from services.shops import chat
 from services.shops.activity import read_activity
+from services.shops.inbox import ANSWERS, INBOX
 from services.telegram import links
 from services.telegram.api import TelegramApi, TelegramError
 from services.telegram.bot import NOT_LINKED, Bot
@@ -179,11 +181,13 @@ def test_an_old_unanswered_message_does_not_show_typing_forever(bot):
 INVOICE, PRINT = "ACC-PINV-2026-00012", "f1"
 
 
-def asked(bot, choice="ASK"):
-    """The agent asked about INVOICE in its last check, and the bot forwarded the question."""
+def asked(bot, choice="ASK", action="PAY"):
+    """The agent asked about INVOICE in its last check, and the bot forwarded the question.
+    `action` is what the checks say about it."""
     folder = bot.store.folder(SHOP)
     bot.store.write_last_run(SHOP, {"decisions": [
-        {"invoice": INVOICE, "fingerprint": PRINT, "agent": {"choice": choice}}]})
+        {"invoice": INVOICE, "fingerprint": PRINT, "action": action,
+         "agent": {"choice": choice}}]})
     linked(bot)
     chat.append_chat(folder, [{"from": chat.AGENT, "text": "Pay 184 USDC?\nDid it arrive?",
                                "asks": f"{INVOICE}:{PRINT}:yes", "invoice": INVOICE,
@@ -217,6 +221,23 @@ def test_a_question_comes_with_buttons_and_a_press_is_a_message_to_the_agent(bot
          "owner via Telegram")]
     assert bot.api.dropped == [(OWNER_CHAT, 77)]
     assert bot.api.last(OWNER_CHAT).startswith("Yes, pay it: Your agent is reading it")
+
+
+@pytest.mark.parametrize(("pressed", "verdict"), [(0, "APPROVE"), (1, "REJECT")])
+def test_a_press_answers_the_checks_that_wait_for_the_owner(bot, pressed, verdict):
+    buttons = asked(bot, action="ASK")  # e.g. billed more than received
+    bot.handle(press(OWNER_CHAT, buttons[pressed][1]))
+    [answer] = (bot.store.folder(SHOP) / INBOX / ANSWERS).glob("*.json")
+    body = json.loads(answer.read_text(encoding="utf-8"))
+    assert (body["invoice"], body["fingerprint"], body["verdict"], body["answered_by"]) == (
+        INVOICE, PRINT, verdict, "owner via Telegram")
+    assert chat.take_messages(bot.store.folder(SHOP))  # and the agent reads it too
+
+
+def test_a_press_is_no_answer_when_the_checks_do_not_wait_for_the_owner(bot):
+    buttons = asked(bot, action="PAY")  # the agent asked of its own accord
+    bot.handle(press(OWNER_CHAT, buttons[0][1]))
+    assert not (bot.store.folder(SHOP) / INBOX / ANSWERS).exists()
 
 
 def test_a_question_on_a_held_invoice_has_a_plain_yes_and_no(bot):

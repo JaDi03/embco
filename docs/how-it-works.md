@@ -16,10 +16,11 @@ payments are on), sees what happened and acts on it.
 
 Each control returns a finding. Only two kinds stop an invoice, and no model can change them:
 HOLD (the supplier's wallet is missing, invalid or not confirmed by the supplier's signature,
-or the bill repeats one already entered) and ASK (a first payment to a new wallet, answered by
-the owner). Everything else a control finds (a missing receipt, less received than billed, a
-price jump, an amount over the per-payment limit, a disabled supplier) is a NOTE: evidence the
-AI agent weighs before it decides to pay, hold or ask the owner.
+the bill repeats one already entered, or the invoice or its supplier is on hold in the ERP) and
+ASK (a first payment to a new wallet, or a bill for more than was received, answered by the
+owner in the dashboard or on Telegram). Everything else a control finds (a missing receipt, more
+billed than ordered, a price jump, an amount over the per-payment limit, a disabled supplier) is
+a NOTE: evidence the AI agent weighs before it decides to pay, hold or ask the owner.
 
 <figure class="diagram" markdown>
 ![The fixed rule: a duplicate bill or a wallet that is missing, invalid or not signed means HOLD; a new or changed wallet means ASK the owner; otherwise the invoice is open to pay and the agent weighs the notes. The owner approving an ASK opens it, rejecting it means HOLD](assets/diagrams/the-fixed-rule.svg#only-light "The fixed rule")
