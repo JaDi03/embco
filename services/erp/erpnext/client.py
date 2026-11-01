@@ -15,6 +15,8 @@ import httpx
 
 from services.erp.base import LedgerError
 
+PAGE_SIZE = 500  # rows per request when a whole list is read
+
 
 class FrappeClient:
     def __init__(
@@ -97,6 +99,40 @@ class FrappeClient:
     ) -> list[str]:
         rows = self.list_rows(doctype, ["name"], filters, order_by, limit)
         return [row["name"] for row in rows]
+
+    def list_all_rows(
+        self,
+        doctype: str,
+        fields: list[str],
+        filters: list[list[Any]],
+        order_by: str,
+        page: int = PAGE_SIZE,
+    ) -> list[dict[str, Any]]:
+        """Every matching row, page by page with Frappe's limit_start, for lists that must not
+        be cut. The name breaks ties so pages do not overlap; a row seen twice because the list
+        changed while it was read is kept once."""
+        if not order_by.replace(" ", "").endswith(("name", "nameasc", "namedesc")):
+            order_by = f"{order_by}, name asc"
+        wanted = list(dict.fromkeys(["name", *fields]))
+        rows: dict[str, dict[str, Any]] = {}
+        start = 0
+        while True:
+            params = {
+                "fields": json.dumps(wanted),
+                "filters": json.dumps(filters),
+                "order_by": order_by,
+                "limit_start": str(start),
+                "limit_page_length": str(page),
+            }
+            batch = self._get(f"/api/resource/{quote(doctype)}", params) or []
+            new = [r for r in batch if r["name"] not in rows]
+            rows.update((r["name"], r) for r in new)
+            if len(batch) < page or not new:  # the last page, or an ERP that ignores paging
+                return list(rows.values())
+            start += page
+
+    def list_all_names(self, doctype: str, filters: list[list[Any]], order_by: str) -> list[str]:
+        return [row["name"] for row in self.list_all_rows(doctype, ["name"], filters, order_by)]
 
 
 def _dumps_exact(doc: dict[str, Any]) -> str:

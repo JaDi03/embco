@@ -135,3 +135,50 @@ def test_a_supplier_hold_stops_payments_as_erpnext_reads_it(hold_type, held):
     supplier = make_adapter(lambda r: json_response(body)).get_supplier("Acme")
     assert supplier.payments_on_hold is held
     assert supplier.on_hold_until == date(2026, 10, 20)
+
+
+def paged_erp(rows, asked=None, ignore_paging=False):
+    """An ERP that serves `rows` page by page, as Frappe does with limit_start."""
+    def handle(request):
+        params = request.url.params
+        if asked is not None:
+            asked.append(dict(params))
+        start = 0 if ignore_paging else int(params.get("limit_start", 0))
+        size = int(params["limit_page_length"])
+        return httpx.Response(200, json={"data": rows[start:start + size]})
+    return handle
+
+
+@pytest.mark.parametrize("count", [0, 1, 500, 1000, 1201])
+def test_a_whole_list_comes_page_by_page_without_losing_or_repeating_rows(count):
+    from services.erp.erpnext.client import FrappeClient
+    rows = [{"name": f"PINV-{i:05d}"} for i in range(count)]
+    asked = []
+    client = FrappeClient(BASE, KEY, SECRET, client=httpx.Client(
+        transport=httpx.MockTransport(paged_erp(rows, asked))))
+    names = client.list_all_names("Purchase Invoice", [["company", "=", "Glocery"]],
+                                  "due_date asc")
+    assert names == [r["name"] for r in rows]
+    assert len(asked) == count // 500 + 1  # the last page is the short (or empty) one
+    assert all(json.loads(a["filters"]) == [["company", "=", "Glocery"]] for a in asked)
+    assert all(a["order_by"] == "due_date asc, name asc" for a in asked)  # ties never overlap
+
+
+def test_rows_seen_twice_while_the_list_changes_are_kept_once_and_paging_ends():
+    from services.erp.erpnext.client import FrappeClient
+    rows = [{"name": f"P{i}"} for i in range(500)]
+    client = FrappeClient(BASE, KEY, SECRET, client=httpx.Client(
+        transport=httpx.MockTransport(paged_erp(rows, ignore_paging=True))))
+    assert len(client.list_all_names("Purchase Invoice", [], "name asc")) == 500
+
+
+def test_unpaid_invoices_beyond_500_are_all_read():
+    invoices = [{"name": f"PINV-{i:04d}"} for i in range(730)]
+
+    def handle(request):
+        if request.url.path == "/api/resource/Purchase Invoice":  # the list
+            return paged_erp(invoices)(request)
+        name = request.url.path.rsplit("/", 1)[1]
+        return json_response(INVOICE.replace("PINV-0001", name))
+    unpaid = make_adapter(handle).list_unpaid_purchase_invoices()
+    assert [i.name for i in unpaid] == [r["name"] for r in invoices]
