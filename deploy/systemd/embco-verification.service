@@ -1,0 +1,20 @@
+[Unit]
+Description=embco automatic contract source verification
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=embco
+Group=embco
+WorkingDirectory=/opt/embco
+ExecStart=/opt/embco/.venv/bin/python -m services.verification --env-file /etc/embco/embco.env
+StateDirectory=embco/verification
+StateDirectoryMode=0700
+TimeoutStartSec=20min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/embco/verification

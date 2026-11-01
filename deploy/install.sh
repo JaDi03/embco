@@ -138,12 +138,14 @@ chmod 640 "$CONF/shops.key"
 
 say "4/6 Services"
 cp "$APP"/deploy/systemd/embco-*.service /etc/systemd/system/
+cp "$APP/deploy/systemd/embco-verification.timer" /etc/systemd/system/
 cp "$APP/deploy/polkit/50-embco-shops.rules" /etc/polkit-1/rules.d/
 install -d /etc/systemd/system/caddy.service.d
 cp "$APP/deploy/systemd/caddy-embco.conf" /etc/systemd/system/caddy.service.d/embco.conf
 systemctl daemon-reload
 systemctl enable -q embco-hub
 systemctl restart embco-hub
+systemctl enable -q --now embco-verification.timer
 if [ -n "$(get "$SETTINGS" TELEGRAM_BOT_TOKEN)" ]; then
   systemctl enable -q embco-telegram
   systemctl restart embco-telegram

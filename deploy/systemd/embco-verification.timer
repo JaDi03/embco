@@ -1,0 +1,10 @@
+[Unit]
+Description=Check new embco contracts for source verification every minute
+
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=60s
+Unit=embco-verification.service
+
+[Install]
+WantedBy=timers.target

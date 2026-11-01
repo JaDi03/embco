@@ -95,6 +95,7 @@ agents of the shops whose owners left them on. Point your domain to the new serv
 | The server's settings and the shop key, readable only by root and `embco` | `/etc/embco` |
 | Each shop's settings, ERPNext keys (encrypted) and journal | `/var/lib/embco/shops` |
 | The hub, the Telegram bot and one agent per shop, restarted if they stop | systemd: `embco-hub`, `embco-telegram`, `embco-shop@<contract address>` |
+| Automatic source verification, independent of shop agents and ERP connections | systemd: `embco-verification.timer`; state in `/var/lib/embco/verification` |
 | A rule that lets the hub start, stop and restart the shops' agents, and nothing else | polkit |
 | The dashboard with HTTPS, `/api` to the hub and `/rpc` to your Arc node, whose URL stays on the server | Caddy |
 
@@ -107,3 +108,40 @@ serves other sites on the server, the script adds the dashboard next to them.
 journalctl -u embco-hub -f
 journalctl -u 'embco-shop@*' -f
 ```
+
+## Contract verification
+
+The installer enables `embco-verification.timer`. It runs one bounded round after boot and
+one minute after the previous round finishes. New and existing contracts created by the
+configured factories are discovered on chain, even if their owners have not connected ERPNext.
+The service only reads the chain and submits public source code; it cannot sign transactions.
+
+The Arc node uses `ARC_TESTNET_RPC_URL`. Funding discovery uses public Base Sepolia and
+Ethereum Sepolia nodes, with optional `BASE_SEPOLIA_RPC_URL` and `ETHEREUM_SEPOLIA_RPC_URL`
+overrides in `/etc/embco/embco.env`. The worker checks each node's chain ID before scanning.
+
+```bash
+systemctl status embco-verification.timer
+journalctl -u embco-verification.service -n 50
+sudo -u embco /opt/embco/.venv/bin/python -m services.verification --status
+```
+
+Status reports discovered contracts, exact Sourcify matches, contracts the explorer showed or
+accepted for import, and contracts still pending on Sourcify. A submitted job is not counted as
+verified until Sourcify confirms an exact match.
+Pending jobs, last errors, frozen factory compilations and scan positions are stored in
+`/var/lib/embco/verification/state.sqlite3`. Back up that directory to preserve progress;
+without it, the worker rescans and checks the contracts again without redeploying anything.
+Do not run a second worker manually while the timer's service is active.
+
+To inspect discovery without submitting source code, use a separate local state file:
+
+```bash
+python -m services.verification --env-file .env --state verification.sqlite3 --discover-only
+python -m services.verification --state verification.sqlite3 --status
+```
+
+The factories must already have an exact runtime match on Sourcify, with their compilation
+input and deployment block available. A future factory release needs that verification first.
+Factory packages are cached after the first successful lookup. The worker respects provider
+cooldowns and retries transient failures; repeated source mismatches need operator review.
