@@ -5,17 +5,29 @@ in `contracts/` (Solidity 0.8.37, Arc Foundry).
 
 ## Deployed on Arc Testnet
 
-Every embco contract below, and every shop contract that exists today, has its source verified
-(exact match) on [Sourcify](https://repo.sourcify.dev) and in the explorer. The vaults and USDC
-are not embco's. A contract an owner creates later is verified the same way, with the
-source in this repository:
+The server installed with `deploy/install.sh` automatically discovers `ShopPayables` and
+`ShopEarn` contracts on Arc, and `ShopFunding` on Base Sepolia and Ethereum Sepolia. It submits
+their sources to [Sourcify](https://repo.sourcify.dev) and requires an exact creation and runtime
+match. A contract counts as verified once Sourcify confirms that match. The worker then asks each
+chain's Blockscout explorer once to import it; an explorer error never keeps a contract pending.
+No extra signature, fee or action is required from the owner.
 
-```
-arc-forge verify-contract <address> src/ShopPayables.sol:ShopPayables --chain-id 5042002 --verifier sourcify --watch
-```
+Verification happens in the background after 12 blocks. The first run also scans older
+creations of the configured factories in bounded ranges; catching up can take several rounds.
+The worker uses the original verified factory compilation, not today's source files, and
+keeps its compilation, discovery cursor and pending jobs across restarts. Errors are retried
+with backoff. Verification delays do not stop the dashboard or the agent.
 
-Use `ShopEarn` or `ShopFunding` (with the chain's id) for the other two. The explorer picks up
-what Sourcify verified.
+Old event ranges can use the explorer's paginated index when public nodes have pruned history;
+the last 1,000 blocks use the node to avoid advancing past events not indexed yet. If neither
+source can serve a range, its cursor stays pending. Provider range limits are reduced rather
+than skipping blocks.
+
+The explorers asked to import are Arc's explorer, Base Sepolia Blockscout and Ethereum Sepolia
+Blockscout. Sourcify may also forward results to other explorers; an explorer, Etherscan or
+Basescan listing is not guaranteed by this worker. Third-party vaults, USDC and contracts from previous
+factories are outside its discovery scope. See [server operations](server.md#contract-verification)
+for status and troubleshooting.
 
 | Contract | Address |
 |---|---|
