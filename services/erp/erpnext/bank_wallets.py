@@ -18,7 +18,7 @@ _PAID_TO = re.compile(r"to wallet (0x[0-9a-fA-F]{40})\b")
 
 
 def active_accounts(frappe: FrappeClient, bank: str, supplier: str) -> list[dict[str, Any]]:
-    return frappe.list_rows(
+    return frappe.list_all_rows(
         "Bank Account",
         fields=["name", WALLET_FIELD, "owner", "creation"],
         filters=[["party_type", "=", "Supplier"], ["party", "=", supplier],

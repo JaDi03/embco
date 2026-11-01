@@ -2,7 +2,8 @@
 
 A check used to download every unpaid invoice, every earlier invoice of each supplier, and every
 linked order and receipt, one request each. Now, at the start of each check, three light
-requests list every invoice, order and receipt with the time it last changed; a document is
+lists (one request per 5,000 documents) give every invoice, order and receipt with the time it
+last changed; a document is
 downloaded again only when that time changed (or it is new). The amount still due and the due
 date are always taken from the fresh list, since the ERP can change them without a new version.
 
