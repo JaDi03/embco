@@ -60,9 +60,12 @@ SELECT at, body FROM entries
 WHERE kind = ? AND json_extract(body, '$.supplier') = ? ORDER BY id DESC
 """
 
+# Attempts Circle took: a payment written before Circle was asked and never answered is not
+# one, so a retry carries the same idempotency key and Circle returns its transaction, if any.
 PAYMENT_ATTEMPTS = """
-SELECT COUNT(*) FROM entries
+SELECT COUNT(DISTINCT json_extract(body, '$.attempt')) FROM entries
 WHERE invoice = ? AND kind = 'PAYMENT' AND json_extract(body, '$.status') = 'SUBMITTED'
+  AND json_extract(body, '$.circle_tx_id') IS NOT NULL
 """
 
 PENDING_PAYMENTS = """

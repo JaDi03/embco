@@ -205,6 +205,8 @@ class SqliteJournal:
             body["erp_entry"] = event.erp_entry
         if event.session:
             body["session"] = event.session
+        if event.why:
+            body["why"] = event.why
         self._append_owner_entry("PAYMENT", event.at, body, event.invoice)
 
     def latest_payment(self, invoice: str) -> PaymentEvent | None:
@@ -394,6 +396,7 @@ def _payment(row: tuple) -> PaymentEvent:
         reason=body["reason"],
         erp_entry=body.get("erp_entry"),
         session=body.get("session"),
+        why=body.get("why", ""),
     )
 
 

@@ -24,6 +24,11 @@ class CircleError(Exception):
     pass
 
 
+class CircleUnanswered(CircleError):
+    """The request may have reached Circle, but no clear answer came back (the connection
+    dropped, Circle failed with a 5xx, or the answer was unreadable): Circle may have acted."""
+
+
 @dataclass(frozen=True)
 class CircleWallet:
     id: str
@@ -82,16 +87,17 @@ class CircleClient:
                 break
             except httpx.TransportError as exc:
                 if attempt + 1 == tries:
-                    raise CircleError(f"Circle request failed: {type(exc).__name__}") from exc
+                    raise CircleUnanswered(f"Circle request failed: {type(exc).__name__}") from exc
             except httpx.HTTPError as exc:
-                raise CircleError(f"Circle request failed: {type(exc).__name__}") from exc
+                raise CircleUnanswered(f"Circle request failed: {type(exc).__name__}") from exc
         if response.status_code not in (200, 201):
-            raise CircleError(f"Circle returned HTTP {response.status_code} for {path}"
-                              f"{_error_detail(response)}")
+            error = CircleUnanswered if response.status_code >= 500 else CircleError
+            raise error(f"Circle returned HTTP {response.status_code} for {path}"
+                        f"{_error_detail(response)}")
         try:
             return response.json()["data"]
         except (ValueError, KeyError, TypeError):
-            raise CircleError(f"Circle returned an unexpected body for {path}") from None
+            raise CircleUnanswered(f"Circle returned an unexpected body for {path}") from None
 
     def entity_secret_ciphertext(self) -> str:
         """A new ciphertext on every call: Circle rejects a reused one."""

@@ -15,7 +15,7 @@ from agent.guardrails.rules import Action, Decision, PaymentPlan, PolicyConfig
 from agent.memory import SqliteJournal
 from agent.reflexes.cycle import run_cycle
 from agent.reflexes.report import format_report
-from services.circle import CircleTransaction, CircleWallet
+from services.circle import CircleError, CircleTransaction, CircleUnanswered, CircleWallet
 from services.erp import LedgerError
 from services.erp.models import Supplier
 from services.payments import (
@@ -25,7 +25,7 @@ from services.payments import (
     PaymentStatus,
     Reverted,
 )
-from services.payments.chain import ArcRpc, revert_reason
+from services.payments.chain import ArcRpc, ChainError, revert_reason
 from services.payments.encoding import (
     EncodingError,
     invoice_ref,
@@ -59,6 +59,18 @@ class FakeChain:
         self.unapproved: set[str] = set()
         self.approved_at: dict[str, datetime] = {}  # when each payee was approved; else long ago
         self.simulated: list[tuple[str, bytes, str | None]] = []
+        self.paid_tx: dict[bytes, tuple[str, str]] = {}  # ref: (payer, transaction) of Paid
+        self.logs_down = False
+
+    def pay_on_chain(self, ref, by, tx):
+        self.paid.add(ref)
+        self.paid_tx[ref] = (by, tx)
+
+    def payment_tx(self, shop, ref, by, since):
+        if self.logs_down:
+            raise ChainError("Arc node request failed: ConnectError")
+        payer, tx = self.paid_tx.get(ref, (None, None))
+        return tx if payer == by else None
 
     def approve(self, payee, at):
         self.unapproved.discard(payee.lower())
@@ -100,6 +112,7 @@ class FakeCircle:
     def __init__(self) -> None:
         self.sent: list[dict] = []
         self.final_state = "COMPLETE"
+        self.answer: CircleError | None = None  # instead of the transaction, once
 
     def get_wallet(self, wallet_id):
         return CircleWallet(id=wallet_id, address=AGENT.lower(), blockchain="ARC-TESTNET",
@@ -108,6 +121,9 @@ class FakeCircle:
     def execute_contract(self, wallet_id, contract, call_data, *, idempotency_key, ref_id=None):
         self.sent.append({"wallet_id": wallet_id, "contract": contract, "data": call_data,
                           "key": idempotency_key, "ref_id": ref_id})
+        if self.answer is not None:
+            error, self.answer = self.answer, None
+            raise error
         return CircleTransaction(id=f"tx-{len(self.sent)}", state="INITIATED")
 
     def get_transaction(self, transaction_id):
@@ -213,6 +229,43 @@ def test_an_old_or_removed_approval_is_not_one():
     assert rpc.payee_approved_since(SHOP, WALLET_A, at_second(100), first_block=1) is None
 
 
+def paid_node(logs, latest=250_000):
+    """An Arc node with Paid events [(block, topics, tx)]; block N was made at second N."""
+    asked = []
+
+    def handle(request):
+        body = json.loads(request.content)
+        method, params = body["method"], body["params"]
+        if method == "eth_blockNumber":
+            result = hex(latest)
+        elif method == "eth_getBlockByNumber":
+            result = {"timestamp": params[0]}
+        else:
+            query = params[0]
+            start, end = int(query["fromBlock"], 16), int(query["toBlock"], 16)
+            asked.append(query["topics"])
+            wanted = query["topics"]
+            result = [{"transactionHash": tx} for b, topics, tx in logs
+                      if start <= b <= end and all(
+                          w is None or w == t for w, t in zip(wanted, topics, strict=True))]
+        return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "result": result})
+
+    client = httpx.Client(transport=httpx.MockTransport(handle))
+    return ArcRpc("https://node.example/rpc", client=client), asked
+
+
+def test_the_paid_event_names_the_transaction_only_when_the_agent_paid():
+    ref = invoice_ref("PINV-1")
+    paid = "0x" + keccak(text="Paid(bytes32,address,uint256,address)").hex()
+    by = lambda a: "0x" + "00" * 12 + a[2:].lower()  # noqa: E731
+    rpc, asked = paid_node([(140_000, [paid, "0x" + ref.hex(), by(WALLET_A), by(AGENT)], "0xab")])
+    assert rpc.payment_tx(SHOP, ref, AGENT, at_second(100), first_block=1) == "0xab"
+    assert asked[0] == [paid, "0x" + ref.hex(), None, by(AGENT)]
+    other = to_checksum_address("0x" + "0e" * 20)
+    assert rpc.payment_tx(SHOP, ref, other, at_second(100), first_block=1) is None
+    assert rpc.payment_tx(SHOP, ref, AGENT, at_second(200_000), first_block=1) is None
+
+
 def test_ranges_older_than_since_are_not_read():
     rpc, ranges = payee_node({})
     assert rpc.payee_approved_since(SHOP, WALLET_A, at_second(200_000), first_block=1) is None
@@ -309,7 +362,8 @@ def test_the_agents_own_attempt_found_paid_on_chain_is_complete(journal):
     for status in (PaymentStatus.SUBMITTED, PaymentStatus.FAILED):
         journal.record_payment(PaymentEvent(
             invoice="PINV-1", status=status, at=NOW, supplier="Acme", payee=WALLET_A,
-            amount=Decimal("125.5"), invoice_ref="0x" + invoice_ref("PINV-1").hex(), attempt=1))
+            amount=Decimal("125.5"), invoice_ref="0x" + invoice_ref("PINV-1").hex(), attempt=1,
+            circle_tx_id="c-1"))
     chain.paid.add(invoice_ref("PINV-1"))
     result = payer.settle(plan(decision()), journal)
     assert circle.sent == [] and result.events[0].status is PaymentStatus.COMPLETE
@@ -450,7 +504,99 @@ def test_every_state_of_a_payment_keeps_the_session_that_sent_it(journal):
     payer.reconcile([], journal)  # a later check, from what the journal kept
     states = [(b["status"], b.get("session")) for kind, _, _, _, b in journal.entries()
               if kind == "PAYMENT"]
-    assert states == [("SUBMITTED", "s1"), ("COMPLETE", "s1")]
+    # written before Circle was asked, then with Circle's transaction, then final
+    assert states == [("SUBMITTED", "s1"), ("SUBMITTED", "s1"), ("COMPLETE", "s1")]
+
+
+# a lost answer from Circle
+
+
+def payments_in(journal):
+    return [b for kind, _, _, _, b in journal.entries() if kind == "PAYMENT"]
+
+
+def test_the_payment_and_its_reason_are_written_before_circle_is_asked(journal):
+    payer, _, circle = make_payer()
+    seen = []
+    send = circle.execute_contract
+    circle.execute_contract = lambda *a, **k: (seen.extend(payments_in(journal)), send(*a, **k))[1]
+    payer.pay(decision(), journal, session="s1", why="matches the order and the receipt")
+    [before] = seen
+    assert before["status"] == "SUBMITTED" and before["circle_tx_id"] is None
+    assert before["why"] == "matches the order and the receipt" and before["session"] == "s1"
+    assert "why" not in payments_in(journal)[1]  # kept once, with the first entry
+
+
+def test_a_lost_answer_is_found_on_arc_and_recorded_without_sending_again(journal):
+    writer = FakeWriter()
+    payer, chain, circle = make_payer()
+    payer.writer = writer
+    circle.answer = CircleUnanswered("Circle request failed: ReadTimeout")
+    [event] = payer.pay(decision(), journal)
+    assert event.status is PaymentStatus.SUBMITTED and event.circle_tx_id is None
+    assert paid_or_sent(journal, [decision()]) == set()  # not taken as paid yet
+    tx = "0x" + "77" * 32
+    chain.pay_on_chain(invoice_ref("PINV-1"), AGENT, tx)  # Circle had sent it after all
+    settled = payer.reconcile([], journal)
+    assert [e.status for e in settled.events] == [PaymentStatus.COMPLETE, PaymentStatus.RECORDED]
+    assert settled.events[0].tx_hash == tx and len(circle.sent) == 1
+    assert writer.recorded[0].tx_hash == tx
+    assert paid_or_sent(journal, [decision()]) == {"PINV-1"}
+
+
+def test_a_retry_after_a_lost_answer_repeats_the_same_request(journal):
+    payer, _, circle = make_payer()
+    circle.answer = CircleUnanswered("Circle returned HTTP 503 for /v1/w3s/...")
+    payer.pay(decision(), journal)
+    payer.pay(decision(), journal)  # Circle never got it, or returns the same transaction
+    first, second = circle.sent
+    assert first["key"] == second["key"]
+    assert journal.latest_payment("PINV-1").circle_tx_id == "tx-2"
+
+
+def test_a_lost_answer_already_on_arc_is_the_agents_payment_not_a_foreign_one(journal):
+    payer, chain, circle = make_payer()
+    circle.answer = CircleUnanswered("Circle request failed: ReadTimeout")
+    payer.pay(decision(), journal)
+    tx = "0x" + "78" * 32
+    chain.pay_on_chain(invoice_ref("PINV-1"), AGENT, tx)
+    [event] = payer.pay(decision(), journal)
+    assert event.status is PaymentStatus.COMPLETE and event.tx_hash == tx
+    assert len(circle.sent) == 1
+
+
+def test_a_lost_answer_is_never_called_foreign_while_the_node_cannot_say(journal):
+    payer, chain, circle = make_payer()
+    circle.answer = CircleUnanswered("Circle request failed: ReadTimeout")
+    payer.pay(decision(), journal)
+    chain.pay_on_chain(invoice_ref("PINV-1"), AGENT, "0x" + "79" * 32)
+    chain.logs_down = True
+    with pytest.raises(PaymentRefused, match="Arc node request failed"):
+        payer.pay(decision(), journal)
+    assert payer.reconcile([], journal).events == ()
+    chain.logs_down = False
+    assert [e.status for e in payer.reconcile([], journal).events] == [PaymentStatus.COMPLETE]
+    assert len(circle.sent) == 1
+
+
+def test_a_payment_paid_on_arc_by_someone_else_is_still_foreign(journal):
+    payer, chain, circle = make_payer()
+    circle.answer = CircleUnanswered("Circle request failed: ReadTimeout")
+    payer.pay(decision(), journal)
+    chain.pay_on_chain(invoice_ref("PINV-1"), to_checksum_address("0x" + "0e" * 20), "0x01")
+    with pytest.raises(PaymentRefused, match="did not send"):
+        payer.pay(decision(), journal)
+
+
+def test_a_refusal_from_circle_is_not_sent_and_keeps_the_same_key(journal):
+    payer, _, circle = make_payer()
+    circle.answer = CircleError("Circle returned HTTP 400 for /v1/w3s/... (code 1: bad)")
+    with pytest.raises(PaymentRefused, match="HTTP 400"):
+        payer.pay(decision(), journal)
+    last = journal.latest_payment("PINV-1")
+    assert last.status is PaymentStatus.BLOCKED and "HTTP 400" in last.reason
+    payer.pay(decision(), journal)
+    assert circle.sent[0]["key"] == circle.sent[1]["key"]  # a refusal is not an attempt
 
 
 # recording in the ERP
