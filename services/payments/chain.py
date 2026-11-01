@@ -14,6 +14,7 @@ WEEK_SECONDS = 7 * 24 * 3600
 SHOP_LOGS_FROM = 66943142  # the ShopPayablesFactory deployment on Arc testnet: no shop is older
 LOG_CHUNK_BLOCKS = 99_999  # the most blocks the Canteen node returns logs for in one call
 _PAYEE_SET = "0x" + keccak(text="PayeeSet(address,bool)").hex()
+_PAID = "0x" + keccak(text="Paid(bytes32,address,uint256,address)").hex()
 
 
 class ChainError(Exception):
@@ -127,6 +128,29 @@ class ArcRpc:
                     return at if at > since else None
                 if self._block_time(hex(start)) <= since:
                     return None  # nothing set since `since`
+                end = start - 1
+        except (KeyError, TypeError, ValueError) as error:
+            raise ChainError(f"Arc node returned unexpected logs: {type(error).__name__}") from None
+        return None
+
+    def payment_tx(self, shop: str, ref: bytes, by: str, since: datetime,
+                   first_block: int = SHOP_LOGS_FROM) -> str | None:
+        """The transaction in which `by` paid this invoice reference through the shop contract,
+        or None. The contract pays a reference once, so its Paid event is the only one. Reads
+        the newest ranges first and stops at ranges older than `since`."""
+        by_topic = "0x" + "00" * 12 + to_checksum_address(by)[2:].lower()
+        try:
+            end = int(self._rpc("eth_blockNumber", []), 16)
+            while end >= first_block:
+                start = max(first_block, end - LOG_CHUNK_BLOCKS + 1)
+                logs = self._rpc("eth_getLogs", [{
+                    "address": to_checksum_address(shop),
+                    "topics": [_PAID, "0x" + ref.hex(), None, by_topic],
+                    "fromBlock": hex(start), "toBlock": hex(end)}])
+                if logs:
+                    return str(logs[0]["transactionHash"])
+                if self._block_time(hex(start)) <= since:
+                    return None
                 end = start - 1
         except (KeyError, TypeError, ValueError) as error:
             raise ChainError(f"Arc node returned unexpected logs: {type(error).__name__}") from None

@@ -7,7 +7,9 @@ from enum import StrEnum
 
 
 class PaymentStatus(StrEnum):
-    SUBMITTED = "SUBMITTED"  # Circle accepted the transaction; it is on its way
+    # Circle accepted the transaction; it is on its way. Without a Circle id: written just
+    # before Circle was asked, and its answer has not been seen
+    SUBMITTED = "SUBMITTED"
     COMPLETE = "COMPLETE"  # final on chain
     FAILED = "FAILED"  # Circle or the chain rejected it; a new attempt may follow
     BLOCKED = "BLOCKED"  # not sent: the simulation or a check said it would fail
@@ -29,6 +31,7 @@ class PaymentEvent:
     reason: str = ""
     erp_entry: str | None = None  # the ERP's payment entry, once recorded
     session: str | None = None  # the agent session that sent it; its later states keep it
+    why: str = ""  # the agent's reason, written with the payment before Circle is asked
 
 
 @dataclass(frozen=True)

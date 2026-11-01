@@ -5,7 +5,9 @@ from services.circle.client import (
     CircleClient,
     CircleError,
     CircleTransaction,
+    CircleUnanswered,
     CircleWallet,
 )
 
-__all__ = ["ARC_TESTNET", "CircleClient", "CircleError", "CircleTransaction", "CircleWallet"]
+__all__ = ["ARC_TESTNET", "CircleClient", "CircleError", "CircleTransaction", "CircleUnanswered",
+           "CircleWallet"]

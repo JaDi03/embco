@@ -7,7 +7,7 @@ import pytest
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
-from services.circle import CircleClient, CircleError
+from services.circle import CircleClient, CircleError, CircleUnanswered
 
 # Keys are generated at run time; nothing secret is written in the repo.
 PRIVATE_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -130,5 +130,15 @@ def test_reads_are_retried_when_the_connection_drops_but_writes_are_not():
 
     client, _ = make(flaky)
     assert client.entity_secret_ciphertext()  # the public key GET survived two drops
-    with pytest.raises(CircleError, match="RemoteProtocolError"):
+    with pytest.raises(CircleUnanswered, match="RemoteProtocolError"):
         client.create_wallet_set("x")
+
+
+@pytest.mark.parametrize(("status", "unanswered"), [(500, True), (503, True), (400, False),
+                                                    (401, False), (409, False)])
+def test_only_a_clear_refusal_says_circle_did_nothing(status, unanswered):
+    fake = FakeCircle({("POST", "/v1/w3s/developer/walletSets"): (status, {"message": "x"})})
+    client, _ = make(fake)
+    with pytest.raises(CircleError) as error:
+        client.create_wallet_set("x")
+    assert isinstance(error.value, CircleUnanswered) is unanswered

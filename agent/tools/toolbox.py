@@ -342,7 +342,8 @@ class Toolbox:
         _refuse_workarounds(reason)
         self._paid_now += 1
         try:
-            events = self.payer.pay(decision, self.journal, session=self.session or None)
+            events = self.payer.pay(decision, self.journal, session=self.session or None,
+                                    why=reason.strip())
         except PaymentRefused as error:
             self.payments.append(self._not_sent(decision, str(error)))
             raise ToolError(f"not paid, nothing was sent: {error}") from None

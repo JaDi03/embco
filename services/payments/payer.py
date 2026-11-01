@@ -11,8 +11,11 @@ Every payment, in this order:
    that one signature is also the owner's answer: the owner approves the first payment once.
 4. Simulate the exact call through the Arc node. A call that would revert is not sent: it is
    recorded as BLOCKED with the contract's reason.
-5. Send it through Circle with an idempotency key derived from the payment and the attempt
-   number, so a retry after a crash returns the same transaction instead of a new one.
+5. Write it in the journal, with the agent's reason, then send it through Circle with an
+   idempotency key derived from the payment and the attempt number, so a retry after a crash
+   returns the same transaction instead of a new one. When Circle's answer is lost (a dropped
+   connection, a restart), that entry stays: the contract's Paid event says whether it went
+   through, and a retry carries the same key.
 6. Follow it until Circle reports a final state, now or in a later cycle.
 7. Once final, write it into the ERP as a payment entry (when a writer is given), now or in a
    later cycle if the ERP is down. The invoice then leaves the unpaid list.
@@ -37,7 +40,7 @@ from eth_utils import to_checksum_address
 from agent.guardrails.controls.base import Outcome, fmt
 from agent.guardrails.controls.payee_wallet import PayeeWallet, is_evm_address
 from agent.guardrails.rules import Action, Decision, OwnerAnswer, PaymentPlan, Verdict, fingerprint
-from services.circle import CircleClient, CircleError, CircleTransaction
+from services.circle import CircleClient, CircleError, CircleTransaction, CircleUnanswered
 from services.erp import LedgerAdapter, LedgerError, PaymentWriter
 from services.erp.models import SettledPayment
 from services.payments.approvals import write_approvals
@@ -60,17 +63,25 @@ FOREIGN_REF = ("the contract already has a payment with this invoice's reference
                "did not send; check it on the explorer before paying")
 
 
+def unanswered(event: PaymentEvent | None) -> bool:
+    """Written just before Circle was asked, and Circle's answer was never seen."""
+    return (event is not None and event.status is PaymentStatus.SUBMITTED
+            and not event.circle_tx_id)
+
+
 def settled_or_sent(event: PaymentEvent | None, book: "PaymentBook") -> bool:
     """The agent paid or sent this invoice. A "complete" with no transaction and no attempt was
     only the contract saying the reference was paid (by someone else, or by an invoice with the
-    same name in another ERP): that is not a payment the agent made."""
-    if event is None or event.status not in IN_FLIGHT:
+    same name in another ERP): that is not a payment the agent made. One whose Circle answer was
+    lost is not either: paying it again checks the contract first and repeats the same request."""
+    if event is None or event.status not in IN_FLIGHT or unanswered(event):
         return False
     if event.status is PaymentStatus.COMPLETE and not event.tx_hash:
         return book.payment_attempts(event.invoice) > 0
     return True
 MAX_ATTEMPTS = 3  # transactions sent for one invoice before it waits for a person
 CHAIN_APPROVER = "owner (approved the wallet in the contract)"
+CLOCK_SKEW = timedelta(minutes=5)  # how far before its journal entry a lost payment is looked for
 
 
 def approve_wallet_reason(payee: str) -> str:
@@ -156,18 +167,19 @@ class Payer:
         return self._agent
 
     def pay(self, decision: Decision, book: PaymentBook,
-            session: str | None = None) -> list[PaymentEvent]:
+            session: str | None = None, why: str = "") -> list[PaymentEvent]:
         """Pay one invoice now, because the agent chose to: what happened, in order (sent, its
         final state, written in the ERP). Raises PaymentRefused with the real reason when
         nothing was sent: a precondition, the contract's answer to the simulation, or Circle's
-        own error, word for word. `session` is the agent session that chose it."""
+        own error, word for word. `session` is the agent session that chose it and `why` its
+        reason, kept with the payment before Circle is asked."""
         try:
             agent = self.agent_address()
             last = book.latest_payment(decision.invoice)
             if settled_or_sent(last, book):
                 raise PaymentRefused("the agent already paid or sent this invoice")
             remaining = self.chain.remaining_this_week(self.shop)
-            outcome = self._pay(decision, book, agent, remaining, last, [], session)
+            outcome = self._pay(decision, book, agent, remaining, last, [], session, why)
         except (PaymentSetupError, ChainError, CircleError, LedgerError) as error:
             raise PaymentRefused(str(error)) from None
         if outcome is None:
@@ -335,8 +347,9 @@ class Payer:
     def _record(self, done: PaymentEvent, book: PaymentBook) -> list[PaymentEvent]:
         if self.writer is None or not done.tx_hash:
             return []
-        note = (f"PAY decided by the embco agent; invoice ref {done.invoice_ref}; "
-                f"Circle transaction {done.circle_tx_id}")
+        note = f"PAY decided by the embco agent; invoice ref {done.invoice_ref}"
+        if done.circle_tx_id:
+            note += f"; Circle transaction {done.circle_tx_id}"
         try:
             entry = self.writer.record_payment(SettledPayment(
                 invoice=done.invoice, supplier=done.supplier, amount=done.amount,
@@ -361,6 +374,7 @@ class Payer:
         last: PaymentEvent | None,
         pending: list[PendingApproval],
         session: str | None = None,
+        why: str = "",
     ) -> list[PaymentEvent] | None:
         name = decision.invoice
         ref = invoice_ref(name, self.ref_scope)
@@ -393,6 +407,8 @@ class Payer:
         except EncodingError as error:
             return blocked(str(error))
         if self.chain.is_paid(self.shop, ref):
+            if unanswered(last) and (tx_hash := self._lost_tx(last)):
+                return [self._found(last, tx_hash, book)]  # its Circle answer was lost
             if book.payment_attempts(name) == 0:
                 return blocked(FOREIGN_REF)  # never mark paid what the agent did not pay
             event = replace(base, status=PaymentStatus.COMPLETE,
@@ -412,21 +428,55 @@ class Payer:
         attempt = book.payment_attempts(name)
         if attempt >= MAX_ATTEMPTS:
             return blocked(f"{attempt} transactions for this invoice failed; check it by hand")
-        tx = self.circle.execute_contract(
-            self.wallet_id, self.shop, data,
-            idempotency_key=idempotency_key(self.shop, ref, payee, units, attempt),
-            ref_id=name,
-        )
-        sent = replace(base, status=PaymentStatus.SUBMITTED, at=self.clock(), attempt=attempt,
-                       circle_tx_id=tx.id)
+        asking = replace(base, status=PaymentStatus.SUBMITTED, at=self.clock(), attempt=attempt,
+                         why=why)
+        book.record_payment(asking)  # first: a lost answer or a restart still leaves the payment
+        try:
+            tx = self.circle.execute_contract(
+                self.wallet_id, self.shop, data,
+                idempotency_key=idempotency_key(self.shop, ref, payee, units, attempt),
+                ref_id=name,
+            )
+        except CircleUnanswered as error:
+            log.warning("payment of %s: Circle's answer was lost (%s); the contract is checked "
+                        "next, and a retry repeats the same request", name, error)
+            return [asking]
+        except CircleError as error:
+            book.record_payment(replace(base, at=self.clock(), reason=str(error)))
+            raise
+        sent = replace(asking, at=self.clock(), circle_tx_id=tx.id, why="")
         book.record_payment(sent)
         log.info("payment of %s sent: %s USDC to %s (Circle %s)", name, decision.amount, payee,
                  tx.id)
         return [sent, *self._follow(sent, book, wait=True)]
 
+    def _lost_tx(self, asking: PaymentEvent) -> str | None:
+        """The transaction in which the agent's wallet paid an invoice whose Circle answer was
+        lost, from the contract's Paid event; None when the agent did not pay it."""
+        return self.chain.payment_tx(self.shop, bytes.fromhex(asking.invoice_ref[2:]),
+                                     self.agent_address(), asking.at - CLOCK_SKEW)
+
+    def _found(self, asking: PaymentEvent, tx_hash: str, book: PaymentBook) -> PaymentEvent:
+        event = replace(asking, status=PaymentStatus.COMPLETE, at=self.clock(), tx_hash=tx_hash,
+                        reason="", why="")
+        book.record_payment(event)
+        log.info("payment of %s found on Arc after its Circle answer was lost: %s",
+                 asking.invoice, tx_hash)
+        return event
+
+    def _recover(self, asking: PaymentEvent, book: PaymentBook) -> list[PaymentEvent]:
+        """Every cycle, for a payment whose Circle answer was lost: once it is on Arc it is
+        written as paid. Nothing is sent here."""
+        try:
+            tx_hash = self._lost_tx(asking)
+        except (ChainError, CircleError, PaymentSetupError) as error:
+            log.warning("could not check the lost payment of %s: %s", asking.invoice, error)
+            return []
+        return [self._found(asking, tx_hash, book)] if tx_hash else []
+
     def _follow(self, sent: PaymentEvent, book: PaymentBook, *, wait: bool) -> list[PaymentEvent]:
         if not sent.circle_tx_id:
-            return []
+            return self._recover(sent, book) if unanswered(sent) else []
         deadline = time.monotonic() + (self.wait.total_seconds() if wait else 0)
         while True:
             try:
