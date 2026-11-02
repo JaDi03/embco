@@ -96,7 +96,7 @@ main .card p { color: var(--muted); margin-top: 10px; }
 .site-footer-brand p { color: var(--muted); max-width: 32ch; }
 .site-footer-col { display: grid; gap: 12px; align-content: start; }
 .site-footer-col h2 { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); margin: 0 0 4px; }
-.site-footer-col a { color: var(--text); text-decoration: none; }
+.site-footer-col a { color: var(--text); text-decoration: none; overflow-wrap: anywhere; }
 .site-footer-col a:hover { color: var(--accent-ink); }
 
 @media (max-width: 960px) {
@@ -109,10 +109,11 @@ main .card p { color: var(--muted); margin-top: 10px; }
 @media (max-width: 640px) {
   .hero { padding: 44px 0 56px; }
   .site-footer { padding: 40px 0 48px; }
-  .site-footer-inner { grid-template-columns: 1fr 1fr; gap: 32px; }
+  .site-footer-inner { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
   .section { padding: 64px 0; }
   .cards, .cards-2, .cards-3, .steps, .points { grid-template-columns: 1fr; }
   .landing-log .t-line { grid-template-columns: 1fr; gap: 0; }
+  .terminal .terminal-title { white-space: normal; min-width: 0; }
   .feed-list li { grid-template-columns: 1fr; gap: 6px; }
   .landing-top .pill { display: none; }
 }
