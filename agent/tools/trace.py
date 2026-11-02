@@ -17,10 +17,12 @@ MAX_VALUE = 60
 MAX_REFUSAL = 160
 WORDS = frozenset({"reason", "text", "body", "subject", "summary", "question", "recommendation",
                    "file_text", "old_str", "new_str", "insert_text"})  # memory's text: in its file
-# Reading tools whose answer the agent decides on; their answer is kept as `saw`.
+WHOLE = frozenset({"why"})  # an alarm's reason: kept with the alarm only when the session ends
+# Reading tools whose answer the agent decides on; their answer is kept as `saw`. The memory
+# tool's answer is what the agent read from its own notes before deciding.
 SEEN = frozenset({"list_open_invoices", "search_invoices", "get_invoice", "supplier_profile",
                   "price_history", "cash_position", "payment_status", "agent_wallet",
-                  "estimate_bring_funds", "earn_plan", "earn_position"})
+                  "estimate_bring_funds", "earn_plan", "earn_position", "memory"})
 MAX_SEEN = 12_000  # characters; a longer answer is kept cut, and says so
 
 
@@ -45,7 +47,8 @@ def step(name: str, args: Mapping[str, Any], *, result: str | None = None,
          refused: str | None = None, at: datetime | None = None) -> dict[str, Any]:
     """One call: {"tool", "args", "ok", "tx"?, "refused"?, "saw"?, "at"?}; `at` is when it
     returned."""
-    shown = {k: _clip(v, MAX_VALUE) for k, v in sorted(args.items()) if k not in WORDS}
+    shown = {k: v if k in WHOLE else _clip(v, MAX_VALUE)
+             for k, v in sorted(args.items()) if k not in WORDS}
     out: dict[str, Any] = {"tool": name, "args": shown, "ok": refused is None}
     if at is not None:
         out["at"] = at.isoformat(timespec="seconds")

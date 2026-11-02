@@ -8,6 +8,8 @@ The default model is Claude Haiku 5.5 at high effort: its decisions move money. 
 tools are the same in every request, so they are served from the prompt cache.
 """
 
+import hashlib
+import json
 import logging
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -28,6 +30,16 @@ MAX_TURNS = 25
 MAX_SESSION_TOKENS = 400_000
 MAX_OUTPUT_TOKENS = 8000  # per response: room for adaptive thinking and several tool calls
 NUDGE = "Call finish once every open invoice has your decision."
+
+
+def instructions_digest(with_memory: bool) -> str:
+    """sha256 of what every request carries besides the conversation: the system prompt, the
+    nudge and the tools. The same rules give the same digest, so a session in the journal names
+    the instructions the model decided under without copying them each time."""
+    tools = [*TOOLS, MEMORY_TOOL] if with_memory else TOOLS
+    text = json.dumps({"system": SYSTEM, "nudge": NUDGE, "tools": tools}, sort_keys=True,
+                      ensure_ascii=False)
+    return hashlib.sha256(text.encode()).hexdigest()
 
 
 class BrainError(Exception):
@@ -69,7 +81,7 @@ class ClaudeBrain:
 
     def run(self, toolbox: Toolbox, briefing: str) -> SessionRun:
         messages: list[dict[str, Any]] = [{"role": "user", "content": briefing}]
-        tools = [*TOOLS, MEMORY_TOOL] if toolbox.memory is not None else TOOLS
+        tools = [*TOOLS, MEMORY_TOOL] if toolbox.memory is not None else TOOLS  # see the digest
         usage, steps = Usage(), 0
 
         def ended(error: str = "") -> SessionRun:
