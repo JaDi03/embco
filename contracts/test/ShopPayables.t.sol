@@ -164,6 +164,23 @@ contract ShopPayablesTest is Test {
         vm.stopPrank();
     }
 
+    function test_the_agent_is_never_an_approved_supplier() public {
+        vm.startPrank(owner);
+        // the agent's wallet cannot be approved as a supplier
+        vm.expectRevert(ShopPayables.InvalidAddress.selector);
+        shop.setPayee(agent, true);
+        // nor can an approved supplier become the agent
+        vm.expectRevert(ShopPayables.InvalidAddress.selector);
+        shop.setAgent(supplier);
+        // removing the agent from the list is harmless and allowed
+        shop.setPayee(agent, false);
+        vm.stopPrank();
+        assertFalse(shop.approvedPayee(agent));
+        vm.expectRevert(abi.encodeWithSelector(ShopPayables.PayeeNotApproved.selector, agent));
+        vm.prank(agent);
+        shop.pay(agent, 10 * USDC, ref("PINV-1"));
+    }
+
     // The brake
 
     function test_the_agent_can_pause_itself_but_only_the_owner_resumes() public {

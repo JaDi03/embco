@@ -10,7 +10,7 @@ const CONTRACT_ERRORS = {
   OverPaymentLimit: "The amount is above the per-payment limit.",
   OverWeeklyCap: "The amount is above what is left of this week's cap.",
   InvalidLimits: "The per-payment limit must be greater than zero and not above the weekly cap.",
-  InvalidAddress: "That wallet address cannot be used here (it may be your own wallet).",
+  InvalidAddress: "That wallet address cannot be used here (it may be your own wallet or the agent's).",
   InvalidPayment: "A payment needs a supplier, an amount and an invoice reference.",
   SafeERC20FailedOperation: "The USDC transfer failed. Check your balance and that payments are authorized in Settings.",
   OwnershipFixed: "A shop contract always belongs to the wallet that created it.",
