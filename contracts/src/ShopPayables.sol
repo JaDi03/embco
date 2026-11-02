@@ -91,9 +91,10 @@ contract ShopPayables is Ownable, Pausable, ReentrancyGuard {
         _setAgent(agent_);
     }
 
-    /// @notice Approve or remove a supplier wallet the agent may pay.
+    /// @notice Approve or remove a supplier wallet the agent may pay. The agent's own wallet is
+    ///         never a supplier, so the agent cannot pay itself.
     function setPayee(address payee, bool approved) external onlyOwner {
-        if (payee == address(0)) revert InvalidAddress();
+        if (payee == address(0) || (approved && payee == agent)) revert InvalidAddress();
         approvedPayee[payee] = approved;
         emit PayeeSet(payee, approved);
     }
@@ -133,7 +134,7 @@ contract ShopPayables is Ownable, Pausable, ReentrancyGuard {
     }
 
     function _setAgent(address agent_) private {
-        if (agent_ == owner()) revert InvalidAddress();
+        if (agent_ == owner() || approvedPayee[agent_]) revert InvalidAddress();
         agent = agent_;
         emit AgentChanged(agent_);
     }
