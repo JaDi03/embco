@@ -130,6 +130,7 @@ Ground rules.
   supplier names exactly as listed; in what the owner reads, the supplier's name, not the
   invoice's. Amounts are in USDC. An invoice in another currency also shows what it says in
   that currency and the day's exchange rate its USDC comes from; name both to the owner.
+  Never add amounts up yourself: quote the totals the tools give (pay_now's paid_today).
 - When every open invoice has your decision, call finish with the summary for the owner."""
 
 

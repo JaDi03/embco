@@ -5,6 +5,7 @@ A scripted brain stands in for Claude; everything after it is the code that runs
 
 import json
 from datetime import timedelta, timezone
+from decimal import Decimal
 
 from agent.agent import SessionRun
 from agent.models import Autonomy, Choice, Usage, Wake
@@ -338,3 +339,36 @@ def test_the_agent_is_not_woken_again_when_nothing_happened(journal):  # noqa: F
     cycle(journal, payer, brain, NOW + timedelta(minutes=15))
 
     assert brain.sessions == 1
+
+
+class PaysAndReads:
+    """Pays every invoice and keeps what each pay_now answered."""
+
+    model = "scripted"
+
+    def __init__(self) -> None:
+        self.results = []
+
+    def run(self, toolbox, briefing):
+        for invoice in toolbox.undecided():
+            self.results.append(json.loads(toolbox.call(
+                "pay_now", {"invoice": invoice, "reason": "the checks pass"})))
+        toolbox.call("finish", {"summary": "Done."})
+        return SessionRun(finished=True, steps=1, usage=Usage())
+
+
+def test_each_payment_tells_the_agent_what_it_paid_today_so_it_never_adds_up(journal):  # noqa: F811
+    ledger = matching_ledger()
+    second = ledger.pending[0].model_copy(update={"name": "PINV-2", "bill_no": "B-2"})
+    ledger.pending.append(second)
+    payer, _, circle = make_payer(ledger)
+    brain = PaysAndReads()
+    cycle(journal, payer, brain, NOW)
+    assert len(circle.sent) == 2
+    first, last = (r["paid_today"] for r in brain.results)
+    amount = brain.results[0]["amount"]
+    assert first == {"total_usdc": amount, "payments": 1, "to_this_supplier_usdc": amount,
+                     "to_this_supplier_payments": 1}
+    assert last["payments"] == 2 and last["to_this_supplier_payments"] == 2
+    twice = 2 * Decimal(amount)
+    assert Decimal(last["total_usdc"]) == Decimal(last["to_this_supplier_usdc"]) == twice
