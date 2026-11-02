@@ -114,16 +114,9 @@ if [ -n "$NEW" ]; then
 fi
 put "$SETTINGS" EMBCO_PUBLIC_URL "$public"
 
-# Caddy needs the node as host and path, so a key in the node URL stays on the server.
-read -r upstream path < <(python3 - "$rpc" <<'PY'
-import sys
-from urllib.parse import urlsplit
-url = urlsplit(sys.argv[1])
-print(f"{url.scheme}://{url.netloc}", (url.path or "/") + (f"?{url.query}" if url.query else ""))
-PY
-)
-printf 'EMBCO_SITE=%s\nEMBCO_RPC_UPSTREAM=%s\nEMBCO_RPC_PATH=%s\n' "$site" "$upstream" "$path" \
-  > "$CADDY_ENV.tmp"
+# Caddy needs only the site: the hub serves /rpc, so the node URL and its key stay in the hub's
+# settings.
+printf 'EMBCO_SITE=%s\n' "$site" > "$CADDY_ENV.tmp"
 install -m 640 -o root -g caddy "$CADDY_ENV.tmp" "$CADDY_ENV"
 rm -f "$CADDY_ENV.tmp"
 

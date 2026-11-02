@@ -51,6 +51,7 @@ def build_app(env: Mapping[str, str]) -> FastAPI:
         telegram_bot=env.get("TELEGRAM_BOT_USERNAME", "").strip().lstrip("@") or None,
         shops_of=chain.shops_of,
         balance_of=chain.usdc_balance,
+        rpc_url=rpc_url,  # the site's /rpc, for the dashboard and the owner's wallet
     )
 
 

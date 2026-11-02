@@ -28,6 +28,7 @@ from services.hub.errors import HubError
 from services.hub.guard import UnsafeUrl, check_erp_url
 from services.hub.owner_actions import owner_action_routes, waiting_answers
 from services.hub.probe import probe
+from services.hub.rpc_proxy import rpc_routes
 from services.hub.supplier_auth import SupplierAuth
 from services.hub.suppliers import supplier_routes
 from services.hub.units import UnitError, Units
@@ -82,6 +83,7 @@ def create_app(
     telegram_bot: str | None = None,
     shops_of: Callable[[str], list[str]] | None = None,
     balance_of: Callable[[str], Decimal] | None = None,
+    rpc_url: str | None = None,
 ) -> FastAPI:
     app = FastAPI(title="embco hub", docs_url=None, redoc_url=None, openapi_url=None)
     frappe_for = frappe_for or (lambda url, key, secret: FrappeClient(url, key, secret,
@@ -315,4 +317,6 @@ def create_app(
     app.include_router(supplier_routes(store=store, auth=supplier_auth,
                                        shop_of=shop_of, owner_session=owner_session,
                                        frappe_for=frappe_for, public_url=public_url))
+    if rpc_url:
+        app.include_router(rpc_routes(rpc_url))
     return app
