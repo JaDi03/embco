@@ -1,4 +1,4 @@
-# The dashboard, its /rpc proxy to the Arc node and the hub API. Imported from /etc/caddy/Caddyfile.
+# The dashboard, its /rpc door to the Arc node and the hub API. Imported from /etc/caddy/Caddyfile.
 {$EMBCO_SITE} {
 	encode zstd gzip
 	root * /opt/embco/dashboard
@@ -7,10 +7,8 @@
 		method POST
 	}
 	handle @rpc {
-		rewrite * {$EMBCO_RPC_PATH}
-		reverse_proxy {$EMBCO_RPC_UPSTREAM} {
-			header_up Host {upstream_hostport}
-		}
+		# the hub passes page and wallet calls to the Arc node, with limits (services/hub/rpc_proxy.py)
+		reverse_proxy 127.0.0.1:8090
 	}
 	handle /api/* {
 		reverse_proxy 127.0.0.1:8090
