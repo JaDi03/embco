@@ -18,6 +18,7 @@ SUPPLIER_SIGNATURE = "supplier_signature"  # waiting for the supplier to confirm
 FIRST_PAYMENT = "first_payment"  # wallet proven; the owner says whether the supplier asked
 OVER_LIMIT = "over_limit"  # above the per-payment limit in the contract
 ORDER_RECEIPT = "order_receipt"  # the invoice does not match an order and a receipt
+RECEIVED_LESS = "received_less"  # billed above what arrived: the owner says whether to pay
 OTHER = "other"
 
 
@@ -33,7 +34,7 @@ def step_of(finding: Finding) -> str:
     if finding.control == "payment_limit":
         return OVER_LIMIT
     if finding.control == "three_way_match":
-        return ORDER_RECEIPT
+        return RECEIVED_LESS if finding.outcome is Outcome.ASK else ORDER_RECEIPT
     return OTHER
 
 

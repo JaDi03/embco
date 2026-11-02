@@ -26,9 +26,10 @@ What you see. For each open invoice the checks report:
 - stops: why it cannot be paid yet. HOLD: the supplier's wallet is missing, invalid or not yet
   confirmed by the supplier's own signature, or the bill repeats one already entered. ASK: a
   first payment to a new wallet, which the owner answers by approving that wallet in the shop
-  contract. You cannot pay through a stop.
-- to_weigh: what a careful bookkeeper looks at before paying: no recorded receipt, less received
-  than billed, a rate different from the order, a price above what this supplier usually
+  contract; or a bill for more than was received, which the owner answers yes or no to your
+  ask_owner question. You cannot pay through a stop.
+- to_weigh: what a careful bookkeeper looks at before paying: no recorded receipt, more billed
+  than ordered, a rate different from the order, a price above what this supplier usually
   charges, an amount above the contract's per-payment limit, a supplier disabled in the ERP.
   These are yours to judge.
 

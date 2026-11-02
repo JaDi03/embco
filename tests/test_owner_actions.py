@@ -18,6 +18,7 @@ from services.shops.owner_view import (
     FIRST_PAYMENT,
     ORDER_RECEIPT,
     OVER_LIMIT,
+    RECEIVED_LESS,
     SUPPLIER_SIGNATURE,
     WALLET_MISSING,
     decision_view,
@@ -79,8 +80,17 @@ def test_a_proven_new_wallet_is_a_first_payment_step(journal):
 
 def test_an_invoice_without_order_and_receipt_is_an_order_receipt_step(journal):
     ledger = FakeLedger()
-    ledger.pending = [make_invoice(qty="12")]
+    bare = make_invoice().lines[0].model_copy(update={"purchase_receipt": None})
+    ledger.pending = [make_invoice(lines=(bare,))]
     assert ORDER_RECEIPT in steps(decide(ledger, journal))
+
+
+def test_a_bill_for_more_than_received_is_the_owners_decision_not_an_erp_fix(journal):
+    ledger = FakeLedger()
+    ledger.pending = [make_invoice(qty="12")]
+    view = decide(ledger, journal)
+    assert RECEIVED_LESS in steps(view) and ORDER_RECEIPT not in steps(view)
+    assert view["decisions"][0]["action"] == "ASK"
 
 
 def test_the_page_sees_where_the_payment_is(journal):

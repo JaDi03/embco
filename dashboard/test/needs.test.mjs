@@ -168,3 +168,12 @@ test("the agent's question and recommendation are shown as it wrote them", () =>
   assert.deepEqual(view, { said: "Asking you", reason: "Accept 1.50?", recommendation: "Check first." });
   assert.equal(needs.agentView({ agent: null }), null);
 });
+
+test("a bill for more than was received is the owner's decision, open at once, not an ERP fix", () => {
+  const task = needs.taskFor(decision("ASK", [["received_less"]]),
+    { wallet: WALLET, approved: true, maxPerPayment: USDC(400), weeklyCap: USDC(2000) });
+  assert.equal(task.steps.some((s) => s.key === "order"), false);
+  assert.equal(task.decide.state, "open");
+  assert.equal(task.decide.text, "Your decision: received_less reason.");
+  assert.equal(task.decide.fingerprint, FP);
+});

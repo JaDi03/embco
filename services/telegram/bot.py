@@ -8,8 +8,10 @@ Commands never go through the model:
   /status the agent's state and what it is waiting for.
 Any other text is a message to the agent; its answers come back to the chat. A question of the
 agent where only the owner's yes is missing comes with two buttons (yes, pay it / no, hold it):
-a press is only a message to the agent, as if typed. What needs the owner's wallet comes as a
-reminder to do it in the dashboard, without buttons.
+a press is a message to the agent, as if typed. When the checks themselves wait for the owner
+(ASK, for example a bill for more than was received), the press is also the owner's answer to
+that exact question, the same one the dashboard's buttons give. What needs the owner's wallet
+comes as a reminder to do it in the dashboard, without buttons.
 
 Only a private chat linked from the dashboard is heard: never a group, whose members could read
 the answers and stop the agent. Any other chat is told how to link and nothing else. A /link code
@@ -26,10 +28,12 @@ from typing import Any
 
 from eth_utils import keccak, to_checksum_address
 
+from agent.guardrails.rules import Verdict
 from services.circle import CircleClient, CircleError
 from services.hub.units import UnitError, Units
 from services.shops import chat
 from services.shops.activity import append_activity, switched
+from services.shops.inbox import drop_answer
 from services.shops.questions import NO, PLAIN, YES, answer_text
 from services.shops.store import ShopError, ShopStore
 from services.telegram import links
@@ -230,7 +234,8 @@ class Bot:
 
     def _button(self, query: dict[str, Any]) -> None:
         """A quick answer to one of the agent's questions: only from the linked private chat,
-        only while the question is still open, and it is only a message to the agent."""
+        only while the question is still open. It is a message to the agent and, when the
+        checks wait for the owner on that invoice, the owner's answer to them."""
         message = query.get("message") or {}
         chat_id = (message.get("chat") or {}).get("id")
         shop, _, rest = str(query.get("data") or "").partition(":")
@@ -246,6 +251,8 @@ class Bot:
         if asked is None or not self._still_asked(shop, asked["asks"]):
             reply = "This question is no longer open."
         else:
+            if asked.get("answers") != PLAIN:
+                self._answer_checks(shop, asked["asks"], answer)
             reply = self._to_agent(shop, answer_text(asked["invoice"], answer,
                                                      asked.get("question", ""),
                                                      plain=asked.get("answers") == PLAIN))
@@ -265,6 +272,18 @@ class Bot:
                 agent = d.get("agent") or {}
                 return agent.get("choice") == "ASK" and d.get("fingerprint") == print_
         return False
+
+    def _answer_checks(self, shop: str, key: str, answer: str) -> None:
+        """When the checks wait for the owner on this invoice (ASK), the press answers them, tied
+        to the exact decision the question was about, as the dashboard's answer is."""
+        invoice, print_ = key.split(":")[:2]
+        for d in (self.store.last_run(shop) or {}).get("decisions", []):
+            if d.get("invoice") == invoice and d.get("action") == "ASK" \
+                    and d.get("fingerprint") == print_:
+                drop_answer(self.store.folder(shop), invoice,
+                            Verdict.APPROVE if answer == YES else Verdict.REJECT, print_,
+                            "owner via Telegram", "", self.clock())
+                return
 
     def _to_agent(self, shop: str, text: str) -> str:
         if not self.store.agent_on(shop):

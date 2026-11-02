@@ -1,13 +1,16 @@
 """Compare what was invoiced with what was ordered and what actually arrived.
 
-A mismatch is evidence for the agent, not a stop: in a small shop a receipt is often not
-recorded. The agent weighs it, and asks the owner when it cannot tell what arrived."""
+A bill for more than the receipt says arrived waits for the owner's answer: paying for goods
+that did not arrive is the owner's call, never the agent's. Any other mismatch is evidence for
+the agent, not a stop: in a small shop a receipt is often not recorded. The agent weighs it."""
 
 from decimal import Decimal
 
-from agent.guardrails.controls.base import Finding, fmt, note, passed
+from agent.guardrails.controls.base import Finding, ask, fmt, note, passed
 from agent.guardrails.controls.context import Context
 from services.erp.models import DocumentLine, PurchaseOrder, PurchaseReceipt
+
+RECEIVED_LESS = " but received "  # in the reason of a line billed above what arrived
 
 
 def _find(document: PurchaseOrder | PurchaseReceipt | None, row_id: str | None):
@@ -24,6 +27,8 @@ class ThreeWayMatch:
 
     def check(self, ctx: Context) -> Finding:
         problems = [p for line in ctx.invoice.lines for p in self._problems(line, ctx)]
+        if any(RECEIVED_LESS in p for p in problems):
+            return ask(self.name, "; ".join(problems))
         if problems:
             return note(self.name, "; ".join(problems))
         return passed(self.name, "order, receipt and invoice agree")
@@ -38,7 +43,7 @@ class ThreeWayMatch:
             return [f"{item}: the linked order or receipt line was not found"]
         found = []
         if line.qty > received.qty:
-            found.append(f"{item}: invoiced {fmt(line.qty)} but received {fmt(received.qty)}")
+            found.append(f"{item}: invoiced {fmt(line.qty)}{RECEIVED_LESS}{fmt(received.qty)}")
         if line.qty > ordered.qty:
             found.append(f"{item}: invoiced {fmt(line.qty)} but ordered {fmt(ordered.qty)}")
         if abs(line.rate - ordered.rate) > self._tolerance:

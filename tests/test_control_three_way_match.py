@@ -9,14 +9,24 @@ def test_passes_when_order_receipt_and_invoice_agree():
     assert finding.outcome is Outcome.PASS
 
 
-def test_notes_when_invoiced_more_than_received():
+def test_asks_the_owner_when_invoiced_more_than_received():
     ledger = FakeLedger()
     receipt = ledger.receipts["PR-1"]
     short = receipt.lines[0].model_copy(update={"qty": Decimal(8)})
     ledger.receipts["PR-1"] = receipt.model_copy(update={"lines": (short,)})
     finding = ThreeWayMatch().check(context_for(ledger))
-    assert finding.outcome is Outcome.NOTE
+    assert finding.outcome is Outcome.ASK
     assert "invoiced 10 but received 8" in finding.reason
+
+
+def test_more_billed_than_ordered_but_all_received_is_still_weighed():
+    ledger = FakeLedger()
+    order = ledger.orders["PO-1"]
+    small = order.lines[0].model_copy(update={"qty": Decimal(8)})
+    ledger.orders["PO-1"] = order.model_copy(update={"lines": (small,)})
+    finding = ThreeWayMatch().check(context_for(ledger))
+    assert finding.outcome is Outcome.NOTE
+    assert "invoiced 10 but ordered 8" in finding.reason
 
 
 def test_notes_when_rate_differs_from_the_order():
