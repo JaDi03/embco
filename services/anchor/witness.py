@@ -65,8 +65,11 @@ def witness(state: dict[str, Any], anchors: Sequence[Anchor], journal: dict[str,
         seen.append({"size": a.size, "root": a.root, "first_seen": now.isoformat()})
         if journal is None:
             notes.append(f"Anchor {i + 1} ({a.size} entries): not checked, no copy given.")
-            continue
-        entries = journal["entries"]
+    if journal is None:
+        return WitnessRun(alerts=tuple(alerts), notes=tuple(notes), anchors_seen=len(seen))
+    entries = journal["entries"]
+    # every anchor the copy covers, also those first seen in a run without a copy
+    for i, a in enumerate(anchors):
         if a.size > len(entries):
             notes.append(f"Anchor {i + 1} ({a.size} entries): not checked yet, your copy has "
                          f"{len(entries)}. Download a newer journal and run this again.")

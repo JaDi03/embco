@@ -226,3 +226,15 @@ def test_cli_witness_exits_by_the_result(journal_file, tmp_path, monkeypatch, ca
     registry.anchors[0] = (b"\x99" * 32, 5, int(NOW.timestamp()))
     assert cli.main(args) == 1
     assert "ALERT" in capsys.readouterr().out
+
+
+def test_anchors_first_seen_without_a_copy_are_checked_once_a_copy_comes(journal_file):
+    state = {"shop": SHOP, "seen": []}
+    forged = Anchor("00" * 32, 3, NOW)
+    first = witness(state, [anchor_of(journal_file, 3), forged], None, NOW)
+    assert first.ok and all("no copy given" in n for n in first.notes)
+    later = witness(state, [anchor_of(journal_file, 3), forged], journal_file,
+                    NOW + timedelta(days=1))
+    assert "matches your copy" in later.notes[0]
+    assert later.alerts == ("Anchor 2 does NOT match your copy: entries were changed, removed or "
+                            "reordered before it.",)
