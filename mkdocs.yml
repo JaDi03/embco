@@ -37,6 +37,15 @@ theme:
     - content.action.edit
     - search.highlight
 
+extra:
+  social:
+    - icon: fontawesome/brands/x-twitter
+      link: https://x.com/embco_xyz
+      name: embco on X
+    - icon: fontawesome/solid/envelope
+      link: mailto:contact@embco.xyz
+      name: contact@embco.xyz
+
 extra_css:
   - stylesheets/extra.css
 

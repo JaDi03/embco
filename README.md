@@ -13,7 +13,9 @@ and acts on what happened. A smart contract sets the limits it cannot cross.
 [**Dashboard**](https://app.embco.xyz) ·
 [What the agents paid](https://app.embco.xyz/stats/) ·
 [How it works](https://jadi03.github.io/embco/how-it-works/) ·
-[Connect your ERPNext](https://jadi03.github.io/embco/connect/)
+[Connect your ERPNext](https://jadi03.github.io/embco/connect/) ·
+[X](https://x.com/embco_xyz) ·
+[contact@embco.xyz](mailto:contact@embco.xyz)
 
 [![CI](https://github.com/JaDi03/embco/actions/workflows/ci.yml/badge.svg)](https://github.com/JaDi03/embco/actions/workflows/ci.yml)
 [![Docs](https://github.com/JaDi03/embco/actions/workflows/docs.yml/badge.svg)](https://jadi03.github.io/embco/)
