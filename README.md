@@ -9,14 +9,16 @@
 It reads your purchases, decides what to pay and when, pays suppliers in USDC on Arc itself,
 and acts on what happened. A smart contract sets the limits it cannot cross.
 
-[**Documentation**](https://jadi03.github.io/embco/) ·
+[**Documentation**](https://docs.embco.xyz/) ·
 [**Dashboard**](https://app.embco.xyz) ·
 [What the agents paid](https://app.embco.xyz/stats/) ·
-[How it works](https://jadi03.github.io/embco/how-it-works/) ·
-[Connect your ERPNext](https://jadi03.github.io/embco/connect/)
+[How it works](https://docs.embco.xyz/how-it-works/) ·
+[Connect your ERPNext](https://docs.embco.xyz/connect/) ·
+[X](https://x.com/embco_xyz) ·
+[contact@embco.xyz](mailto:contact@embco.xyz)
 
 [![CI](https://github.com/JaDi03/embco/actions/workflows/ci.yml/badge.svg)](https://github.com/JaDi03/embco/actions/workflows/ci.yml)
-[![Docs](https://github.com/JaDi03/embco/actions/workflows/docs.yml/badge.svg)](https://jadi03.github.io/embco/)
+[![Docs](https://github.com/JaDi03/embco/actions/workflows/docs.yml/badge.svg)](https://docs.embco.xyz/)
 ![Status](https://img.shields.io/badge/status-testnet%20only-orange)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -94,10 +96,10 @@ the model picks when and how much, following the owner's liquidity strategy.
 | `JournalAnchor` | The Merkle root of each shop's journal, written by its agent, so any copy can be checked | [`0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582`](https://explorer.testnet.arc.io/address/0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582) |
 | `ShopFundingFactory` (Base Sepolia, Ethereum Sepolia) | Each owner creates their ShopFunding: the agent deposits the owner's USDC into the owner's own Unified Balance | [`0x69e31Af302Ee222204AA78099D39a2956F5C95d6`](https://sepolia.basescan.org/address/0x69e31Af302Ee222204AA78099D39a2956F5C95d6) |
 
-Every contract, who can call what, and the vaults: [Smart contracts](https://jadi03.github.io/embco/contracts/).
+Every contract, who can call what, and the vaults: [Smart contracts](https://docs.embco.xyz/contracts/).
 
 Why it exists: [Agents and Ledgers in 2026](https://thecanteenapp.com/analysis/2026/09/12/agents-and-ledgers.html).
-How each part works, with diagrams: [the documentation](https://jadi03.github.io/embco/).
+How each part works, with diagrams: [the documentation](https://docs.embco.xyz/).
 
 ## Built with
 
@@ -161,7 +163,7 @@ embco/
 ### Use ours
 
 No installation. Open the [dashboard](https://app.embco.xyz), connect your wallet, create your
-shop contract, and follow [Connect your ERPNext](https://jadi03.github.io/embco/connect/).
+shop contract, and follow [Connect your ERPNext](https://docs.embco.xyz/connect/).
 
 ### Run your own
 
@@ -176,7 +178,7 @@ sudo bash deploy/install.sh
 ```
 
 Then shops connect through your dashboard, as they do on ours. Details:
-[Run your own server](https://jadi03.github.io/embco/server/).
+[Run your own server](https://docs.embco.xyz/server/).
 
 <details>
 <summary>Tests: agent, contracts, dashboard and docs</summary>

@@ -1,6 +1,6 @@
 site_name: embco
 site_description: A payables agent for the ERPNext you already run. It decides, it remembers, it pays in USDC on Arc.
-site_url: https://jadi03.github.io/embco/
+site_url: https://docs.embco.xyz/
 repo_name: JaDi03/embco
 repo_url: https://github.com/JaDi03/embco
 edit_uri: edit/main/docs/
@@ -36,6 +36,15 @@ theme:
     - content.code.copy
     - content.action.edit
     - search.highlight
+
+extra:
+  social:
+    - icon: fontawesome/brands/x-twitter
+      link: https://x.com/embco_xyz
+      name: embco on X
+    - icon: fontawesome/solid/envelope
+      link: mailto:contact@embco.xyz
+      name: contact@embco.xyz
 
 extra_css:
   - stylesheets/extra.css
