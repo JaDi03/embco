@@ -4,6 +4,7 @@ from agent.guardrails.controls.base import Control, Finding, Outcome
 from agent.guardrails.controls.confirmations import WalletChallenge, WalletProof, WalletProofSource
 from agent.guardrails.controls.context import Context, ContextBuilder
 from agent.guardrails.controls.duplicate import DuplicateInvoice
+from agent.guardrails.controls.exchange_rate import ExchangeRateCheck
 from agent.guardrails.controls.payee_wallet import PayeeWallet
 from agent.guardrails.controls.payment_limit import PaymentLimit
 from agent.guardrails.controls.price_anomaly import PriceAnomaly
@@ -15,6 +16,7 @@ __all__ = [
     "ContextBuilder",
     "Control",
     "DuplicateInvoice",
+    "ExchangeRateCheck",
     "Finding",
     "Outcome",
     "PayeeWallet",

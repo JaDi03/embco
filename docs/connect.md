@@ -67,6 +67,23 @@ supplier's real bank account stays as it is.
 A new or changed wallet is never paid right away. The supplier first confirms it is theirs, and
 then you approve it in the dashboard (see [What happens next](#what-happens-next)).
 
+### If your company's currency is not the US dollar
+
+Your suppliers can keep billing in your own currency, for example NGN. The agent converts each
+invoice to USDC at the day's exchange rate and pays that. ERPNext needs one account in US
+dollars to record the USDC that leaves your wallet:
+
+1. Open the **Chart of Accounts** and, under **Bank Accounts**, add an account named
+   `USDC on Arc`, with **Account Type** Bank and **Currency** USD.
+2. Make sure it is your company's only active Bank account in USD.
+
+When you add USDC to your wallet, record it in ERPNext as a transfer into this account, as you
+would for any bank account.
+
+Every payment in ERPNext then shows both amounts: the USDC that left `USDC on Arc`, and the
+amount in your currency it paid on the invoice. A difference of a few cents from rounding is
+booked as an exchange gain or loss, as ERPNext always does.
+
 ## Step 5: Connect in the dashboard
 
 1. Open [app.embco.xyz](https://app.embco.xyz) and **Sign in** with your wallet, if you did

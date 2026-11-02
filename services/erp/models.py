@@ -84,6 +84,7 @@ class PurchaseInvoice(_Frozen):
     lines: tuple[DocumentLine, ...] = ()
     on_hold: bool = False  # a person put this invoice on hold in the ERP
     on_hold_until: date | None = None  # the hold's release date, when it has one
+    conversion_rate: Decimal = Decimal(1)  # to the company's currency; 1 when it is the same
 
     def held(self, today: date) -> bool:
         return held_on(self.on_hold, self.on_hold_until, today)
@@ -94,11 +95,13 @@ class SettledPayment(_Frozen):
 
     invoice: str
     supplier: str
-    amount: Decimal
+    amount: Decimal  # USDC paid, as US dollars
     paid_on: date
     tx_hash: str
     payee_wallet: str
     note: str
+    invoice_amount: Decimal | None = None  # what it settles in the invoice's currency, if not USD
+    rate: Decimal | None = None  # units of the invoice's currency per US dollar it was paid at
 
 
 class WalletChange(_Frozen):

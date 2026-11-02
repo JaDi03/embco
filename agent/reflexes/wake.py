@@ -123,7 +123,7 @@ def _still_held(standing: AgentDecision | None, decided_on: JournalEntry | None,
         return False
     return (decided_on.fingerprint == standing.fingerprint
             and decided_on.action is Action.HOLD and decision.action is Action.HOLD
-            and decided_on.supplier == decision.supplier and decided_on.amount == decision.amount
+            and decided_on.supplier == decision.supplier and decided_on.billed == decision.billed
             and set(decision.reasons) <= set(decided_on.reasons))
 
 

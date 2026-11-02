@@ -2,8 +2,9 @@
 
 Every payment, in this order:
 1. Re-read the invoice and the supplier from the ERP: still submitted, for the same supplier,
-   not on hold (the invoice, or payments to the supplier), unpaid for the same amount, in USD,
-   to a valid wallet.
+   not on hold (the invoice, or payments to the supplier), unpaid for the same amount in the
+   same currency, to a valid wallet. One in another currency is paid in USDC at the rate the
+   decision converted it with, and only when the ERP can write that payment down.
 2. Skip it if the contract already marks the invoice paid, or if the contract's weekly cap
    has no room left (it waits; nothing is recorded).
 3. Skip it if the owner has not approved the wallet in the contract yet: it is listed for the
@@ -44,6 +45,7 @@ from agent.guardrails.rules import Action, Decision, OwnerAnswer, PaymentPlan, V
 from services.circle import CircleClient, CircleError, CircleTransaction, CircleUnanswered
 from services.erp import LedgerAdapter, LedgerError, PaymentWriter
 from services.erp.models import SettledPayment
+from services.fx.rates import PAYABLE_CURRENCY
 from services.payments.approvals import write_approvals
 from services.payments.chain import ArcRpc, ChainError, Reverted
 from services.payments.encoding import (
@@ -57,7 +59,6 @@ from services.payments.models import PaymentEvent, PaymentStatus, PendingApprova
 
 log = logging.getLogger("services.payments")
 
-PAYABLE_CURRENCY = "USD"  # the shop contract pays USDC
 SUBMITTED_DOC = 1  # an ERP document in force: not a draft (0), not cancelled (2)
 NATIVE_DECIMALS = 18  # Arc's native balance, which pays network fees in USDC
 IN_FLIGHT = (PaymentStatus.SUBMITTED, PaymentStatus.COMPLETE, PaymentStatus.RECORDED)
@@ -131,6 +132,14 @@ class Settlement:
     waiting: tuple[str, ...] = ()  # invoices left for later: no room under the weekly cap
     problem: str = ""  # why nothing could be paid this cycle, if so
     needs_approval: tuple[PendingApproval, ...] = ()  # wallets the owner must approve on chain
+
+
+def _converted(decision: Decision) -> dict:
+    """What a payment keeps of an invoice in another currency: its amount and the rate."""
+    if decision.currency == PAYABLE_CURRENCY:
+        return {}
+    return {"invoice_amount": decision.billed, "currency": decision.currency,
+            "rate": decision.rate.per_usd if decision.rate else None}
 
 
 def idempotency_key(shop: str, ref: bytes, payee: str, units: int, attempt: int) -> str:
@@ -342,6 +351,7 @@ class Payer:
             invoice=decision.invoice, status=PaymentStatus.BLOCKED, at=self.clock(),
             supplier=decision.supplier, payee=payee, amount=decision.amount,
             invoice_ref="0x" + invoice_ref(decision.invoice, self.ref_scope).hex(), reason=reason,
+            **_converted(decision),
         )
         book.record_payment(event)
         return [event]
@@ -356,7 +366,7 @@ class Payer:
             entry = self.writer.record_payment(SettledPayment(
                 invoice=done.invoice, supplier=done.supplier, amount=done.amount,
                 paid_on=done.at.date(), tx_hash=done.tx_hash, payee_wallet=done.payee,
-                note=note,
+                note=note, invoice_amount=done.invoice_amount, rate=done.rate,
             ))
         except LedgerError as error:
             log.warning("payment of %s not recorded in the ERP yet: %s", done.invoice, error)
@@ -383,7 +393,7 @@ class Payer:
         base = PaymentEvent(
             invoice=name, status=PaymentStatus.BLOCKED, at=self.clock(),
             supplier=decision.supplier, payee="", amount=decision.amount,
-            invoice_ref="0x" + ref.hex(), session=session,
+            invoice_ref="0x" + ref.hex(), session=session, **_converted(decision),
         )
 
         def blocked(reason: str) -> list[PaymentEvent]:
@@ -403,10 +413,17 @@ class Payer:
                            "next cycle")
         if invoice.held(today):
             return blocked("the invoice is on hold in the ERP")
-        if invoice.currency != PAYABLE_CURRENCY:
-            return blocked(f"the invoice is in {invoice.currency}; the contract pays USD (USDC)")
-        if invoice.outstanding_amount != decision.amount:
+        if invoice.currency != decision.currency:
+            return blocked("the invoice's currency changed since the decision; deciding again "
+                           "next cycle")
+        if invoice.outstanding_amount != decision.billed:
             return blocked("the amount due changed since the decision; deciding again next cycle")
+        if decision.currency != PAYABLE_CURRENCY:
+            if decision.rate is None or decision.amount <= 0:
+                return blocked(f"no exchange rate for {decision.currency}")
+            if self.writer is not None and (
+                    problem := self.writer.payment_account_problem(decision.currency)):
+                return blocked(problem)
         supplier = self.ledger.get_supplier(decision.supplier)
         if supplier.payments_held(today):
             return blocked("payments to the supplier are on hold in the ERP")

@@ -24,7 +24,7 @@ TUESDAY = datetime(2026, 10, 13, 9, 0, tzinfo=UTC)
 
 
 def asked(amount="1000"):
-    reason = f"amount {amount} NGN is above the per-payment limit of 500"
+    reason = f"amount {amount} USD is above the per-payment limit of 500"
     return Decision(
         invoice="PINV-1", supplier="S", amount=Decimal(amount), due_date=date(2026, 10, 10),
         action=Action.ASK, reasons=(reason,),

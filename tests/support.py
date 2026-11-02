@@ -30,7 +30,7 @@ def make_invoice(name="PINV-1", bill_no="B-1", qty="10", rate="100", outstanding
     total = Decimal(qty) * Decimal(rate)
     fields = {
         "name": name, "supplier": "S", "bill_no": bill_no, "posting_date": date(2026, 10, 1),
-        "due_date": date(2026, 10, 10), "currency": "NGN", "grand_total": total,
+        "due_date": date(2026, 10, 10), "currency": "USD", "grand_total": total,
         "outstanding_amount": total if outstanding is None else Decimal(outstanding),
         "docstatus": 1, "lines": (line,),
     }
@@ -41,10 +41,10 @@ class FakeLedger:
     def __init__(self) -> None:
         self.supplier = Supplier(name="S", wallet_address=WALLET_A)
         self.orders = {"PO-1": PurchaseOrder(
-            name="PO-1", supplier="S", currency="NGN", grand_total=Decimal(1000),
+            name="PO-1", supplier="S", currency="USD", grand_total=Decimal(1000),
             lines=(_line("po1", "10", "100"),))}
         self.receipts = {"PR-1": PurchaseReceipt(
-            name="PR-1", supplier="S", currency="NGN", grand_total=Decimal(1000),
+            name="PR-1", supplier="S", currency="USD", grand_total=Decimal(1000),
             lines=(_line("pr1", "10", "100"),))}
         self.pending = [make_invoice()]
         self.history = [make_invoice("PINV-0", "H-0", outstanding="0",

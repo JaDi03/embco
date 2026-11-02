@@ -23,6 +23,11 @@ class JournalEntry:
     findings: tuple[Finding, ...]
     fingerprint: str
     entry_hash: str
+    invoice_amount: Decimal | None = None  # in the invoice's currency, when it is not USD
+
+    @property
+    def billed(self) -> Decimal:
+        return self.amount if self.invoice_amount is None else self.invoice_amount
 
 
 DOMAIN = "embco-journal-v1"

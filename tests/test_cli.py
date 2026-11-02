@@ -57,7 +57,7 @@ def test_the_owner_answers_and_reads_the_history(env, tmp_path, capsys):
     assert main([*args, "answer", "PINV-1", "approve", "--by", "Ada", "--note", "ok"]) == 0
     assert "recorded: APPROVE PINV-1 by Ada" in capsys.readouterr().out
     assert main([*args, "history", "PINV-1"]) == 0
-    assert "run 1 2026-10-12 00:00 ASK: amount 1000 NGN" in capsys.readouterr().out
+    assert "run 1 2026-10-12 00:00 ASK: amount 1000 USD" in capsys.readouterr().out
     assert main([*args, "answer", "PINV-404", "approve"]) == 1
     assert "has no decision to answer" in capsys.readouterr().err
 

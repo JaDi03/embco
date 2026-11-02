@@ -26,6 +26,7 @@ from services.circle import CircleClient, CircleError
 from services.earn import OwnerEarn
 from services.erp import ErpnextAdapter, LedgerError
 from services.erp.erpnext.cache import CachedLedger
+from services.fx import Frankfurter, RateSource
 from services.hub.chain import DEFAULT_FACTORY, ShopChain, ShopLimits
 from services.payments import (
     ArcRpc,
@@ -259,6 +260,7 @@ def run_shop(
     platform: Mapping[str, str] | None = None,
     payer: Callable[[Settings, ErpnextAdapter], Payer | None] = payer_for,
     limits: Callable[[Settings], Callable[[str], ShopLimits] | None] = limits_for,
+    rates: Callable[[], RateSource] = Frankfurter,
 ) -> int:
     """Returns how many cycles ran without an ERP error."""
     settings = store.settings(shop, platform)
@@ -266,6 +268,7 @@ def run_shop(
     # the checks read only what changed; the payer always reads the ERP itself before paying
     ledger = CachedLedger(live) if isinstance(live, ErpnextAdapter) else live
     payments = payer(settings, live)
+    fx = rates()  # one request per currency and day, for invoices not in USD
     log.info("shop %s: watching %s every %s (payments %s)", shop, settings.company,
              settings.interval, "on, testnet drafts in the ERP" if payments else "off")
     signatures: dict[str, dict[str, str]] = {}  # the last outcome per supplier, for its page
@@ -387,7 +390,7 @@ def run_shop(
                 report = run_cycle(ledger, journal, policy["now"], settings.company,
                                    payments=payments, brain=thinking, wakes=wakes,
                                    messages=[m["text"] for m in waiting],
-                                   conversation=chat.read_chat(folder, limit=12))
+                                   conversation=chat.read_chat(folder, limit=12), rates=fx)
             except (LedgerError, JournalError) as error:
                 store.write_last_run(shop, {"ok": False, "at": datetime.now(UTC).isoformat(),
                                             "error": str(error)})

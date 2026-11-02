@@ -50,6 +50,7 @@ from services.anchor.witness import save_state as save_witness_state
 from services.anchor.witness import witness as run_witness
 from services.circle import CircleClient, CircleError
 from services.erp import ErpnextAdapter, LedgerError
+from services.fx import Frankfurter
 from services.payments import ArcRpc, ChainError, Payer
 from services.payments.encoding import ref_scope
 from services.settings import Settings, SettingsError
@@ -189,7 +190,8 @@ def _run(args, settings, journal) -> int:
     print(f"payments {_payments_mode(settings, payer)}")
     report = run_cycle(ledger, journal, settings.policy, settings.company,
                        explainer=_explainer(settings), payments=payer,
-                       owners=settings.owner_users, brain=brain_setup(settings, room_of(payer)))
+                       owners=settings.owner_users, brain=brain_setup(settings, room_of(payer)),
+                       rates=Frankfurter())
     print(format_report(report, verbose=True))
     return 0
 
@@ -199,6 +201,7 @@ def _watch(args, settings, journal) -> int:
     explainer = _explainer(settings)
     payer = _payer(settings, ledger)
     brain = brain_setup(settings, room_of(payer))
+    rates = Frankfurter()
     log.info("watching %s every %s (AI explanations %s, payments %s, agent brain %s)",
              settings.company, settings.interval, f"on, {explainer.model}" if explainer else "off",
              _payments_mode(settings, payer),
@@ -207,7 +210,7 @@ def _watch(args, settings, journal) -> int:
     def cycle() -> None:
         report = run_cycle(ledger, journal, settings.policy, settings.company,
                            explainer=explainer, payments=payer, owners=settings.owner_users,
-                           brain=brain)
+                           brain=brain, rates=rates)
         log.info("%s", format_report(report))
 
     watch(cycle, settings.interval, cycles=args.cycles)

@@ -109,4 +109,5 @@ def to_purchase_invoice(row: dict[str, Any]) -> PurchaseInvoice:
         lines=_lines(row),
         on_hold=bool(row.get("on_hold")),
         on_hold_until=to_date(row.get("release_date")),
+        conversion_rate=to_decimal(row.get("conversion_rate") or 1),
     )

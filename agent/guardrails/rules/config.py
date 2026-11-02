@@ -10,3 +10,4 @@ class PolicyConfig:
     weekly_budget: Decimal
     max_price_increase: Decimal = Decimal("0.15")
     rate_tolerance: Decimal = Decimal(0)
+    max_rate_age_days: int = 3  # an exchange rate older than this holds the invoice
