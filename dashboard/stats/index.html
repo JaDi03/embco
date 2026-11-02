@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Embco · What the agents paid</title>
+    <meta name="description" content="What Embco agents paid for real businesses on Arc, read from the public chain. Each payment links to the Arc explorer." />
+    <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0f17" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="../brand/logo.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="../icons/icon-192.png" />
+    <link rel="stylesheet" href="../style.css" />
+    <script src="../stats-app.js" type="module"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Embco stats page">
+        <img src="../brand/logo.svg" alt="" width="36" height="36" />
+        <span class="wordmark">Embco</span>
+      </a>
+      <div class="topbar-right">
+        <span class="pill" title="Test network: no real value">Arc Testnet</span>
+        <button class="icon-btn" id="theme-toggle" type="button" aria-label="Switch light or dark mode">◐</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="page" aria-label="What the agents paid">
+        <header class="page-head">
+          <div>
+            <h1>What the agents paid</h1>
+            <p class="hint page-sub">
+              Only real businesses are counted here. Our own test shops are left out. Every payment is read from Arc's
+              public explorer: the shops come from the <a id="factory-link" href="#" target="_blank" rel="noopener">Embco
+              factory</a> and the payments from each shop's events. The money never sits in a shop contract, it goes
+              from the owner's wallet to the supplier, so look at a shop's events, not its balance.
+            </p>
+          </div>
+        </header>
+
+        <p class="journal-status" id="stats-status" role="status" aria-live="polite">Reading Arc...</p>
+
+        <div id="stats-body" hidden>
+          <dl class="numbers">
+            <div><dt>Real businesses</dt><dd id="real-shops">-</dd></div>
+            <div><dt>Payments made by the agent</dt><dd id="real-payments">-</dd></div>
+            <div><dt>Paid by the agent</dt><dd id="real-usdc">-</dd></div>
+          </dl>
+
+          <article class="card chart-card">
+            <div class="stats-chart-body">
+              <h2 class="card-title">USDC paid by the agent each day</h2>
+              <div id="stats-chart"></div>
+            </div>
+          </article>
+
+          <details class="card table-card stats-table">
+            <summary>See every payment</summary>
+            <table class="grid-table">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Shop contract</th>
+                  <th class="num">Paid by the agent</th>
+                </tr>
+              </thead>
+              <tbody id="payment-rows"></tbody>
+            </table>
+          </details>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
