@@ -14,3 +14,4 @@ runs = 1000
 
 [rpc_endpoints]
 arc_testnet = "${ARC_TESTNET_RPC_URL}"
+arc_mainnet = "${ARC_MAINNET_RPC_URL}"
