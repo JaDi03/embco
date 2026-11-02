@@ -39,6 +39,7 @@ from services.settings import Settings
 from services.shops import activity, balances, chat, earn_moves
 from services.shops.anchoring import anchor_journal, anchors_for
 from services.shops.inbox import take_answers, take_signatures
+from services.shops.invoice_notes import current_decisions, write_notes
 from services.shops.owner_view import decision_view
 from services.shops.questions import new_questions
 from services.shops.store import ShopStore
@@ -272,6 +273,7 @@ def run_shop(
     read_limits = limits(settings)
     policy = {"now": settings.policy}
     notice = getattr(live, "email_wallet_notice", None)
+    comment = getattr(live, "comment_on_invoice", None)
     has_email = getattr(live, "has_email", None)
     room, funds = room_of(payments), funds_of(payments)
     unified = owner_funds_of(settings, payments)
@@ -335,6 +337,8 @@ def run_shop(
                 *activity.payment_events(now, thought.payments)])
             chat.append_chat(folder, on_telegram(folder, [
                 *chat_replies(thought.session, True), *not_woken(folder, thought, True, now)]))
+            write_notes(folder, current_decisions(last_check["decisions"], thought.agent),
+                        comment)
             if thought.session and any(d.choice is Choice.PAY_NOW
                                        for d in thought.session.decisions):
                 last_check["due"] = 0.0  # the owner asked to pay: the next check runs now
@@ -400,6 +404,9 @@ def run_shop(
                   if report.thought else [])]))
             last_check.update(decisions=list(report.decisions), done=set(report.already_paid),
                               at=time.monotonic())
+            if report.thought:  # the decisions in each invoice's timeline in the ERP
+                write_notes(folder, current_decisions(report.decisions, report.thought.agent),
+                            comment)
             latest = {p.invoice: p for p in journal.latest_payments()}
             today = claude_today(journal.sessions(), brain.zone, report.at) if brain else None
             views = {"unified_balance": unified_view(unified), "earn": earn_view(earn)}
