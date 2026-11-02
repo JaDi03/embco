@@ -12,5 +12,9 @@ fs_permissions = [{ access = "read", path = "./test/fixtures" }]
 [fuzz]
 runs = 1000
 
+[invariant]
+runs = 256
+depth = 200
+
 [rpc_endpoints]
 arc_testnet = "${ARC_TESTNET_RPC_URL}"
