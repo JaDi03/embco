@@ -449,3 +449,21 @@ def test_one_agent_that_fails_to_start_does_not_keep_the_others_off(tmp_path):
     store = connected_store(tmp_path, SHOP, OTHER_SHOP)
     units = FakeUnits(failing={SHOP})
     assert start_connected(store, units) == [OTHER_SHOP]
+
+
+def test_owner_sign_in_requests_are_capped_and_say_so(hub, owner, monkeypatch):
+    monkeypatch.setattr("services.hub.auth.MAX_OPEN_REQUESTS", 2)
+    client = hub["client"]
+    for path in (f"/api/shops/{SHOP}/sign-in-request", "/api/owners/sign-in-request"):
+        assert client.post(path, json={"address": owner.address}).status_code == 200
+    for path in (f"/api/shops/{SHOP}/sign-in-request", "/api/owners/sign-in-request"):
+        full = client.post(path, json={"address": owner.address})
+        assert full.status_code == 429 and "too many" in full.json()["error"]
+
+
+def test_a_shop_address_with_a_trailing_newline_is_not_a_shop():
+    from services.shops.store import ShopError, check_shop
+
+    with pytest.raises(ShopError):
+        check_shop(SHOP + "\n")
+    assert check_shop(SHOP) == SHOP

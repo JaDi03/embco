@@ -23,6 +23,7 @@ from services.signing.wallet_ownership import ARC_TESTNET_CHAIN_ID
 
 NONCE_LIFETIME = timedelta(minutes=5)
 SESSION_LIFETIME = timedelta(hours=12)
+MAX_OPEN_REQUESTS = 10_000  # sign-in requests are unauthenticated: cap what they can hold
 ALL_SHOPS = "all-shops"  # a sign-in for every shop of the wallet, and for creating one
 
 Clock = Callable[[], datetime]
@@ -63,6 +64,8 @@ class Auth:
     def challenge(self, shop: str, address: str) -> dict[str, Any]:
         """The sign-in message for `address` (checksummed) to sign with personal_sign."""
         self._forget_expired()
+        if len(self._nonces) >= MAX_OPEN_REQUESTS:
+            raise AuthError("too many sign-in requests; try again in a few minutes")
         nonce = generate_nonce()
         now = self._clock()
         text = sign_in_text(public_url=self._public_url, address=address, statement=statement(shop),

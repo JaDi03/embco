@@ -117,7 +117,10 @@ def create_app(
     def sign_in_request(shop: str, body: SignInRequest) -> dict[str, Any]:
         if not is_address(body.address):
             raise HubError(422, "this is not a wallet address")
-        return auth.challenge(shop_of(shop), to_checksum_address(body.address))
+        try:
+            return auth.challenge(shop_of(shop), to_checksum_address(body.address))
+        except AuthError as error:
+            raise HubError(429, str(error)) from error
 
     @app.post("/api/shops/{shop}/sign-in")
     def sign_in(shop: str, body: SignIn) -> JSONResponse:
@@ -136,7 +139,10 @@ def create_app(
     def owner_sign_in_request(body: SignInRequest) -> dict[str, Any]:
         if not is_address(body.address):
             raise HubError(422, "this is not a wallet address")
-        return auth.challenge(ALL_SHOPS, to_checksum_address(body.address))
+        try:
+            return auth.challenge(ALL_SHOPS, to_checksum_address(body.address))
+        except AuthError as error:
+            raise HubError(429, str(error)) from error
 
     @app.post("/api/owners/sign-in")
     def owner_sign_in(body: SignIn) -> JSONResponse:

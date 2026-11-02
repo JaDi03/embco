@@ -12,11 +12,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from services.hub.auth import NONCE_LIFETIME, SESSION_LIFETIME, AuthError
+from services.hub.auth import MAX_OPEN_REQUESTS, NONCE_LIFETIME, SESSION_LIFETIME, AuthError
 from services.hub.siwe_sign_in import VerificationError, generate_nonce, sign_in_text, signer_of
 from services.signing.wallet_ownership import ARC_TESTNET_CHAIN_ID
 
-MAX_OPEN_REQUESTS = 10_000  # sign-in requests are unauthenticated: cap what they can hold
 STATEMENT = "Sign in to see what shops paying through embco owe this wallet."
 
 
