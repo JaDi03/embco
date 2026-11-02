@@ -48,6 +48,20 @@ function notify(text, kind = "info") {
 const addressUrl = (address) => `${ARC_TESTNET.explorer}/address/${address}`;
 const txUrl = (hash) => `${ARC_TESTNET.explorer}/tx/${hash}`;
 
+/** A wallet as the short address linking to the explorer, plus a button that copies it whole. */
+function walletLink(address) {
+  const button = el("button", { className: "share-proof", type: "button", textContent: "Copy" });
+  button.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+      notify("Address copied.", "success");
+    } catch (error) {
+      notify(`Could not copy the address: ${describeError(error)}`, "error");
+    }
+  });
+  return [link(shortAddress(address), addressUrl(address)), button];
+}
+
 function link(text, href, className = "") {
   const a = document.createElement("a");
   a.textContent = text;
@@ -177,7 +191,7 @@ async function renderShop() {
     badge.className = `${mode.badgeClass} owner-only`;
     badge.title = mode.note;
   }
-  $("agent-address").replaceChildren(hasAgent ? link(shortAddress(state.agent), addressUrl(state.agent)) : "none");
+  $("agent-address").replaceChildren(...(hasAgent ? walletLink(state.agent) : ["none"]));
   session.agent = hasAgent ? state.agent : null;
   const telegram = Boolean(service?.telegram_linked);
   $("telegram-state").textContent = !service ? "sign in to the embco service first" : telegram ? "linked: /stop and /pause work from your phone" : "not linked";
@@ -426,9 +440,7 @@ async function renderErp(isOwner, state) {
   $("drawer-erp").append($("erp-card"));  // connected: its details live in Settings
   $("erp-url").textContent = shop.erp_url;
   $("erp-company").textContent = shop.company;
-  $("erp-agent-wallet").replaceChildren(
-    shop.agent_wallet ? link(shortAddress(shop.agent_wallet), addressUrl(shop.agent_wallet)) : "not created",
-  );
+  $("erp-agent-wallet").replaceChildren(...(shop.agent_wallet ? walletLink(shop.agent_wallet) : ["not created"]));
   $("erp-set-agent").hidden = !hub.needsSetAgent(shop.agent_wallet, state.agent);
   renderDraftMode(shop);
   const view = hub.lastRunView(shop.last_run);
