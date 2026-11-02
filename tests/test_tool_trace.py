@@ -110,3 +110,43 @@ def test_the_trace_is_remembered_and_shown_between_the_wake_and_the_decisions(tm
     assert [e["kind"] for e in events][:3] == ["reflex", "tool", "tool"]
     assert events[2]["text"] == f"pay_now(invoice=PINV-1) -> done, tx {TX}"
     assert "tx" not in events[2]  # the payment's own line carries the transaction for the receipt
+
+
+def test_an_alarms_reason_and_what_the_agent_read_from_its_memory_are_kept_whole():
+    why = "Look again on the 20th: the supplier said the corrected bill comes after the delivery."
+    alarm = step("set_alarm", {"at": "2026-10-20T09:00", "why": why, "invoice": ""}, result="ok")
+    assert alarm["args"]["why"] == why
+    read = step("memory", {"command": "view", "path": "/memories/suppliers.md"},
+                result="Central Provisions bills on Fridays.")
+    assert read["saw"] == "Central Provisions bills on Fridays."
+
+
+def test_a_session_keeps_the_briefing_the_model_read_and_the_instructions_it_had(tmp_path):
+    from agent.agent import instructions_digest
+    from agent.reflexes.cycle import run_cycle
+    from agent.think import BrainSetup
+    from support import AgreeingBrain, FakeLedger
+
+    read = []
+
+    class Recording(AgreeingBrain):
+        def run(self, toolbox, briefing):
+            read.append(briefing)
+            return super().run(toolbox, briefing)
+
+    policy = PolicyConfig(max_per_payment=Decimal(5000), weekly_budget=Decimal(2500))
+    with SqliteJournal(tmp_path / "j.sqlite3") as journal:
+        run_cycle(FakeLedger(), journal, policy, "TEST Shop", at=NOW,
+                  brain=BrainSetup(brain=Recording(), zone=UTC))
+        [kept] = journal.sessions()
+        journal.verify()  # in the hash chain, so an anchor on Arc covers it
+    assert read and kept.briefing == read[0] and "PINV-1" in kept.briefing
+    assert kept.instructions == instructions_digest(with_memory=False)
+
+
+def test_the_instructions_digest_names_the_rules_the_model_had():
+    from agent.agent import instructions_digest
+
+    assert instructions_digest(False) == instructions_digest(False)
+    assert len(instructions_digest(False)) == 64
+    assert instructions_digest(True) != instructions_digest(False)  # the memory tool too

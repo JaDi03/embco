@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from agent.agent import Brain
+from agent.agent import Brain, instructions_digest
 from agent.cost import estimate, shown
 from agent.guardrails.rules import Decision, PolicyConfig
 from agent.memory import Change, DecisionJournal, JournalEntry
@@ -185,6 +185,7 @@ def think(
         seen_payments=tuple(payment_seen_key(e) for e in toolbox.payments),
         funds_moved=tuple(toolbox.funds_moved),
         trace=tuple(toolbox.trace), id=session_id,
+        briefing=text, instructions=instructions_digest(toolbox.memory is not None),
         **({"usage": usage} if usage else {}),
     )
     journal.record_session(session)
@@ -256,6 +257,7 @@ def converse(
         seen_payments=tuple(payment_seen_key(e) for e in toolbox.payments),
         funds_moved=tuple(toolbox.funds_moved),
         trace=tuple(toolbox.trace), id=session_id,
+        briefing=text, instructions=instructions_digest(toolbox.memory is not None),
         **({"usage": usage} if usage else {}),
     )
     journal.record_session(session)

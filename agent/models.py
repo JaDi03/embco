@@ -103,6 +103,8 @@ class Session:
     funds_moved: tuple[dict, ...] = ()  # what the agent brought from the owner's other chains
     trace: tuple[dict, ...] = ()  # every tool call the model made, in order (agent.tools.trace)
     id: str = ""  # links the session's AGENT and PAYMENT entries to it in the journal
+    briefing: str = ""  # the first message the model read, exactly as it was sent
+    instructions: str = ""  # sha256 of the system prompt and the tools the model was given
 
 
 def payment_seen_key(event) -> str:
