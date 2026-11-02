@@ -86,16 +86,30 @@ main .card p { color: var(--muted); margin-top: 10px; }
 .final .btn { background: #fff; color: #0f172a; padding: 13px 22px; text-decoration: none; }
 .final .btn:hover { background: #e2e8f0; }
 
-.footer nav a { color: var(--muted); text-decoration: none; }
-.footer nav a:hover { color: var(--text); }
+/* Footer: the brand on the left, then one column per kind of link */
+.site-footer { border-top: 1px solid var(--line); padding: 56px 0 64px; }
+.site-footer-inner { display: grid; grid-template-columns: 1.6fr repeat(3, 1fr); gap: 40px; }
+.site-footer-brand { display: grid; gap: 16px; align-content: start; justify-items: start; }
+.site-footer-brand .brand { gap: 12px; }
+.site-footer-brand .brand img { width: 40px; height: 40px; }
+.site-footer-brand .wordmark { font-size: 1.6rem; }
+.site-footer-brand p { color: var(--muted); max-width: 32ch; }
+.site-footer-col { display: grid; gap: 12px; align-content: start; }
+.site-footer-col h2 { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); margin: 0 0 4px; }
+.site-footer-col a { color: var(--text); text-decoration: none; }
+.site-footer-col a:hover { color: var(--accent-ink); }
 
 @media (max-width: 960px) {
   .hero-inner, .control, .think { grid-template-columns: 1fr; gap: 40px; }
   .cards { grid-template-columns: 1fr 1fr; }
   .nav-links { display: none; }
+  .site-footer-inner { grid-template-columns: repeat(3, 1fr); }
+  .site-footer-brand { grid-column: 1 / -1; }
 }
 @media (max-width: 640px) {
   .hero { padding: 44px 0 56px; }
+  .site-footer { padding: 40px 0 48px; }
+  .site-footer-inner { grid-template-columns: 1fr 1fr; gap: 32px; }
   .section { padding: 64px 0; }
   .cards, .cards-2, .cards-3, .steps, .points { grid-template-columns: 1fr; }
   .landing-log .t-line { grid-template-columns: 1fr; gap: 0; }
