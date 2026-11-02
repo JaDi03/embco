@@ -5,11 +5,13 @@ NOTE changes nothing here: it is evidence the agent weighs when it decides what 
 """
 
 from datetime import date
+from decimal import Decimal
 
 from agent.guardrails.controls import (
     ContextBuilder,
     Control,
     DuplicateInvoice,
+    ExchangeRateCheck,
     Finding,
     Outcome,
     PayeeWallet,
@@ -23,6 +25,7 @@ from agent.guardrails.rules.config import PolicyConfig
 from agent.guardrails.rules.models import Action, Decision
 from services.erp import LedgerAdapter
 from services.erp.models import PurchaseInvoice
+from services.fx.rates import PAYABLE_CURRENCY, RateSource
 
 
 def standard_controls(config: PolicyConfig) -> list[Control]:
@@ -55,23 +58,31 @@ class DecisionEngine:
         *,
         proofs: WalletProofSource | None = None,
         today: date | None = None,
+        rates: RateSource | None = None,
     ) -> None:
         self._ledger = ledger
         self._controls = standard_controls(config)
-        self._contexts = ContextBuilder(ledger, proofs, **({"today": today} if today else {}))
+        # only for invoices in another currency: a USD invoice's checks stay as they were
+        self._exchange = ExchangeRateCheck(config.max_rate_age_days)
+        self._contexts = ContextBuilder(ledger, proofs, **({"today": today} if today else {}),
+                                        rates=rates)
 
     def decide(self, invoice: PurchaseInvoice) -> Decision:
         context = self._contexts.build(invoice)
-        findings = [control.check(context) for control in self._controls]
+        local = invoice.currency != PAYABLE_CURRENCY
+        controls = [*self._controls, self._exchange] if local else self._controls
+        findings = [control.check(context) for control in controls]
         action, reasons = combine(findings)
         return Decision(
             invoice=invoice.name,
             supplier=invoice.supplier,
-            amount=invoice.outstanding_amount,
+            amount=context.usdc_amount if context.usdc_amount is not None else Decimal(0),
             due_date=invoice.due_date,
             action=action,
             reasons=reasons,
             findings=tuple(findings),
+            **({"invoice_amount": invoice.outstanding_amount, "currency": invoice.currency,
+                "rate": context.rate} if local else {}),
         )
 
     def decide_all(self) -> list[Decision]:

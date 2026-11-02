@@ -803,6 +803,7 @@ class Toolbox:
             "invoice": d.invoice,
             "supplier": d.supplier,
             "amount": fmt(d.amount),
+            **_in_own_currency(d),
             "due_date": _day(d.due_date),
             "checks_say": d.action.value,
             "stops": [] if d.action is Action.PAY else [  # an answered question no longer stops
@@ -858,6 +859,16 @@ _STATUS = {
     PaymentStatus.FAILED: "failed",
     PaymentStatus.BLOCKED: "not sent",
 }
+
+
+def _in_own_currency(d: Decision) -> dict[str, Any]:
+    """An invoice in another currency: what it says in it, and the rate behind the USDC."""
+    if d.invoice_amount is None:
+        return {}
+    rate = None if d.rate is None else {
+        "per_usd": fmt(d.rate.per_usd), "on": d.rate.on.isoformat(), "source": d.rate.source}
+    return {"invoice_amount": fmt(d.invoice_amount), "currency": d.currency,
+            "exchange_rate": rate}
 
 
 def _payment_view(events: list[PaymentEvent]) -> dict[str, Any]:

@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from agent.guardrails.controls.base import Finding, fmt, note, passed
 from agent.guardrails.controls.context import Context
+from services.fx.rates import PAYABLE_CURRENCY
 
 
 class PaymentLimit:
@@ -14,11 +15,15 @@ class PaymentLimit:
         self._max = max_per_payment
 
     def check(self, ctx: Context) -> Finding:
-        amount = ctx.invoice.outstanding_amount
+        amount = ctx.usdc_amount
+        if amount is None:
+            return passed(self.name, "weighed once there is an exchange rate")
         if amount > self._max:
+            invoice = ctx.invoice
+            what = f"{fmt(amount)} {invoice.currency}" if invoice.currency == PAYABLE_CURRENCY \
+                else f"{fmt(amount)} USDC ({fmt(invoice.outstanding_amount)} {invoice.currency})"
             return note(
                 self.name,
-                f"amount {fmt(amount)} {ctx.invoice.currency} is above the per-payment "
-                f"limit of {fmt(self._max)}",
+                f"amount {what} is above the per-payment limit of {fmt(self._max)}",
             )
         return passed(self.name, "within the per-payment limit")

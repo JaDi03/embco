@@ -49,6 +49,11 @@ class LedgerAdapter(Protocol):
 class PaymentWriter(Protocol):
     """The one write the agent makes to the accounting system: a payment that is final on chain."""
 
+    def payment_account_problem(self, currency: str) -> str | None:
+        """Why paying an invoice in `currency` in USDC could not be written, if so; checked
+        before paying, so nothing is paid that the books cannot take."""
+        ...
+
     def record_payment(self, payment: SettledPayment) -> str:
         """Create and submit the payment entry and return its name. Writing the same
         transaction twice returns the existing entry instead of a second one."""

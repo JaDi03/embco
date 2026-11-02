@@ -6,6 +6,7 @@ from decimal import Decimal
 from enum import StrEnum
 
 from agent.guardrails.controls import Finding
+from services.fx.rates import PAYABLE_CURRENCY, ExchangeRate
 
 
 class Action(StrEnum):
@@ -18,11 +19,21 @@ class Action(StrEnum):
 class Decision:
     invoice: str
     supplier: str
-    amount: Decimal
+    amount: Decimal  # USDC to pay; 0 for an invoice in another currency with no rate
     due_date: date | None
     action: Action
     reasons: tuple[str, ...]
     findings: tuple[Finding, ...]
+    # an invoice in another currency: what it says in that currency, and the rate it was
+    # converted at (None for USD, where the amount is the invoice's own)
+    invoice_amount: Decimal | None = None
+    currency: str = PAYABLE_CURRENCY
+    rate: ExchangeRate | None = None
+
+    @property
+    def billed(self) -> Decimal:
+        """The amount due as the invoice states it, in its own currency."""
+        return self.amount if self.invoice_amount is None else self.invoice_amount
 
 
 @dataclass(frozen=True)

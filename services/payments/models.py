@@ -5,6 +5,8 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
+from services.fx.rates import PAYABLE_CURRENCY
+
 
 class PaymentStatus(StrEnum):
     # Circle accepted the transaction; it is on its way. Without a Circle id: written just
@@ -32,6 +34,11 @@ class PaymentEvent:
     erp_entry: str | None = None  # the ERP's payment entry, once recorded
     session: str | None = None  # the agent session that sent it; its later states keep it
     why: str = ""  # the agent's reason, written with the payment before Circle is asked
+    # an invoice in another currency: what this USDC settles in it, and the rate (units of
+    # that currency per US dollar) the agent paid at
+    invoice_amount: Decimal | None = None
+    currency: str = PAYABLE_CURRENCY
+    rate: Decimal | None = None
 
 
 @dataclass(frozen=True)

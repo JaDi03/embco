@@ -26,6 +26,7 @@ from services.erp.models import (
     Supplier,
     WalletChange,
 )
+from services.fx.rates import PAYABLE_CURRENCY
 
 DEFAULT_WALLET_FIELD = "custom_wallet_address"
 DEFAULT_PAYEE_WALLET_FIELD = "custom_payee_wallet"
@@ -67,6 +68,7 @@ class ErpnextAdapter:
         self._company_filter = [["company", "=", company]] if company else []
         self._company = company or ""
         self._paid_from = paid_from
+        self._usd_account: str | None = None  # found once, when an invoice is not in USD
         self._payment_extra = dict(payment_extra or {})
         self._wallet_bank = wallet_bank  # set: wallets are Bank Account rows, no custom fields
         self._draft_payments = draft_payments  # testnet: test USDC must not settle real invoices
@@ -226,6 +228,40 @@ class ErpnextAdapter:
                                     str(version.get("name") or "")))
         return sorted(changes, key=lambda c: c[3], reverse=True)
 
+    def payment_account_problem(self, currency: str) -> str | None:
+        """Why a payment of an invoice in `currency` could not be written in the ERP, if so.
+        One in USD needs nothing new; one in another currency needs the USD account the USDC
+        leaves from, so the books show dollars going out against the invoice's currency."""
+        if currency == PAYABLE_CURRENCY:
+            return None
+        try:
+            self.usd_account()
+        except LedgerError as error:
+            return str(error)
+        return None
+
+    def usd_account(self) -> str:
+        """The company's account in USD that USDC payments leave from: the one set for the
+        shop, or else its only active Bank account in USD."""
+        if self._usd_account is None:
+            filters = [["account_currency", "=", PAYABLE_CURRENCY], ["is_group", "=", 0],
+                       ["disabled", "=", 0], *self._company_filter]
+            if self._paid_from:
+                filters.append(["name", "=", self._paid_from])
+            else:
+                filters.append(["account_type", "=", "Bank"])
+            names = self._frappe.list_names("Account", filters=filters, order_by="name asc")
+            if self._paid_from and not names:
+                raise LedgerError(f"the account set to pay from ({self._paid_from}) is not an "
+                                  "active USD account in the ERP")
+            if len(names) != 1:
+                found = "no" if not names else f"{len(names)}"
+                raise LedgerError(f"the ERP has {found} active Bank accounts in USD; it needs "
+                                  "exactly one (USDC on Arc) to record a payment in USDC of an "
+                                  "invoice in another currency")
+            self._usd_account = names[0]
+        return self._usd_account
+
     def record_payment(self, payment: SettledPayment) -> str:
         """ERPNext drafts the entry from the invoice (accounts, party, references), so the agent
         does not pick ledger accounts itself, except the account the money left from when
@@ -237,12 +273,17 @@ class ErpnextAdapter:
         )
         if existing:
             return existing[0]
-        draft = self._frappe.call_method(
-            DRAFT_PAYMENT, {"dt": "Purchase Invoice", "dn": payment.invoice}
-        )
+        form = {"dt": "Purchase Invoice", "dn": payment.invoice}
+        if payment.invoice_amount is not None:
+            # ERPNext's own way to pay a local-currency invoice from a USD account: the USD
+            # paid is the bank amount, and it books any rounding as an exchange difference
+            form.update(bank_account=self.usd_account(), bank_amount=str(payment.amount))
+        draft = self._frappe.call_method(DRAFT_PAYMENT, form)
         if not isinstance(draft, dict):
             raise LedgerError(f"ERPNext drafted no payment entry for {payment.invoice}")
         _check_draft(draft, payment)
+        if payment.rate is not None:
+            draft["source_exchange_rate"] = payment.rate  # the rate the agent paid at
         if self._paid_from:
             # ERPNext fills the account's currency and balance again when it validates
             draft.update(paid_from=self._paid_from, paid_from_account_currency=None,
@@ -281,12 +322,15 @@ class ErpnextAdapter:
 
 def _check_draft(draft: dict[str, Any], payment: SettledPayment) -> None:
     refs = draft.get("references") or []
+    settled = payment.amount if payment.invoice_amount is None else payment.invoice_amount
     matches = (
         draft.get("party") == payment.supplier
         and _decimal(draft.get("paid_amount")) == payment.amount
+        and (payment.invoice_amount is None
+             or _decimal(draft.get("received_amount")) == payment.invoice_amount)
         and len(refs) == 1
         and refs[0].get("reference_name") == payment.invoice
-        and _decimal(refs[0].get("allocated_amount")) == payment.amount
+        and _decimal(refs[0].get("allocated_amount")) == settled
     )
     if not matches:
         raise LedgerError(

@@ -26,6 +26,7 @@ from agent.memory.manifest import manifest_body
 from agent.memory.models import GENESIS, JournalEntry, canonical, chain_hash, chain_text, digest
 from agent.memory.sessions import decision_body, decision_from, session_body, session_from
 from agent.models import AgentDecision, Session
+from services.fx.rates import PAYABLE_CURRENCY
 from services.payments.models import PaymentEvent, PaymentStatus
 
 CLOSED_NOTE = "no longer among the unpaid invoices in the ERP"
@@ -207,6 +208,7 @@ class SqliteJournal:
             body["session"] = event.session
         if event.why:
             body["why"] = event.why
+        body.update(_currency_body(event.invoice_amount, event.currency, event.rate))
         self._append_owner_entry("PAYMENT", event.at, body, event.invoice)
 
     def latest_payment(self, invoice: str) -> PaymentEvent | None:
@@ -357,7 +359,19 @@ def _decision_body(decision: Decision) -> dict:
         "reasons": list(decision.reasons),
         "findings": [[f.control, f.outcome.value, f.reason] for f in decision.findings],
         "fingerprint": fingerprint(decision),
+        **_currency_body(decision.invoice_amount, decision.currency,
+                         decision.rate.per_usd if decision.rate else None),
     }
+
+
+def _currency_body(invoice_amount: Decimal | None, currency: str,
+                   rate: Decimal | None) -> dict:
+    """An invoice in another currency: its own amount and the rate; nothing for USD, so
+    entries in USD read as they always did."""
+    if invoice_amount is None:
+        return {}
+    return {"invoice_amount": str(invoice_amount), "currency": currency,
+            "rate": None if rate is None else str(rate)}
 
 
 def _entry(row: tuple) -> JournalEntry:
@@ -376,7 +390,12 @@ def _entry(row: tuple) -> JournalEntry:
         findings=tuple(Finding(c, Outcome(o), r) for c, o, r in body["findings"]),
         fingerprint=body["fingerprint"],
         entry_hash=entry_hash,
+        invoice_amount=_maybe_decimal(body.get("invoice_amount")),
     )
+
+
+def _maybe_decimal(value: str | None) -> Decimal | None:
+    return None if value is None else Decimal(value)
 
 
 def _payment(row: tuple) -> PaymentEvent:
@@ -397,6 +416,9 @@ def _payment(row: tuple) -> PaymentEvent:
         erp_entry=body.get("erp_entry"),
         session=body.get("session"),
         why=body.get("why", ""),
+        invoice_amount=_maybe_decimal(body.get("invoice_amount")),
+        currency=body.get("currency", PAYABLE_CURRENCY),
+        rate=_maybe_decimal(body.get("rate")),
     )
 
 

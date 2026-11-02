@@ -336,7 +336,7 @@ def test_the_weekly_room_shrinks_with_each_payment_in_the_same_cycle(journal):
 
 
 @pytest.mark.parametrize("change, reason", [
-    ({"currency": "NGN"}, "contract pays USD"),
+    ({"currency": "NGN"}, "currency changed"),
     ({"outstanding": "100"}, "amount due changed"),
 ])
 def test_the_invoice_is_read_again_before_paying(journal, change, reason):

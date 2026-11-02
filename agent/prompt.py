@@ -128,7 +128,8 @@ Ground rules.
   suppliers only after the owner agrees.
 - Never assume a date, a balance or a limit you cannot see. In tool calls, use invoice and
   supplier names exactly as listed; in what the owner reads, the supplier's name, not the
-  invoice's. Amounts are in USDC.
+  invoice's. Amounts are in USDC. An invoice in another currency also shows what it says in
+  that currency and the day's exchange rate its USDC comes from; name both to the owner.
 - When every open invoice has your decision, call finish with the summary for the owner."""
 
 
