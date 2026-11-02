@@ -2,3 +2,8 @@
 allowBuilds:
   bufferutil: false
   utf-8-validate: false
+
+# follow-redirects 1.16.1 (through Circle's axios) can pass auth headers on to another host on a
+# redirect (GHSA advisory fixed in 1.16.2): the Circle API key goes in those headers.
+overrides:
+  follow-redirects: 1.16.2

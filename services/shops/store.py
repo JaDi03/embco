@@ -90,7 +90,7 @@ def read_key(path: Path) -> bytes:
 
 def check_shop(shop: str) -> str:
     """A shop address is also a folder name: anything else is refused."""
-    if not _SHOP.match(shop):
+    if not _SHOP.fullmatch(shop):  # match() with $ would let a trailing newline in
         raise ShopError("a shop is its contract address: 0x and 40 lower-case hex characters")
     return shop
 
@@ -135,7 +135,7 @@ class ShopStore:
         if not self.root.exists():
             return []
         return sorted(p.name for p in self.root.iterdir()
-                      if _SHOP.match(p.name) and (p / SECRETS).exists())
+                      if _SHOP.fullmatch(p.name) and (p / SECRETS).exists())
 
     def settings(self, shop: str, platform: Mapping[str, str] | None = None) -> Settings:
         """Payments are on once the shop has its agent wallet and the platform gives the Circle
@@ -240,7 +240,7 @@ class ShopStore:
         """Every shop with a folder, connected or not."""
         if not self.root.exists():
             return []
-        return sorted(p.name for p in self.root.iterdir() if _SHOP.match(p.name))
+        return sorted(p.name for p in self.root.iterdir() if _SHOP.fullmatch(p.name))
 
     def write_supplier_view(self, shop: str, view: dict[str, Any]) -> None:
         _write(self.folder(shop) / SUPPLIER_VIEW, json.dumps(view, indent=1).encode())
