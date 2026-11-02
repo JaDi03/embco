@@ -2,8 +2,12 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {JournalAnchor} from "../src/JournalAnchor.sol";
-import {DecisionVerifier} from "../src/DecisionVerifier.sol";
+import {DecisionVerifier, IShopFactory} from "../src/DecisionVerifier.sol";
+import {ShopPayables} from "../src/ShopPayables.sol";
+import {ShopPayablesFactory} from "../src/ShopPayablesFactory.sol";
+import {MockUSDC} from "./MockUSDC.sol";
 
 contract OwnedShop {
     address public agent;
@@ -15,9 +19,22 @@ contract OwnedShop {
     }
 }
 
+/// @notice Stands in for the factory, so the fixture's shop (at a fixed address) can be listed.
+contract ShopList {
+    mapping(address owner => address[] shops) private _shopsOf;
+
+    function add(address owner, address shop) external {
+        _shopsOf[owner].push(shop);
+    }
+
+    function shopsOf(address owner) external view returns (address[] memory) {
+        return _shopsOf[owner];
+    }
+}
+
 /// @notice Reads manifest texts directly, to try shapes that could never be anchored.
 contract Reader is DecisionVerifier {
-    constructor() DecisionVerifier(JournalAnchor(address(0))) {}
+    constructor() DecisionVerifier(JournalAnchor(address(0)), IShopFactory(address(0))) {}
 
     function read(bytes memory t) external pure returns (Result memory) {
         return _read(t);
@@ -40,14 +57,21 @@ contract DecisionVerifierTest is Test {
         shop = vm.parseJsonAddress(json, ".shop");
         proof = vm.parseJsonBytes(json, ".proof");
         registry = new JournalAnchor();
-        verifier = new DecisionVerifier(registry);
+        ShopList shops = new ShopList();
+        verifier = new DecisionVerifier(registry, IShopFactory(address(shops)));
         deployCodeTo("DecisionVerifier.t.sol:OwnedShop", abi.encode(agent, owner), shop);
+        shops.add(owner, shop);
         vm.warp(1_760_000_000);
+        _anchorFixture(shop, agent);
+    }
+
+    /// @dev Writes the fixture's two anchors under `shop_`, signed by `agent_`.
+    function _anchorFixture(address shop_, address agent_) internal {
         for (uint256 i = 0; i < 2; i++) {
             string memory at = string.concat(".anchors[", vm.toString(i), "]");
-            vm.prank(agent);
+            vm.prank(agent_);
             registry.anchor(
-                shop,
+                shop_,
                 vm.parseJsonBytes32(json, string.concat(at, ".root")),
                 uint64(vm.parseJsonUint(json, string.concat(at, ".size")))
             );
@@ -112,11 +136,42 @@ contract DecisionVerifierTest is Test {
         assertFalse(verifier.verify(abi.encode(p)).verified);
     }
 
-    function test_aShopWithoutAnOwnerFunctionStillVerifies() public {
+    function test_aShopWithoutAnOwnerFunctionIsRefused() public {
         vm.etch(shop, address(new Reader()).code); // the anchored shop now has no owner()
         DecisionVerifier.Result memory r = verifier.verify(proof);
-        assertTrue(r.verified);
+        assertFalse(r.verified);
+        assertEq(r.answer, "this shop was not created by the shop factory");
+    }
+
+    /// @dev A contract can name any agent and any owner. Here an attacker's contract names the
+    ///      real owner and anchors a journal under its own address; the verifier must not vouch
+    ///      for it, or the audit page would show the real owner beside a record they never made.
+    function test_aContractClaimingARealOwnerIsRefused() public {
+        address attacker = makeAddr("attacker");
+        address fake = address(new OwnedShop(attacker, owner));
+        _anchorFixture(fake, attacker);
+        DecisionVerifier.Proof memory p = _parts();
+        p.shop = fake;
+        DecisionVerifier.Result memory r = verifier.verify(abi.encode(p));
+        assertFalse(r.verified);
+        assertEq(r.answer, "this shop was not created by the shop factory");
         assertEq(r.owner, address(0));
+        assertEq(bytes(r.invoice).length, 0);
+    }
+
+    function test_aShopFromTheRealFactoryVerifies() public {
+        ShopPayablesFactory factory = new ShopPayablesFactory(IERC20(address(new MockUSDC())));
+        DecisionVerifier withFactory = new DecisionVerifier(registry, IShopFactory(address(factory)));
+        vm.prank(owner);
+        ShopPayables real = factory.create(agent, 1, 1);
+        _anchorFixture(address(real), agent);
+        DecisionVerifier.Proof memory p = _parts();
+        p.shop = address(real);
+        DecisionVerifier.Result memory r = withFactory.verify(abi.encode(p));
+        assertTrue(r.verified, r.answer);
+        assertEq(r.owner, owner);
+        // the fixture's shop is not in this factory, so this verifier refuses it
+        assertEq(withFactory.verify(proof).answer, "this shop was not created by the shop factory");
     }
 
     function test_onlyTheExactManifestShapeIsRead() public {

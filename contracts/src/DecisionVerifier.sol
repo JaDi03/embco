@@ -8,6 +8,11 @@ interface IShopOwner {
     function owner() external view returns (address);
 }
 
+/// @notice The part of the shop factory this verifier reads: the shops each owner created there.
+interface IShopFactory {
+    function shopsOf(address owner) external view returns (address[] memory);
+}
+
 /// @title DecisionVerifier
 /// @notice Lets anyone check one decision of a shop's agent on Arc, in the explorer's Read form,
 ///         with one pasted value and no wallet. The value is a proof made from the shop's journal:
@@ -15,8 +20,10 @@ interface IShopOwner {
 ///         The contract hashes the entry as the journal does (sha256 of "embco-journal-v1\n",
 ///         the previous entry's hash, "\n" and the entry's canonical JSON), follows the path and
 ///         compares the root with the one the shop's agent wrote in JournalAnchor. Only then does
-///         it read the decision out of the entry it just checked and return it. It has no owner,
-///         no state and nothing to upgrade.
+///         it read the decision out of the entry it just checked and return it. Only shops the
+///         shop factory created are checked: any contract can name an agent and an owner, but
+///         only the owner's own wallet can list a shop under that owner in the factory. It has no
+///         owner, no state and nothing to upgrade.
 /// @dev The MANIFEST is written by agent/memory/manifest.py. It is read at fixed places, never as
 ///      general JSON: canonical JSON sorts keys, every value is plain (free text is hex), so any
 ///      other shape is refused rather than guessed at.
@@ -47,9 +54,11 @@ contract DecisionVerifier {
     }
 
     JournalAnchor public immutable journalAnchor;
+    IShopFactory public immutable factory;
 
-    constructor(JournalAnchor journalAnchor_) {
+    constructor(JournalAnchor journalAnchor_, IShopFactory factory_) {
         journalAnchor = journalAnchor_;
+        factory = factory_;
     }
 
     /// @param proof abi.encode(address shop, uint256 anchor, uint256 index, bytes32[] path,
@@ -57,6 +66,8 @@ contract DecisionVerifier {
     function verify(bytes calldata proof) external view returns (Result memory r) {
         Proof memory p = abi.decode(proof, (Proof));
         r.shop = p.shop;
+        address owner_ = _owner(p.shop);
+        if (!_fromFactory(p.shop, owner_)) return _no(r, "this shop was not created by the shop factory");
         if (p.anchor >= journalAnchor.count(p.shop)) return _no(r, "this shop has no such anchor on Arc");
         JournalAnchor.Anchor memory a = journalAnchor.anchorAt(p.shop, p.anchor);
         if (!_included(sha256(p.manifest), p.index, a.size, p.path, a.root)) {
@@ -66,7 +77,7 @@ contract DecisionVerifier {
         if (bytes(read.invoice).length == 0) return _no(r, "this record is not a decision manifest");
         read.verified = true;
         read.shop = p.shop;
-        read.owner = _owner(p.shop);
+        read.owner = owner_;
         read.anchoredAt = a.anchoredAt;
         read.answer = string.concat(
             "Anchored on Arc and unchanged since: the agent's decision on ",
@@ -89,6 +100,17 @@ contract DecisionVerifier {
         } catch {
             return address(0);
         }
+    }
+
+    /// @dev The factory lists a shop under the wallet that created it, and that wallet is the
+    ///      shop's owner, so a contract claiming someone else as its owner is not on their list.
+    function _fromFactory(address shop, address owner_) private view returns (bool) {
+        if (owner_ == address(0)) return false;
+        address[] memory shops = factory.shopsOf(owner_);
+        for (uint256 k = 0; k < shops.length; k++) {
+            if (shops[k] == shop) return true;
+        }
+        return false;
     }
 
     // ---- the MANIFEST entry, read at fixed places ----------------------------------------------
