@@ -65,6 +65,9 @@ succeeds, and revoking the USDC allowance stops every payment.
 
 - `maxPerPayment` is greater than zero and no more than `weeklyCap`.
 - The weekly window starts when the shop is created and runs in seven-day blocks.
+- The blocks are fixed, not rolling: the agent can use a full `weeklyCap` at the end of one block
+  and another at the start of the next, so up to twice `weeklyCap` can leave within a few minutes.
+  Choose `weeklyCap` with that in mind.
 - Only the owner changes limits. Every change emits `LimitsChanged`.
 
 ## Events
