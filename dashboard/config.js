@@ -16,6 +16,10 @@ export const FACTORY_ADDRESS = "0x5D455dF984C85abe160E4585E0c1139ded5d2c3b";
 
 export const FACTORY_DEPLOY_BLOCK = 66943142;
 
+// Shop contracts of real businesses, as their owners told us. Every other shop the factory created
+// is shown as a test shop on the stats page.
+export const REAL_SHOPS = ["0xc9d40f4640b008ab90d3ee515d26b6553ad37c85"];
+
 // All chain traffic goes through the Canteen node via this site's /rpc proxy, which keeps the
 // node's token on the server. Never put a node URL with a token in this public page.
 export const RPC_PATH = "/rpc";

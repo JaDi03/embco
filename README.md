@@ -11,6 +11,7 @@ and acts on what happened. A smart contract sets the limits it cannot cross.
 
 [**Documentation**](https://jadi03.github.io/embco/) ·
 [**Dashboard**](https://app.embco.xyz) ·
+[What the agents paid](https://app.embco.xyz/stats/) ·
 [How it works](https://jadi03.github.io/embco/how-it-works/) ·
 [Connect your ERPNext](https://jadi03.github.io/embco/connect/)
 
