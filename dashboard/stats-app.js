@@ -39,12 +39,12 @@ function render({ shops, payments, usdc }) {
 async function load() {
   $("factory-link").href = `${ARC_TESTNET.explorer}/address/${FACTORY_ADDRESS}?tab=logs`;
   try {
-    const real = new Set(REAL_SHOPS.map((a) => a.toLowerCase()));
-    const shops = shopsFromFactory(await explorerLogs(FACTORY_ADDRESS)).filter((s) => real.has(s.shop));
-    const histories = new Map();
-    // one shop at a time, so the page sends the explorer no burst of requests
-    for (const s of shops) histories.set(s.shop, await explorerLogs(s.shop));
-    render(summarize(shops, histories, REAL_SHOPS));
+    // the explorer takes seconds per answer: ask for the factory and the real shops at once
+    const real = REAL_SHOPS.map((a) => a.toLowerCase());
+    const [factoryLogs, ...shopLogs] = await Promise.all([FACTORY_ADDRESS, ...real].map((a) => explorerLogs(a)));
+    const histories = new Map(real.map((shop, i) => [shop, shopLogs[i]]));
+    render(summarize(shopsFromFactory(factoryLogs), histories, REAL_SHOPS));
+    $("stats-status").className = "journal-status";
     $("stats-status").textContent = `Read from Arc on ${new Date().toLocaleString()}.`;
   } catch (error) {
     $("stats-status").className = "journal-status bad";
