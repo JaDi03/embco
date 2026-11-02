@@ -41,6 +41,7 @@ PROTECTED_PAYMENT_FIELDS = frozenset({
 })
 TESTNET_REMARK = "TESTNET: paid in test USDC, no real money moved. Do not submit."
 DOC_INFO = "frappe.desk.form.load.get_docinfo"  # change history of a document the user can read
+ADD_COMMENT = "frappe.desk.form.utils.add_comment"  # a timeline comment on a document it can read
 INDEX_PAGE = 5000  # documents per request in the light lists; a shop with more gets more pages
 
 
@@ -103,6 +104,14 @@ class ErpnextAdapter:
     def email_supplier(self, supplier: str, subject: str, body: str) -> str:
         """Write to the supplier from the shop's own ERPNext; returns the address used."""
         return mail.email_supplier_message(self._frappe, supplier, self._company, subject, body)
+
+    def comment_on_invoice(self, invoice: str, html: str) -> None:
+        """A comment in the invoice's timeline, as ERPNext's own "Add a comment" makes it
+        (frappe.desk.form.utils.add_comment: reading the invoice is enough; the author is the
+        agent's API user). `html` must already be escaped."""
+        self._frappe.call_method(ADD_COMMENT, {
+            "reference_doctype": "Purchase Invoice", "reference_name": invoice, "content": html,
+            "comment_email": "", "comment_by": ""})  # Frappe sets both from the session user
 
     def has_email(self, supplier: str) -> bool:
         """Whether the ERP has an email for this supplier, so a notice or a message can reach it."""
