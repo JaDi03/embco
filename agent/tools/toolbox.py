@@ -353,7 +353,21 @@ class Toolbox:
             raise ToolError(f"the payment was sent but failed: {last.reason}")
         self._choose(decision, Choice.PAY_NOW, reason)
         self.done.add(invoice)
-        return _payment_view(events)
+        return {**_payment_view(events), **self._paid_today(decision.supplier)}
+
+    def _paid_today(self, supplier: str) -> dict[str, Any]:
+        """What the agent's payments final on Arc add up to today (shop time), counted here so
+        the agent quotes totals and never adds amounts itself."""
+        paid = [p for p in self.journal.latest_payments()
+                if p.tx_hash and p.status in (PaymentStatus.COMPLETE, PaymentStatus.RECORDED)
+                and p.at.astimezone(self.zone).date() == self.today]
+        mine = [p for p in paid if p.supplier == supplier]
+        return {"paid_today": {
+            "total_usdc": fmt(sum((p.amount for p in paid), Decimal(0))),
+            "payments": len(paid),
+            "to_this_supplier_usdc": fmt(sum((p.amount for p in mine), Decimal(0))),
+            "to_this_supplier_payments": len(mine),
+        }}
 
     def _payment_status(self, invoice: str) -> dict[str, Any]:
         if self.payer is None:
