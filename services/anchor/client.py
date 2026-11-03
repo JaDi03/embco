@@ -19,10 +19,11 @@ from eth_utils import keccak, to_checksum_address
 
 from agent.memory.merkle import root as merkle_root
 from services.circle import CircleError
+from services.network import TESTNET
 from services.payments import ArcRpc, ChainError, Payer
 
 # JournalAnchor on Arc Testnet (contracts/script/DeployJournalAnchor.s.sol).
-JOURNAL_ANCHOR = "0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582"
+JOURNAL_ANCHOR = TESTNET.journal_anchor
 
 FOLLOW_SECONDS = 60
 POLL_SECONDS = 2

@@ -7,6 +7,7 @@ from eth_utils import keccak, to_checksum_address
 
 from services.earn.client import EARN_FACTORY
 from services.hub.chain import DEFAULT_FACTORY
+from services.network import TESTNET
 from services.unified_balance.funding import FACTORIES
 
 
@@ -29,16 +30,19 @@ class Factory:
 
 
 def factories(env: Mapping[str, str]) -> list[Factory]:
-    arc = env.get("ARC_TESTNET_RPC_URL", "").strip()
+    """Testnet only: the history comes from the explorer's API, which Arc mainnet's explorer
+    does not answer to scripts."""
+    arc = env.get(TESTNET.rpc_env, "").strip()
     if not arc:
-        raise ValueError("missing ARC_TESTNET_RPC_URL")
+        raise ValueError(f"missing {TESTNET.rpc_env}")
     return [
-        Factory(5042002, to_checksum_address(env.get("EMBCO_FACTORY_ADDRESS") or DEFAULT_FACTORY),
+        Factory(TESTNET.chain_id,
+                to_checksum_address(env.get("EMBCO_FACTORY_ADDRESS") or DEFAULT_FACTORY),
                 "ShopPayables", "ShopCreated(address,address,address,uint256,uint256)",
-                arc, "https://explorer.testnet.arc.io"),
-        Factory(5042002, EARN_FACTORY, "ShopEarn",
+                arc, TESTNET.explorer),
+        Factory(TESTNET.chain_id, EARN_FACTORY, "ShopEarn",
                 "EarnCreated(address,address,address,uint256,uint256)",
-                arc, "https://explorer.testnet.arc.io"),
+                arc, TESTNET.explorer),
         Factory(84532, FACTORIES["Base_Sepolia"], "ShopFunding",
                 "FundingCreated(address,address,address,uint256,uint256)",
                 env.get("BASE_SEPOLIA_RPC_URL") or "https://sepolia.base.org",

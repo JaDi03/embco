@@ -16,6 +16,7 @@ from agent.guardrails.rules import Verdict
 from agent.memory.sqlite import export_journal
 from services.hub.errors import HubError
 from services.hub.units import UnitError, Units
+from services.network import NetworkError, network
 from services.shops import chat
 from services.shops.activity import (
     append_activity,
@@ -211,9 +212,16 @@ def owner_action_routes(
                    embco_session: str | None = Cookie(default=None)) -> dict[str, Any]:
         """Draft mode leaves each payment in the ERP as a draft marked TESTNET. Turning it off
         submits them, so test USDC closes real invoices: the owner has to confirm it. The agent
-        restarts to use the new mode."""
+        restarts to use the new mode. On mainnet there is no draft mode: real USDC settles the
+        invoice, so every payment is submitted."""
         shop = shop_of(shop)
         owner_session(shop, embco_session)
+        try:
+            test_money = network(store.config(shop).network).test_money
+        except (ShopError, NetworkError):
+            test_money = True  # not connected yet: the flag waits for the connection
+        if not test_money:
+            raise HubError(409, "on Arc mainnet every payment is submitted in your ERP")
         if not body.draft and not body.confirm:
             raise HubError(400, "turning draft mode off submits payments in your ERP; confirm it")
         now = clock()

@@ -1,9 +1,10 @@
-# The dashboard, its /rpc door to the Arc node and the hub API. Imported from /etc/caddy/Caddyfile.
+# The dashboard, its /rpc doors to the Arc nodes and the hub API. Imported from /etc/caddy/Caddyfile.
 {$EMBCO_SITE} {
 	encode zstd gzip
 	root * /opt/embco/dashboard
 	@rpc {
-		path /rpc
+		# /rpc is Arc Testnet, /rpc/mainnet is Arc Mainnet (served once its node is set)
+		path /rpc /rpc/mainnet
 		method POST
 	}
 	handle @rpc {
@@ -13,7 +14,7 @@
 	handle /api/* {
 		reverse_proxy 127.0.0.1:8090
 	}
-	@rpc_other path /rpc
+	@rpc_other path /rpc /rpc/mainnet
 	respond @rpc_other "POST JSON-RPC only" 405
 	@private path /test/* /package.json
 	respond @private 404

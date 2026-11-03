@@ -14,7 +14,8 @@
 
 A shop is the address of its ShopPayables contract, in lower case. A shop's settings are built
 from its folder only, so no shop inherits another's. The only values from outside are the
-platform's own: the Circle account that holds every shop's agent wallet and the Arc node.
+platform's own: for the shop's network (services/network.py), the Circle account that holds
+every shop's agent wallet and the Arc node.
 """
 
 import json
@@ -27,6 +28,7 @@ from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
 
+from services.network import NETWORKS, network
 from services.settings import Settings
 
 CONFIG = "config.json"
@@ -41,7 +43,8 @@ LIQUIDITY_STRATEGY = "liquidity_strategy"
 DEFAULT_LIQUIDITY_STRATEGY = "preserve_yield"
 LIQUIDITY_STRATEGIES = ("preserve_yield", "instant_zero_fee", "ask_owner")
 _SHOP = re.compile(r"^0x[0-9a-f]{40}$")
-PLATFORM = ("CIRCLE_API_KEY", "CIRCLE_ENTITY_SECRET", "ARC_TESTNET_RPC_URL")
+# every network's Circle account and node; a shop's settings take only its own network's
+PLATFORM = tuple(name for n in NETWORKS.values() for name in n.platform({}))
 BRAIN_PLATFORM = ("ANTHROPIC_API_KEY",)  # the platform's model account, for shops with a brain
 SITE_PLATFORM = ("EMBCO_PUBLIC_URL",)  # where suppliers find their page
 
@@ -67,6 +70,7 @@ class ShopConfig:
     autonomy: str = "act"  # or "observe": the agent decides and explains, pays nothing
     utc_offset: str = ""  # the shop's local time, like +01:00
     round_hour: int = 8  # the daily round, in the shop's local time
+    network: str = "testnet"  # where the contract is: "testnet" or "mainnet"
 
 
 @dataclass(frozen=True)
@@ -143,7 +147,7 @@ class ShopStore:
         (draft mode) unless the owner chose to submit them. AI explanations stay off; the
         agent's brain is on when the shop chose it."""
         config, credentials = self.config(shop), self.credentials(shop)
-        shared = {name: (platform or {}).get(name, "").strip() for name in PLATFORM}
+        shared = network(config.network).platform(platform or {})
         pay = bool(config.agent_wallet_id) and all(shared.values())
         env = {
             "EMBCO_ERPNEXT_URL": config.erp_url,
@@ -164,6 +168,7 @@ class ShopStore:
             "EMBCO_AUTONOMY": config.autonomy,
             "EMBCO_UTC_OFFSET": config.utc_offset,
             "EMBCO_ROUND_HOUR": str(config.round_hour),
+            "EMBCO_NETWORK": config.network,
         }
         env.update({name: (platform or {}).get(name, "").strip() for name in SITE_PLATFORM})
         if config.brain:
@@ -210,7 +215,13 @@ class ShopStore:
             flag.unlink(missing_ok=True)
 
     def draft_payments(self, shop: str) -> bool:
-        """Draft mode unless the owner chose to submit: a lost flag falls back to drafts."""
+        """Draft mode unless the owner chose to submit: a lost flag falls back to drafts. Never
+        on mainnet, where real USDC settles the invoice."""
+        try:
+            if not network(self.config(shop).network).test_money:
+                return False
+        except (ShopError, ValueError):
+            pass  # no usable configuration yet: the flag decides, as before
         return not (self.folder(shop) / SUBMIT_PAYMENTS).exists()
 
     def set_draft_payments(self, shop: str, draft: bool, at: str) -> None:

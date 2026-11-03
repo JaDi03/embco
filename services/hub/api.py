@@ -6,9 +6,12 @@ disconnecting stops it and forgets the keys, keeping the agent's memory.
 
 The dashboard signs in once for all the owner's shops. Before a new shop exists, the hub makes its
 agent wallets, so the contract is created with its agent and the owner never sets one by hand.
+
+A shop runs on Arc testnet or Arc mainnet (services/network.py): its Circle account, node and
+contracts are that network's. The hub serves the networks it has a node for.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from decimal import Decimal
 from typing import Any
 
@@ -33,6 +36,7 @@ from services.hub.supplier_auth import SupplierAuth
 from services.hub.suppliers import supplier_routes
 from services.hub.units import UnitError, Units
 from services.hub.wallets import agent_wallets_of, create_agent_wallet, create_agent_wallets
+from services.network import DEFAULT, Network, NetworkError, network
 from services.payments.chain import ChainError
 from services.shops.balances import read_balances
 from services.shops.earn_moves import read_moves
@@ -50,6 +54,10 @@ class SignInRequest(BaseModel):
 class SignIn(BaseModel):
     nonce: str = Field(max_length=64)
     signature: str = Field(max_length=200)
+
+
+class NewShop(BaseModel):
+    network: str = Field(default=DEFAULT.name, max_length=20)
 
 
 class Connect(BaseModel):
@@ -84,8 +92,20 @@ def create_app(
     shops_of: Callable[[str], list[str]] | None = None,
     balance_of: Callable[[str], Decimal] | None = None,
     rpc_url: str | None = None,
+    network_of: Callable[[str], Network] = lambda shop: DEFAULT,
+    circles: Mapping[str, CircleClient] | None = None,
+    balances: Mapping[str, Callable[[str], Decimal]] | None = None,
+    rpc_urls: Mapping[str, str] | None = None,
 ) -> FastAPI:
+    """`circle`, `balance_of` and `rpc_url` are testnet's; `circles`, `balances` and `rpc_urls`
+    give them by network name, testnet included."""
     app = FastAPI(title="embco hub", docs_url=None, redoc_url=None, openapi_url=None)
+    circles = dict(circles if circles is not None else
+                   ({DEFAULT.name: circle} if circle else {}))
+    balances = dict(balances if balances is not None else
+                    ({DEFAULT.name: balance_of} if balance_of else {}))
+    rpc_urls = dict(rpc_urls if rpc_urls is not None else
+                    ({DEFAULT.name: rpc_url} if rpc_url else {}))
     frappe_for = frappe_for or (lambda url, key, secret: FrappeClient(url, key, secret,
                                                                       timeout=15))
 
@@ -112,6 +132,12 @@ def create_app(
             return check_shop(raw.lower())
         except ShopError as error:
             raise HubError(400, str(error)) from error
+
+    def network_of_shop(shop: str) -> Network:
+        try:
+            return network_of(shop)
+        except ChainError as error:
+            raise HubError(502, "could not tell which network the shop is on") from error
 
     @app.post("/api/shops/{shop}/sign-in-request")
     def sign_in_request(shop: str, body: SignInRequest) -> dict[str, Any]:
@@ -156,20 +182,28 @@ def create_app(
         return response
 
     @app.post("/api/owners/agent-wallets")
-    def new_agent_wallets(embco_session: str | None = Cookie(default=None)) -> dict[str, Any]:
-        """The agent wallets for the owner's next shop: the contract is created with them."""
+    def new_agent_wallets(body: NewShop | None = None,
+                          embco_session: str | None = Cookie(default=None)) -> dict[str, Any]:
+        """The agent wallets for the owner's next shop on the network chosen (testnet when none
+        is): the contract is created with them."""
         owner = owner_session(ALL_SHOPS, embco_session).owner
+        try:
+            net = network((body or NewShop()).network)
+        except NetworkError as error:
+            raise HubError(422, str(error)) from error
+        circle = circles.get(net.name)
         if circle is None or shops_of is None:
-            raise HubError(503, "agent wallets are not available here")
+            raise HubError(503, f"agent wallets on {net.label} are not available here")
         try:
             index = len(shops_of(owner))
         except ChainError as error:
             raise HubError(502, "could not read your shops") from error
         try:
-            wallets = create_agent_wallets(circle, owner, index)
+            wallets = create_agent_wallets(circle, owner, index, net.circle_blockchain)
         except CircleError as error:
             raise HubError(502, "could not create the agent wallets; try again") from error
-        return {"agent": wallets.agent.address, "signer": wallets.signer.address}
+        return {"agent": wallets.agent.address, "signer": wallets.signer.address,
+                "network": net.name}
 
     @app.get("/api/shops/{shop}/agent")
     def agent_wallets(shop: str,
@@ -178,12 +212,14 @@ def create_app(
         with or without a connected ERP."""
         shop = shop_of(shop)
         owner_session(shop, embco_session)
+        net = network_of_shop(shop)
+        circle = circles.get(net.name)
         try:
             agent = limits_of(shop).agent
         except ChainError as error:
             raise HubError(502, "could not read the shop contract") from error
         try:
-            wallets = agent_wallets_of(circle, agent) if circle else None
+            wallets = agent_wallets_of(circle, agent, net.circle_blockchain) if circle else None
         except CircleError as error:
             raise HubError(502, "could not read the agent wallets; try again") from error
         if wallets is None:
@@ -206,11 +242,12 @@ def create_app(
         try:
             config = store.config(shop)
         except ShopError:
-            return {"shop": shop, "connected": False,
+            return {"shop": shop, "connected": False, "network": network_of_shop(shop).name,
                     "liquidity_strategy": store.liquidity_strategy(shop)}
         return {
             "shop": shop,
             "connected": connected,
+            "network": config.network,
             "erp_url": config.erp_url,
             "company": config.company,
             "wallet_bank": config.wallet_bank,
@@ -254,6 +291,8 @@ def create_app(
         if not result.ok:
             raise HubError(422, "the ERP keys cannot do what the agent needs",
                            probe=result.as_dict())
+        net = network_of_shop(shop)
+        circle = circles.get(net.name)
         try:
             limits = limits_of(shop)
         except ChainError as error:
@@ -269,9 +308,9 @@ def create_app(
             try:
                 # a shop created with its agent: the contract already names it; an older shop
                 # gets its agent wallet now
-                wallets = agent_wallets_of(circle, limits.agent)
+                wallets = agent_wallets_of(circle, limits.agent, net.circle_blockchain)
                 if wallets is None:
-                    wallet = create_agent_wallet(circle, shop)
+                    wallet = create_agent_wallet(circle, shop, net.circle_blockchain)
             except CircleError as error:
                 raise HubError(502, "could not create the agent wallet; try again") from error
             if wallets:
@@ -285,7 +324,7 @@ def create_app(
                        weekly_budget=str(limits.weekly_cap), wallet_bank=body.wallet_bank,
                        payment_extra=body.payment_extra, agent_wallet_id=wallet_id,
                        agent_wallet_address=wallet_address,
-                       signer_wallet_address=signer_address),
+                       signer_wallet_address=signer_address, network=net.name),
             ErpCredentials(api_key=body.api_key, api_secret=body.api_secret),
         )
         if store.agent_on(shop):  # turned off by the owner: a new connection does not start it
@@ -317,12 +356,15 @@ def create_app(
     app.include_router(owner_action_routes(store=store, units=units, shop_of=shop_of,
                                            owner_session=owner_session,
                                            telegram_bot=telegram_bot))
-    app.include_router(agent_balance_routes(store=store, circle=circle, balance_of=balance_of,
-                                            shop_of=shop_of, owner_session=owner_session))
+    app.include_router(agent_balance_routes(
+        store=store, circle_for=lambda shop: circles.get(network_of_shop(shop).name),
+        balance_for=lambda shop: balances.get(network_of_shop(shop).name),
+        shop_of=shop_of, owner_session=owner_session))
     supplier_auth = supplier_auth or SupplierAuth(public_url=public_url)
     app.include_router(supplier_routes(store=store, auth=supplier_auth,
                                        shop_of=shop_of, owner_session=owner_session,
                                        frappe_for=frappe_for, public_url=public_url))
-    if rpc_url:
-        app.include_router(rpc_routes(rpc_url))
+    for name, url in rpc_urls.items():  # /rpc for testnet, /rpc/mainnet for mainnet
+        path = "/rpc" if name == DEFAULT.name else f"/rpc/{name}"
+        app.include_router(rpc_routes(url, path=path))
     return app

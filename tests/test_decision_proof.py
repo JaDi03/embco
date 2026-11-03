@@ -179,7 +179,7 @@ def test_the_cli_checks_the_decision_proof_the_dashboard_downloads(tmp_path, mon
         registry.anchors.append((bytes.fromhex(a["root"]), a["size"], int(T0.timestamp())))
     monkeypatch.setattr(cli, "ArcRpc", lambda _url: registry)
     monkeypatch.setattr(cli, "JournalAnchors",
-                        lambda chain, shop: JournalAnchors(chain, shop, address=REGISTRY))
+                        lambda chain, shop, **_: JournalAnchors(chain, shop, address=REGISTRY))
     path = tmp_path / "decision.json"
     path.write_text(json.dumps(fixture["bundle"]), encoding="utf-8")
     assert cli.main(["check-proof", str(path), "--rpc-url", "http://node"]) == 0

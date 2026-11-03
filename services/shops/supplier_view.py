@@ -13,15 +13,15 @@ from typing import Any
 from agent.guardrails.controls import WalletChallenge
 from agent.memory import DecisionJournal
 from agent.reflexes.cycle import CycleReport
+from services.network import DEFAULT, Network
 from services.payments import PaymentEvent, PaymentStatus
-from services.signing import ARC_TESTNET_CHAIN_ID, typed_data
+from services.signing import typed_data
 
 PAID = "PAID"
 PAYMENT_SENT = "PAYMENT_SENT"
 SCHEDULED = "SCHEDULED"
 SIGNATURE_NEEDED = "SIGNATURE_NEEDED"
 UNDER_REVIEW = "UNDER_REVIEW"
-NETWORK = "Arc testnet"  # payments are made in test USDC for now
 _DONE = (PaymentStatus.COMPLETE, PaymentStatus.RECORDED)
 
 
@@ -30,7 +30,7 @@ def supplier_view(
     journal: DecisionJournal,
     company: str,
     signatures: dict[str, dict[str, str]] | None = None,
-    chain_id: int = ARC_TESTNET_CHAIN_ID,
+    network: Network = DEFAULT,
     wallet_of: Callable[[str], str | None] = lambda supplier: None,
 ) -> dict[str, Any]:
     """One entry per supplier with an open invoice, a payment or a challenge. `wallet` is the
@@ -67,13 +67,13 @@ def supplier_view(
     return {
         "at": report.at.isoformat(),
         "company": company,
-        "network": NETWORK,
+        "network": network.label,
         "suppliers": {
             name: {
                 "wallet": wallet_of(name),
                 "invoices": invoices.get(name, []),
                 "payments": paid.get(name, []),
-                "challenge": _challenge(challenges.get(name), chain_id),
+                "challenge": _challenge(challenges.get(name), network.chain_id),
                 "last_signature": (signatures or {}).get(name),
             }
             for name in names

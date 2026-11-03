@@ -56,12 +56,13 @@ class CallBudget:
 
 
 def rpc_routes(node_url: str, *, client: httpx.AsyncClient | None = None,
-               budget: CallBudget | None = None) -> APIRouter:
+               budget: CallBudget | None = None, path: str = "/rpc") -> APIRouter:
+    """One network's door: /rpc for Arc testnet, /rpc/mainnet for Arc mainnet."""
     router = APIRouter()
     http = client or httpx.AsyncClient(timeout=TIMEOUT)
     budget = budget or CallBudget()
 
-    @router.post("/rpc")
+    @router.post(path)
     async def rpc(request: Request) -> Response:
         body = await request.body()
         if len(body) > MAX_BODY:

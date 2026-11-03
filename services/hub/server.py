@@ -1,7 +1,7 @@
 """Start the hub: settings from its env file, the API on 127.0.0.1 behind the web server."""
 
 import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 import uvicorn
@@ -10,8 +10,9 @@ from fastapi import FastAPI
 from services.circle import CircleClient
 from services.hub.api import PUBLIC_URL, create_app
 from services.hub.auth import Auth
-from services.hub.chain import DEFAULT_FACTORY, ShopChain
+from services.hub.chain import ShopChain, ShopChains
 from services.hub.units import SystemdUnits, start_connected
+from services.network import TESTNET, available
 from services.payments.chain import ArcRpc
 from services.settings import SettingsError, read_env_file
 from services.shops.store import ShopError, ShopStore, read_key
@@ -29,29 +30,48 @@ def _store(env: Mapping[str, str]) -> ShopStore:
     return ShopStore(Path(env.get("EMBCO_SHOPS_ROOT") or DEFAULT_ROOT), key)
 
 
+def _saved_network(store: ShopStore) -> Callable[[str], str | None]:
+    def saved(shop: str) -> str | None:
+        try:
+            return store.config(shop).network
+        except ShopError:
+            return None  # not connected yet: the contract tells
+    return saved
+
+
 def build_app(env: Mapping[str, str]) -> FastAPI:
-    rpc_url = env.get("ARC_TESTNET_RPC_URL", "").strip()
-    if not rpc_url:
-        raise SettingsError("missing settings: ARC_TESTNET_RPC_URL")
+    """Testnet is required; mainnet is served once its node is set (ARC_MAINNET_RPC_URL)."""
+    if not env.get(TESTNET.rpc_env, "").strip():
+        raise SettingsError(f"missing settings: {TESTNET.rpc_env}")
     store = _store(env)
-    chain = ShopChain(ArcRpc(rpc_url), env.get("EMBCO_FACTORY_ADDRESS") or DEFAULT_FACTORY)
-    api_key = env.get("CIRCLE_API_KEY", "").strip()
-    entity_secret = env.get("CIRCLE_ENTITY_SECRET", "").strip()
-    circle = CircleClient(api_key, entity_secret) if api_key and entity_secret else None
+    chains, circles, rpc_urls = {}, {}, {}
+    for net in available(env):
+        rpc_url = env[net.rpc_env].strip()
+        rpc = ArcRpc(rpc_url, first_block=net.first_block)
+        factory = (env.get("EMBCO_FACTORY_ADDRESS") or net.factory) if net is TESTNET \
+            else net.factory
+        chains[net.name] = (net, ShopChain(rpc, factory), rpc)
+        api_key = env.get(net.circle_key_env, "").strip()
+        entity_secret = env.get(net.circle_secret_env, "").strip()
+        if api_key and entity_secret:
+            circles[net.name] = CircleClient(api_key, entity_secret)
+        rpc_urls[net.name] = rpc_url  # the site's /rpc door, for the dashboard and the wallet
+    shops = ShopChains(chains, _saved_network(store))
     public_url = (env.get("EMBCO_PUBLIC_URL") or PUBLIC_URL).rstrip("/")
     return create_app(
         store=store,
-        auth=Auth(chain.shops_of, public_url=public_url,
+        auth=Auth(shops.shops_of, public_url=public_url,
                   # inside the shops folder: the only place systemd lets the hub write
                   sessions_file=store.root / "owner_sessions.json"),
-        limits_of=chain.limits,
+        limits_of=shops.limits,
         units=SystemdUnits(),
-        circle=circle,
         public_url=public_url,
         telegram_bot=env.get("TELEGRAM_BOT_USERNAME", "").strip().lstrip("@") or None,
-        shops_of=chain.shops_of,
-        balance_of=chain.usdc_balance,
-        rpc_url=rpc_url,  # the site's /rpc, for the dashboard and the owner's wallet
+        shops_of=shops.shops_of,
+        network_of=shops.network_of,
+        circles=circles,
+        balances={name: chain.usdc_balance for name, (_net, chain, _rpc) in chains.items()},
+        rpc_urls=rpc_urls,
     )
 
 

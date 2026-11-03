@@ -27,7 +27,7 @@ from services.earn import OwnerEarn
 from services.erp import ErpnextAdapter, LedgerError
 from services.erp.erpnext.cache import CachedLedger
 from services.fx import Frankfurter, RateSource
-from services.hub.chain import DEFAULT_FACTORY, ShopChain, ShopLimits
+from services.hub.chain import ShopChain, ShopLimits
 from services.payments import (
     ArcRpc,
     ChainError,
@@ -72,7 +72,7 @@ def payer_for(settings: Settings, ledger: ErpnextAdapter) -> Payer | None:
         return None
     return Payer(
         ledger=ledger,
-        chain=ArcRpc(settings.arc_rpc_url),
+        chain=ArcRpc(settings.arc_rpc_url, first_block=settings.network.first_block),
         circle=CircleClient(settings.circle_api_key, settings.circle_entity_secret),
         shop=settings.shop_address,
         wallet_id=settings.agent_wallet_id,
@@ -85,7 +85,8 @@ def limits_for(settings: Settings) -> Callable[[str], ShopLimits] | None:
     """The contract's limits, read on chain when the shop has the Arc node."""
     if not settings.arc_rpc_url:
         return None
-    return ShopChain(ArcRpc(settings.arc_rpc_url), DEFAULT_FACTORY).limits
+    return ShopChain(ArcRpc(settings.arc_rpc_url, first_block=settings.network.first_block),
+                     settings.network.factory).limits
 
 
 def current_policy(policy: PolicyConfig, limits: Callable[[str], ShopLimits] | None,
@@ -269,8 +270,10 @@ def run_shop(
     ledger = CachedLedger(live) if isinstance(live, ErpnextAdapter) else live
     payments = payer(settings, live)
     fx = rates()  # one request per currency and day, for invoices not in USD
-    log.info("shop %s: watching %s every %s (payments %s)", shop, settings.company,
-             settings.interval, "on, testnet drafts in the ERP" if payments else "off")
+    log.info("shop %s: watching %s every %s on %s (payments %s)", shop, settings.company,
+             settings.interval, settings.network.label,
+             ("on, drafts in the ERP" if settings.erpnext_draft_payments else "on")
+             if payments else "off")
     signatures: dict[str, dict[str, str]] = {}  # the last outcome per supplier, for its page
     answers: dict[str, dict[str, str]] = {}  # the last outcome per invoice, for the owner
     read_limits = limits(settings)
@@ -279,9 +282,11 @@ def run_shop(
     comment = getattr(live, "comment_on_invoice", None)
     has_email = getattr(live, "has_email", None)
     room, funds = room_of(payments), funds_of(payments)
-    unified = owner_funds_of(settings, payments)
-    earn = owner_earn_of(payments, lambda: store.liquidity_strategy(shop))
-    anchors = anchors_for(payments)
+    # Unified Balance funding and Earn run on test USDC only
+    test_money = settings.network.test_money
+    unified = owner_funds_of(settings, payments) if test_money else None
+    earn = owner_earn_of(payments, lambda: store.liquidity_strategy(shop)) if test_money else None
+    anchors = anchors_for(payments, settings.network.journal_anchor)
     if unified:
         try:
             log.info("shop %s: agent wallet ready for the Unified Balance on %s", shop,
@@ -359,7 +364,8 @@ def run_shop(
             try:
                 if isinstance(ledger, CachedLedger):
                     ledger.refresh()
-                signed = take_signatures(folder, journal, ledger)
+                signed = take_signatures(folder, journal, ledger,
+                                         chain_id=settings.network.chain_id)
                 answered = take_answers(folder, journal)
                 signatures.update(signed)
                 answers.update(answered)
@@ -426,7 +432,8 @@ def run_shop(
             if session and session.finished:
                 remember_reach(folder, reach)
             store.write_supplier_view(shop, supplier_view(report, journal, settings.company,
-                                                          signatures, wallet_of=wallet_of))
+                                                          signatures, settings.network,
+                                                          wallet_of=wallet_of))
             log.info("shop %s: %s", shop, format_report(report))
             if isinstance(ledger, CachedLedger):
                 log.info("shop %s: %d documents read in full this check", shop, ledger.downloads)

@@ -10,8 +10,10 @@ import httpx
 from eth_abi import decode, encode
 from eth_utils import keccak, to_checksum_address
 
+from services.network import TESTNET
+
 WEEK_SECONDS = 7 * 24 * 3600
-SHOP_LOGS_FROM = 66943142  # the ShopPayablesFactory deployment on Arc testnet: no shop is older
+SHOP_LOGS_FROM = TESTNET.first_block  # the factory's deployment on Arc testnet: no shop is older
 LOG_CHUNK_BLOCKS = 99_999  # the most blocks the Canteen node returns logs for in one call
 _PAYEE_SET = "0x" + keccak(text="PayeeSet(address,bool)").hex()
 _PAID = "0x" + keccak(text="Paid(bytes32,address,uint256,address)").hex()
@@ -57,9 +59,11 @@ def revert_reason(data: bytes) -> str:
 
 
 class ArcRpc:
-    def __init__(self, url: str, *, client: httpx.Client | None = None, timeout: int = 20) -> None:
+    def __init__(self, url: str, *, client: httpx.Client | None = None, timeout: int = 20,
+                 first_block: int = SHOP_LOGS_FROM) -> None:
         self._url = url
         self._client = client or httpx.Client(timeout=timeout)
+        self._first_block = first_block  # where this network's shop events start
 
     def __repr__(self) -> str:
         return "ArcRpc(<node url hidden>)"
@@ -107,11 +111,12 @@ class ArcRpc:
         return approved
 
     def payee_approved_since(self, shop: str, payee: str, since: datetime,
-                             first_block: int = SHOP_LOGS_FROM) -> datetime | None:
+                             first_block: int | None = None) -> datetime | None:
         """When the owner approved this payee in the shop contract, if that approval is its
         latest PayeeSet event and was made after `since`; otherwise None. Reads the contract's
         events newest range first and stops at ranges older than `since`."""
         topic = "0x" + "00" * 12 + to_checksum_address(payee)[2:].lower()
+        first_block = self._first_block if first_block is None else first_block
         try:
             end = int(self._rpc("eth_blockNumber", []), 16)
             while end >= first_block:
@@ -134,11 +139,12 @@ class ArcRpc:
         return None
 
     def payment_tx(self, shop: str, ref: bytes, by: str, since: datetime,
-                   first_block: int = SHOP_LOGS_FROM) -> str | None:
+                   first_block: int | None = None) -> str | None:
         """The transaction in which `by` paid this invoice reference through the shop contract,
         or None. The contract pays a reference once, so its Paid event is the only one. Reads
         the newest ranges first and stops at ranges older than `since`."""
         by_topic = "0x" + "00" * 12 + to_checksum_address(by)[2:].lower()
+        first_block = self._first_block if first_block is None else first_block
         try:
             end = int(self._rpc("eth_blockNumber", []), 16)
             while end >= first_block:
@@ -158,6 +164,11 @@ class ArcRpc:
 
     def latest_block(self) -> int:
         return int(self._rpc("eth_blockNumber", []), 16)
+
+    def has_code(self, address: str) -> bool:
+        """A contract is deployed at this address on this network."""
+        code = self._rpc("eth_getCode", [to_checksum_address(address), "latest"])
+        return bool(code) and code != "0x"
 
     def logs(self, address: str, topics: list[Any], start: int, end: int) -> list[dict[str, Any]]:
         """The contract's events in [start, end]; at most LOG_CHUNK_BLOCKS + 1 blocks per call."""

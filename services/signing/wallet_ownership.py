@@ -10,8 +10,9 @@ from eth_account import Account
 from eth_account.messages import encode_typed_data
 
 from agent.guardrails.controls.confirmations import WalletChallenge
+from services.network import TESTNET
 
-ARC_TESTNET_CHAIN_ID = 5042002
+ARC_TESTNET_CHAIN_ID = TESTNET.chain_id
 
 _TYPES = {
     "EIP712Domain": [
