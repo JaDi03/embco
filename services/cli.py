@@ -165,7 +165,7 @@ def _payer(settings: Settings, ledger: ErpnextAdapter) -> Payer | None:
         return None
     return Payer(
         ledger=ledger,
-        chain=ArcRpc(settings.arc_rpc_url, first_block=settings.network.first_block),
+        chain=ArcRpc.of(settings.arc_rpc_url, settings.network),
         circle=CircleClient(settings.circle_api_key, settings.circle_entity_secret),
         shop=settings.shop_address,
         wallet_id=settings.agent_wallet_id,

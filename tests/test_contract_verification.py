@@ -313,3 +313,43 @@ def test_retry_after_supports_http_dates():
     assert retry_after("Fri, 15 Jan 2027 08:01:00 GMT", 1_800_000_000) >= 0
     assert retry_after("120", NOW) == 120
     assert retry_after("bad", NOW) == 300
+
+
+def test_mainnet_shops_are_verified_once_its_node_is_set():
+    testnet_only = factories({"ARC_TESTNET_RPC_URL": "https://t.example.test"})
+    both = factories({"ARC_TESTNET_RPC_URL": "https://t.example.test",
+                      "ARC_MAINNET_RPC_URL": "https://m.example.test"})
+    [mainnet] = [f for f in both if f.chain == 5042]
+    assert all(f.chain != 5042 for f in testnet_only)
+    assert mainnet.address == "0x1304d82964c44E2a8cca4D5bc27E30C83A123a50"
+    assert (mainnet.contract, mainnet.log_blocks) == ("ShopPayables", 10_000)
+
+
+def test_mainnet_history_is_read_from_its_node_in_ranges_it_accepts(store):
+    spec = [f for f in factories({"ARC_TESTNET_RPC_URL": "https://t.example.test",
+                                  "ARC_MAINNET_RPC_URL": "https://m.example.test"})
+            if f.chain == 5042][0]
+    first = 29369377
+    store.bootstrap(spec, {**compilation(spec), "deployment": {"blockNumber": str(first)}})
+    ranges = []
+
+    def handler(request):
+        if request.method == "GET":  # Arc mainnet's explorer refuses scripts
+            return httpx.Response(403, text="Just a moment...")
+        body = json.loads(request.content)
+        if body["method"] == "eth_chainId":
+            return httpx.Response(200, json={"result": hex(5042)})
+        if body["method"] == "eth_blockNumber":
+            return httpx.Response(200, json={"result": hex(first + 25_000)})
+        query = body["params"][0]
+        start, end = int(query["fromBlock"], 16), int(query["toBlock"], 16)
+        ranges.append((start, end))
+        if end - start + 1 > 10_000:
+            return httpx.Response(200, json={"error": {"code": -32012,
+                                                       "message": "requested range too large"}})
+        return httpx.Response(200, json={"result": [event(spec, first + 5)] if start == first
+                                         else []})
+
+    Worker(store, api_for(store, handler), [spec]).run(discover_only=True)
+    assert ranges[0][0] == first and all(e - s + 1 <= 10_000 for s, e in ranges)
+    assert store.due(NOW, 10, (spec.key,))[0]["address"] == SHOP

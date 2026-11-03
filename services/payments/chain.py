@@ -10,11 +10,11 @@ import httpx
 from eth_abi import decode, encode
 from eth_utils import keccak, to_checksum_address
 
-from services.network import TESTNET
+from services.network import TESTNET, Network
 
 WEEK_SECONDS = 7 * 24 * 3600
 SHOP_LOGS_FROM = TESTNET.first_block  # the factory's deployment on Arc testnet: no shop is older
-LOG_CHUNK_BLOCKS = 99_999  # the most blocks the Canteen node returns logs for in one call
+LOG_CHUNK_BLOCKS = TESTNET.log_blocks  # the most blocks the Canteen node returns logs for
 _PAYEE_SET = "0x" + keccak(text="PayeeSet(address,bool)").hex()
 _PAID = "0x" + keccak(text="Paid(bytes32,address,uint256,address)").hex()
 
@@ -60,10 +60,16 @@ def revert_reason(data: bytes) -> str:
 
 class ArcRpc:
     def __init__(self, url: str, *, client: httpx.Client | None = None, timeout: int = 20,
-                 first_block: int = SHOP_LOGS_FROM) -> None:
+                 first_block: int = SHOP_LOGS_FROM, log_blocks: int = LOG_CHUNK_BLOCKS) -> None:
         self._url = url
         self._client = client or httpx.Client(timeout=timeout)
         self._first_block = first_block  # where this network's shop events start
+        self._log_blocks = log_blocks  # the most blocks its node returns events for at once
+
+    @classmethod
+    def of(cls, url: str, network: Network) -> "ArcRpc":
+        """A node of `network`, reading events from its factory block in ranges it accepts."""
+        return cls(url, first_block=network.first_block, log_blocks=network.log_blocks)
 
     def __repr__(self) -> str:
         return "ArcRpc(<node url hidden>)"
@@ -120,7 +126,7 @@ class ArcRpc:
         try:
             end = int(self._rpc("eth_blockNumber", []), 16)
             while end >= first_block:
-                start = max(first_block, end - LOG_CHUNK_BLOCKS + 1)
+                start = max(first_block, end - self._log_blocks + 1)
                 logs = self._rpc("eth_getLogs", [{
                     "address": to_checksum_address(shop), "topics": [_PAYEE_SET, topic],
                     "fromBlock": hex(start), "toBlock": hex(end)}])
@@ -148,7 +154,7 @@ class ArcRpc:
         try:
             end = int(self._rpc("eth_blockNumber", []), 16)
             while end >= first_block:
-                start = max(first_block, end - LOG_CHUNK_BLOCKS + 1)
+                start = max(first_block, end - self._log_blocks + 1)
                 logs = self._rpc("eth_getLogs", [{
                     "address": to_checksum_address(shop),
                     "topics": [_PAID, "0x" + ref.hex(), None, by_topic],

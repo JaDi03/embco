@@ -131,6 +131,19 @@ def test_on_mainnet_the_node_reads_events_from_the_mainnet_factory_block():
     assert int(logs["params"][0]["fromBlock"], 16) == MAINNET.first_block  # never testnet's
 
 
+def test_on_mainnet_the_node_is_asked_for_at_most_10000_blocks_at_once():
+    newer = int(datetime(2026, 11, 2, tzinfo=UTC).timestamp())  # every range is after `since`
+    client, calls = node({"eth_blockNumber": hex(MAINNET.first_block + 25_000), "eth_getLogs": [],
+                          "eth_getBlockByNumber": {"timestamp": hex(newer)}})
+    rpc = ArcRpc.of("https://mainnet.example.com", MAINNET)
+    rpc._client = client
+    assert rpc.payment_tx(SHOP, b"" * 32, OTHER, datetime(2026, 11, 1, tzinfo=UTC)) is None
+    ranges = [(int(c["params"][0]["fromBlock"], 16), int(c["params"][0]["toBlock"], 16))
+              for c in calls if c["method"] == "eth_getLogs"]
+    assert all(end - start + 1 <= 10_000 for start, end in ranges)
+    assert ranges[-1][0] == MAINNET.first_block and len(ranges) == 3
+
+
 def test_a_shop_is_on_the_network_where_its_contract_is():
     testnet_client, _ = node({"eth_getCode": "0x"})
     mainnet_client, _ = node({"eth_getCode": lambda b: "0x6080" if b["params"][0].lower() == SHOP
