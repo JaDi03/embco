@@ -30,6 +30,7 @@ class Network:
     journal_anchor: str
     decision_verifier: str
     first_block: int  # the factory's deployment: no shop is older
+    log_blocks: int  # the most blocks its node returns events for in one call
     test_money: bool  # test USDC: ERP drafts, Unified Balance funding and Earn
 
     def platform(self, env: Mapping[str, str]) -> dict[str, str]:
@@ -51,6 +52,7 @@ TESTNET = Network(
     journal_anchor=to_checksum_address("0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582"),
     decision_verifier=to_checksum_address("0x2e23aFE44fe10378F9957030bf3B0d31998dddde"),
     first_block=66943142,
+    log_blocks=99_999,  # the Canteen node
     test_money=True,
 )
 
@@ -67,6 +69,7 @@ MAINNET = Network(
     journal_anchor=to_checksum_address("0x4d8efEc867e9F46c05E8359e81dEC6C7D13c95A8"),
     decision_verifier=to_checksum_address("0x69e31Af302Ee222204AA78099D39a2956F5C95d6"),
     first_block=29369377,
+    log_blocks=10_000,  # rpc.mainnet.arc.io: 10,001 is "requested range too large"
     test_money=False,
 )
 

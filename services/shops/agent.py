@@ -72,7 +72,7 @@ def payer_for(settings: Settings, ledger: ErpnextAdapter) -> Payer | None:
         return None
     return Payer(
         ledger=ledger,
-        chain=ArcRpc(settings.arc_rpc_url, first_block=settings.network.first_block),
+        chain=ArcRpc.of(settings.arc_rpc_url, settings.network),
         circle=CircleClient(settings.circle_api_key, settings.circle_entity_secret),
         shop=settings.shop_address,
         wallet_id=settings.agent_wallet_id,
@@ -85,7 +85,7 @@ def limits_for(settings: Settings) -> Callable[[str], ShopLimits] | None:
     """The contract's limits, read on chain when the shop has the Arc node."""
     if not settings.arc_rpc_url:
         return None
-    return ShopChain(ArcRpc(settings.arc_rpc_url, first_block=settings.network.first_block),
+    return ShopChain(ArcRpc.of(settings.arc_rpc_url, settings.network),
                      settings.network.factory).limits
 
 

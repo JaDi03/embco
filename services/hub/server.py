@@ -47,7 +47,7 @@ def build_app(env: Mapping[str, str]) -> FastAPI:
     chains, circles, rpc_urls = {}, {}, {}
     for net in available(env):
         rpc_url = env[net.rpc_env].strip()
-        rpc = ArcRpc(rpc_url, first_block=net.first_block)
+        rpc = ArcRpc.of(rpc_url, net)
         factory = (env.get("EMBCO_FACTORY_ADDRESS") or net.factory) if net is TESTNET \
             else net.factory
         chains[net.name] = (net, ShopChain(rpc, factory), rpc)

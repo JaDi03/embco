@@ -66,7 +66,7 @@ class Worker:
             raise VerificationError("rpc: wrong chain ID")
         head = int(self.api.rpc(spec.chain, spec.rpc, "eth_blockNumber", []), 16) - CONFIRMATIONS
         start = state["next_block"]
-        span = BLOCKS
+        span = min(BLOCKS, spec.log_blocks)
         for _ in range(RANGES_PER_FACTORY):
             if start > head:
                 break
