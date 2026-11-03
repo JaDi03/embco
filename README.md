@@ -27,6 +27,13 @@ and acts on what happened. A smart contract sets the limits it cannot cross.
 > Built for the Tameion Agents Hackathon (Canteen x Circle, on Arc). Early and built in public:
 > the agent runs against a live ERPNext and pays on Arc Testnet.
 
+## Live stats: what the agents have paid
+
+**[app.embco.xyz/stats](https://app.embco.xyz/stats/)** shows, live, how many real businesses
+use embco, how many payments their agents made and how much USDC they paid, day by day, with
+every payment linked to its transaction on Arc. Its numbers are read only from public chain
+data, so anyone can check them.
+
 ## What it does
 
 - **Checks** every invoice against its order and receipt, its price history and the contract's
@@ -87,16 +94,18 @@ Gateway balance and brings it to their wallet on Arc. It only ever lands in the 
 USDC and vault shares never sit in an embco contract. The owner picks the vaults and the limits;
 the model picks when and how much, following the owner's liquidity strategy.
 
-## Contracts on Arc Testnet
+### The contracts: rules on chain, money in the owner's wallet
 
-| Contract | What it does | Address |
-|---|---|---|
-| `ShopPayablesFactory` | Each owner creates their shop contract: the agent pays suppliers from the owner's wallet within the owner's limits | [`0x5D455dF984C85abe160E4585E0c1139ded5d2c3b`](https://explorer.testnet.arc.io/address/0x5D455dF984C85abe160E4585E0c1139ded5d2c3b) |
-| `ShopEarnFactory` | Each owner creates their ShopEarn: the agent parks idle USDC in approved vaults and takes it back, shares stay with the owner | [`0xEDF589982F10CCC3c8489726FaB39124b1F683Aa`](https://explorer.testnet.arc.io/address/0xEDF589982F10CCC3c8489726FaB39124b1F683Aa) |
-| `JournalAnchor` | The Merkle root of each shop's journal, written by its agent, so any copy can be checked | [`0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582`](https://explorer.testnet.arc.io/address/0x4385a2F8acda166F3FE3B3825F6950BA7dAc2582) |
-| `ShopFundingFactory` (Base Sepolia, Ethereum Sepolia) | Each owner creates their ShopFunding: the agent deposits the owner's USDC into the owner's own Unified Balance | [`0x69e31Af302Ee222204AA78099D39a2956F5C95d6`](https://sepolia.basescan.org/address/0x69e31Af302Ee222204AA78099D39a2956F5C95d6) |
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagrams/readme-contracts-dark.svg">
+  <img src="docs/assets/diagrams/readme-contracts.svg" width="100%" alt="The contracts: factories deploy one ShopPayables, ShopEarn and ShopFunding per owner; ShopPayables sends USDC straight from the owner to the supplier; JournalAnchor and DecisionVerifier only read and record data">
+</picture>
 
-Every contract, who can call what, and the vaults: [Smart contracts](https://docs.embco.xyz/contracts/).
+No embco contract keeps a balance. The owner's USDC stays in the owner's wallet until a payment
+is made, and then it goes straight to the supplier. ShopEarn and ShopFunding pass it on to the
+vault or to Gateway in the same transaction, always in the owner's name.
+
+Addresses, who can call what, and the full diagram: [Smart contracts](https://docs.embco.xyz/contracts/).
 
 Why it exists: [Agents and Ledgers in 2026](https://thecanteenapp.com/analysis/2026/09/12/agents-and-ledgers.html).
 How each part works, with diagrams: [the documentation](https://docs.embco.xyz/).
