@@ -5,13 +5,14 @@
 
 import { ethers } from "./vendor/ethers-6.17.0.min.js";
 import { DECISION_VERIFIER_ABI } from "./abi.js";
-import { ARC_TESTNET, DECISION_VERIFIER_ADDRESS } from "./config.js";
+import { TESTNET } from "./networks.js";
 import { chainText } from "./journal.js";
 
 const PROOF_TYPE = "tuple(address,uint256,uint256,bytes32[],bytes)";  // DecisionVerifier.Proof
 
-/** The page of the contract in the explorer, open on its Read form. */
-export const VERIFIER_PAGE = `${ARC_TESTNET.explorer}/address/${DECISION_VERIFIER_ADDRESS}?tab=read_contract`;
+/** The page of the network's verifier in the explorer, open on its Read form. */
+export const verifierPage = (network = TESTNET) =>
+  `${network.explorer}/address/${network.decisionVerifier}?tab=read_contract`;
 
 /** The value to paste, from a decision proof and the anchors read from Arc (in the contract's
  * order). Null for a decision written before the MANIFEST: Arc cannot check it on its own. */
@@ -26,9 +27,9 @@ export function arcValue(bundle, anchors) {
     [[ethers.getAddress(bundle.shop), position, p.index, p.proof.map((h) => `0x${h}`), text]]);
 }
 
-/** Arc's answer to the value, read through `runner` (a provider): a plain object. */
-export async function askArc(value, runner) {
-  const verifier = new ethers.Contract(DECISION_VERIFIER_ADDRESS, DECISION_VERIFIER_ABI, runner);
+/** Arc's answer to the value, read through `runner` (a provider of `network`): a plain object. */
+export async function askArc(value, runner, network = TESTNET) {
+  const verifier = new ethers.Contract(network.decisionVerifier, DECISION_VERIFIER_ABI, runner);
   const r = await verifier.verify(value);
   return {
     verified: r.verified, answer: r.answer, shop: r.shop, owner: r.owner, invoice: r.invoice,

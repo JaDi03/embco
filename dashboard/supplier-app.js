@@ -1,16 +1,18 @@
 // The supplier page: sign in with the wallet you are paid to, see each shop's invoices and
 // payments, and confirm that wallet when a shop's agent asks for it.
 
-import { ARC_TESTNET } from "./config.js";
 import { describeError } from "./errors.js";
 import { setNotice } from "./notice.js";
+import { networkNamed, networkOfChain, TESTNET } from "./networks.js";
 import { chooseWallet } from "./picker.js";
 import * as suppliers from "./suppliers.js";
 import "./theme.js";
 import * as wallet from "./wallet.js";
 
 const $ = (id) => document.getElementById(id);
-const txUrl = (hash) => `${ARC_TESTNET.explorer}/tx/${hash}`;
+// each shop pays on its own network: its payments are on that network's explorer
+const txUrl = (hash, network) => `${networkNamed(network).explorer}/tx/${hash}`;
+let signedAs = null;  // the wallet signed in on this page: changing it signs the supplier out
 
 function notify(text, kind = "info") {
   setNotice($("notice"), text, kind);
@@ -33,15 +35,19 @@ function metamaskAppLink() {
   return `https://metamask.app.link/dapp/${host}${pathname}`;
 }
 
-async function signer() {
+/** A signer on `network`, or on any Arc network when none is needed (signing in). A wallet signs
+ * typed data only for the network it is on, so a shop's challenge is signed on the shop's network. */
+async function signer(network = null) {
   if (!(await wallet.reconnect())) await wallet.connect(await chooseWallet($("wallet-list"), wallet.wallets()));
-  if (!(await wallet.onArc())) await wallet.switchToArc();
+  const current = await wallet.arcNetwork();
+  if (network ? current !== network : !current) await wallet.switchToArc(network ?? TESTNET);
   return wallet.provider().getSigner();
 }
 
 async function render() {
   const page = await suppliers.myPage();
   if (!page) {
+    signedAs = null;
     show("view-welcome");
     const hasWallet = wallet.wallets().length > 0;
     $("sign-in").hidden = !hasWallet;
@@ -50,6 +56,7 @@ async function render() {
     return;
   }
   show("view-page");
+  signedAs = page.wallet;
   $("wallet").textContent = page.wallet;
   $("no-shops").hidden = page.shops.length > 0;
   $("shops").replaceChildren(...page.shops.map(shopCard));
@@ -89,7 +96,7 @@ function shopCard(entry) {
       el("td", { textContent: new Date(p.paid_at).toLocaleDateString() }),
       el("td", { className: "num", textContent: suppliers.formatAmount(p.amount) }),
       el("td", { className: "num" },
-        el("a", { href: txUrl(p.tx_hash), target: "_blank", rel: "noopener", textContent: "See on the explorer" })))),
+        el("a", { href: txUrl(p.tx_hash, entry.network), target: "_blank", rel: "noopener", textContent: "See on the explorer" })))),
     "No payments yet."));
   if (entry.network) card.append(el("p", { className: "hint card-foot", textContent: `Payments on ${entry.network}.` }));
   return card;
@@ -143,7 +150,8 @@ function confirmBox(entry) {
     button.disabled = true;
     try {
       notify("Confirm the signature in MetaMask...");
-      await suppliers.confirmWallet(await signer(), entry);
+      const network = networkOfChain(entry.challenge.typed_data.domain.chainId) ?? TESTNET;
+      await suppliers.confirmWallet(await signer(network), entry);
       notify("Received. The shop's agent records it within about 15 minutes.", "success");
       await render();
     } catch (error) {
@@ -178,9 +186,17 @@ function wire() {
 }
 
 function start() {
-  $("explorer-link").href = ARC_TESTNET.explorer;
+  $("explorer-link").href = TESTNET.explorer;
   wire();
-  wallet.onWalletChange(() => suppliers.signOutSupplier().catch(() => null).then(render));
+  // another account signs the supplier out; another network (to sign for a shop there) does not
+  wallet.onWalletChange(async () => {
+    const account = await wallet.reconnect().catch(() => null);
+    if (signedAs && account?.toLowerCase() !== signedAs.toLowerCase()) {
+      signedAs = null;
+      await suppliers.signOutSupplier().catch(() => null);
+    }
+    await render();
+  });
   wallet.onWallets(() => { if (!$("view-welcome").hidden) render(); });  // a wallet announced late
   render().catch((error) => notify(describeError(error), "error"));
 }

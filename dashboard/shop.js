@@ -1,51 +1,40 @@
-// Reading the factory, the owner's shop contract and its history from Arc Testnet.
-// Reads go to the Canteen node through this site's /rpc proxy; history comes from the explorer's
-// index, or from the node if the explorer fails. Writes go through MetaMask in app.js; nothing
-// here can sign.
+// Reading the factory, the owner's shop contract and its history from Arc, on the network the
+// owner chose (networks.js). Reads go to that network's node through this site's /rpc door;
+// history comes from the explorer's index when the network has one, else (or if it fails) from
+// the node. Writes go through MetaMask in app.js; nothing here can sign.
 
 import { ethers } from "./vendor/ethers-6.17.0.min.js";
 import { FACTORY_ABI, JOURNAL_ANCHOR_ABI, SHOP_ABI, USDC_ABI } from "./abi.js";
-import {
-  ARC_TESTNET,
-  EXPLORER_API,
-  FACTORY_ADDRESS,
-  FACTORY_DEPLOY_BLOCK,
-  HISTORY_MAX_PAGES,
-  JOURNAL_ANCHOR_ADDRESS,
-  LOG_CHUNK_BLOCKS,
-  RPC_BATCH_MAX,
-  rpcUrl,
-  USDC_ADDRESS,
-} from "./config.js";
+import { EXPLORER_API, HISTORY_MAX_PAGES, RPC_BATCH_MAX, USDC_ADDRESS } from "./config.js";
+import { activeNetwork, rpcUrlOf } from "./networks.js";
 
+const readers = new Map();  // one read-only provider per network
 
-let reader = null;
-
-/** The read-only provider, created once, with the network fixed. */
-function readProvider() {
-  if (!reader) {
-    reader = new ethers.JsonRpcProvider(rpcUrl(), Number(ARC_TESTNET.chainId),
-      { staticNetwork: true, batchMaxCount: RPC_BATCH_MAX });
+/** The read-only provider of a network, created once, with the network fixed. */
+function readProvider(network = activeNetwork()) {
+  if (!readers.has(network.name)) {
+    readers.set(network.name, new ethers.JsonRpcProvider(rpcUrlOf(network), Number(network.chainId),
+      { staticNetwork: true, batchMaxCount: RPC_BATCH_MAX }));
   }
-  return reader;
+  return readers.get(network.name);
 }
 
-/** Run a read against the Canteen node. */
-export function read(fn) {
-  return fn(readProvider());
+/** Run a read against the node of a network (the one in use when none is given). */
+export function read(fn, network = activeNetwork()) {
+  return fn(readProvider(network));
 }
 
 /** Every root the shop's agent wrote on Arc, oldest first: {root (hex, no 0x), size, anchoredAt}. */
-export async function journalAnchors(shop) {
-  const registry = new ethers.Contract(JOURNAL_ANCHOR_ADDRESS, JOURNAL_ANCHOR_ABI, readProvider());
+export async function journalAnchors(shop, network = activeNetwork()) {
+  const registry = new ethers.Contract(network.journalAnchor, JOURNAL_ANCHOR_ABI, readProvider(network));
   const count = Number(await registry.count(shop));
   const anchors = await Promise.all(Array.from({ length: count }, (_, i) => registry.anchorAt(shop, i)));
   return anchors.map((a) => ({ root: a.root.slice(2).toLowerCase(), size: Number(a.size),
     anchoredAt: new Date(Number(a.anchoredAt) * 1000).toISOString() }));
 }
 
-export function factory(runner) {
-  return new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, runner);
+export function factory(runner, network = activeNetwork()) {
+  return new ethers.Contract(network.factory, FACTORY_ABI, runner);
 }
 
 export function shopContract(address, runner) {
@@ -82,11 +71,11 @@ export function shopState(shop, account) {
 }
 
 /** Raw logs of a contract from the explorer, newest first, a few pages at most. */
-async function explorerLogs(address, fetchImpl = fetch) {
+async function explorerLogs(address, fetchImpl = fetch, api = EXPLORER_API) {
   const logs = [];
   let query = "";
   for (let page = 0; page < HISTORY_MAX_PAGES; page++) {
-    const response = await fetchImpl(`${EXPLORER_API}/addresses/${address}/logs${query}`);
+    const response = await fetchImpl(`${api}/addresses/${address}/logs${query}`);
     if (!response.ok) throw new Error(`The Arc explorer answered ${response.status}. Try again in a moment.`);
     const body = await response.json();
     logs.push(...(body.items ?? []));
@@ -127,11 +116,11 @@ export function decodeHistory(logs) {
 }
 
 /** The shop's logs from the node, in ranges it accepts, from the factory deployment on. */
-async function nodeLogs(shop, provider) {
+async function nodeLogs(shop, provider, network = activeNetwork()) {
   const latest = await provider.getBlockNumber();
   const logs = [];
-  for (let start = FACTORY_DEPLOY_BLOCK; start <= latest; start += LOG_CHUNK_BLOCKS) {
-    const end = Math.min(start + LOG_CHUNK_BLOCKS - 1, latest);
+  for (let start = network.deployBlock; start <= latest; start += network.logChunk) {
+    const end = Math.min(start + network.logChunk - 1, latest);
     const chunk = await provider.getLogs({ address: shop, fromBlock: start, toBlock: end });
     logs.push(
       ...chunk.map((l) => ({ topics: l.topics, data: l.data, block_number: l.blockNumber, index: l.index, transaction_hash: l.transactionHash })),
@@ -140,12 +129,13 @@ async function nodeLogs(shop, provider) {
   return logs;
 }
 
-export async function shopHistory(shop) {
+export async function shopHistory(shop, network = activeNetwork()) {
   let logs;
   try {
-    logs = await explorerLogs(shop);
+    if (!network.explorerApi) throw new Error("no explorer index on this network");
+    logs = await explorerLogs(shop, fetch, network.explorerApi);
   } catch {
-    logs = await read((provider) => nodeLogs(shop, provider));
+    logs = await read((provider) => nodeLogs(shop, provider, network), network);
   }
   return decodeHistory(logs);
 }
