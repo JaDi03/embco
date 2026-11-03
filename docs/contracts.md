@@ -3,6 +3,28 @@
 The shop's limits live on chain, in a contract the agent cannot change. These are the contracts
 in `contracts/` (Solidity 0.8.37, Arc Foundry).
 
+## How the contracts fit together
+
+<figure class="diagram" markdown>
+![How the contracts fit together: factories deploy one ShopPayables, ShopEarn and ShopFunding per owner; solid arrows move USDC from the owner to a supplier, a vault or Gateway; dashed arrows only deploy or read; JournalAnchor and DecisionVerifier never touch USDC](assets/diagrams/contracts-overview.svg#only-light "How the contracts fit together")
+![How the contracts fit together: factories deploy one ShopPayables, ShopEarn and ShopFunding per owner; solid arrows move USDC from the owner to a supplier, a vault or Gateway; dashed arrows only deploy or read; JournalAnchor and DecisionVerifier never touch USDC](assets/diagrams/contracts-overview-dark.svg#only-dark "How the contracts fit together")
+</figure>
+
+Solid arrows move USDC. Dashed arrows only deploy a contract or read data.
+
+No contract keeps a balance. Each one that moves USDC sends it on in the same call:
+
+| Contract | Moves USDC | Where it ends |
+|---|---|---|
+| `ShopPayables` | `pay`: `transferFrom(owner, payee, amount)` | The supplier's wallet |
+| `ShopEarn` | `park`: takes it from the owner and deposits it in the vault | Vault shares in the owner's wallet |
+| `ShopEarn` | `unpark`, `unparkAll`: the vault pays out | The owner's wallet |
+| `ShopFunding` | `fund`: takes it from the owner and calls Gateway's `depositFor` | The owner's Gateway balance |
+| Factories, `JournalAnchor`, `DecisionVerifier` | Never | |
+
+Each of them takes USDC only through the allowance the owner gave it. Revoking that allowance
+stops every `pay`, `park` and `fund` at once.
+
 ## Deployed on Arc Testnet
 
 The server installed with `deploy/install.sh` automatically discovers `ShopPayables` and
