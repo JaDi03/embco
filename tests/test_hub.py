@@ -182,12 +182,14 @@ class FakeCircle:
     def create_wallet_set(self, name, *, idempotency_key=None):
         return "set-" + str(idempotency_key)[:8]
 
-    def create_eoa_wallet(self, wallet_set_id, name, *, idempotency_key=None):
+    def create_eoa_wallet(self, wallet_set_id, name, *, blockchain="ARC-TESTNET",
+                          idempotency_key=None):
         self.created += 1
         return CircleWallet(id="w-1", address=self.address, blockchain="ARC-TESTNET",
                             wallet_set_id=wallet_set_id)
 
-    def create_wallet(self, wallet_set_id, name, *, account_type, idempotency_key=None):
+    def create_wallet(self, wallet_set_id, name, *, account_type, blockchain="ARC-TESTNET",
+                      idempotency_key=None):
         if idempotency_key not in self.wallets:
             self.wallets[idempotency_key] = CircleWallet(
                 id=f"w-{len(self.wallets) + 2}", address=Account.create().address,
@@ -324,7 +326,8 @@ def test_circle_names_stay_short_and_keys_stay_the_same_for_a_shop():
             calls.append((name, idempotency_key))
             return "set-1"
 
-        def create_eoa_wallet(self, wallet_set_id, name, *, idempotency_key=None):
+        def create_eoa_wallet(self, wallet_set_id, name, *, blockchain="ARC-TESTNET",
+                          idempotency_key=None):
             calls.append((name, idempotency_key))
             return super().create_eoa_wallet(wallet_set_id, name)
 
@@ -414,7 +417,8 @@ def test_new_shop_wallet_names_stay_short():
             names.append(name)
             return super().create_wallet_set(name, idempotency_key=idempotency_key)
 
-        def create_wallet(self, wallet_set_id, name, *, account_type, idempotency_key=None):
+        def create_wallet(self, wallet_set_id, name, *, account_type, blockchain="ARC-TESTNET",
+                      idempotency_key=None):
             names.append(name)
             return super().create_wallet(wallet_set_id, name, account_type=account_type,
                                          idempotency_key=idempotency_key)

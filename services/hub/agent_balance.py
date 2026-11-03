@@ -42,15 +42,17 @@ def returnable(balance: Decimal, wallet: CircleWallet) -> Decimal:
 def agent_balance_routes(
     *,
     store: ShopStore,
-    circle: CircleClient | None,
-    balance_of: Callable[[str], Decimal] | None,
+    circle_for: Callable[[str], CircleClient | None],
+    balance_for: Callable[[str], Callable[[str], Decimal] | None],
     shop_of: Callable[[str], str],
     owner_session: Callable[[str, str | None], Any],
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
 ) -> APIRouter:
     router = APIRouter()
 
-    def wallet_and_balance(shop: str) -> tuple[CircleWallet, Decimal]:
+    def wallet_and_balance(shop: str) -> tuple[CircleClient, CircleWallet, Decimal]:
+        """The shop network's Circle account, the agent wallet there and its balance."""
+        circle, balance_of = circle_for(shop), balance_for(shop)
         if circle is None or balance_of is None:
             raise HubError(503, "the agent's wallet cannot be reached here")
         try:
@@ -64,7 +66,7 @@ def agent_balance_routes(
         except CircleError as error:
             raise HubError(502, "could not read the agent's wallet; try again") from error
         try:
-            return wallet, balance_of(wallet.address)
+            return circle, wallet, balance_of(wallet.address)
         except ChainError as error:
             raise HubError(502, "could not read the agent's balance; try again") from error
 
@@ -72,7 +74,7 @@ def agent_balance_routes(
     def balance(shop: str, embco_session: str | None = Cookie(default=None)) -> dict[str, Any]:
         shop = shop_of(shop)
         owner_session(shop, embco_session)
-        wallet, held = wallet_and_balance(shop)
+        _circle, wallet, held = wallet_and_balance(shop)
         return {"wallet": wallet.address, "balance": fmt(held),
                 "returnable": fmt(returnable(held, wallet)),
                 "gasless": wallet.account_type == "SCA"}
@@ -83,7 +85,7 @@ def agent_balance_routes(
         session = owner_session(shop, embco_session)
         if shop in store.connected() and store.agent_on(shop):
             raise HubError(409, "turn the agent off first; it pays its gas from this wallet")
-        wallet, held = wallet_and_balance(shop)
+        circle, wallet, held = wallet_and_balance(shop)
         amount = returnable(held, wallet)
         if amount <= 0:
             raise HubError(409, "there is nothing to take back from the agent's wallet")

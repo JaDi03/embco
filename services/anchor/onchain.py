@@ -12,10 +12,11 @@ from eth_utils import to_checksum_address
 from agent.memory.sqlite import entry_text_of
 from services.anchor.audit import AuditError
 from services.anchor.client import Anchor
+from services.network import TESTNET
 
 # DecisionVerifier on Arc Testnet (contracts/script/DeployDecisionVerifier.s.sol).
-DECISION_VERIFIER = "0x2e23aFE44fe10378F9957030bf3B0d31998dddde"
-ARC_EXPLORER = "https://explorer.testnet.arc.io"
+DECISION_VERIFIER = TESTNET.decision_verifier
+ARC_EXPLORER = TESTNET.explorer
 PROOF_TYPE = "(address,uint256,uint256,bytes32[],bytes)"  # DecisionVerifier.Proof
 
 

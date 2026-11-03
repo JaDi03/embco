@@ -113,7 +113,7 @@ def test_cli_audit_reads_arc_and_exits_by_the_result(exported, monkeypatch, caps
                              int(ANCHORED.timestamp())))
     monkeypatch.setattr(cli, "ArcRpc", lambda _url: registry)
     monkeypatch.setattr(cli, "JournalAnchors",
-                        lambda chain, shop: JournalAnchors(chain, shop, address=REGISTRY))
+                        lambda chain, shop, **_: JournalAnchors(chain, shop, address=REGISTRY))
     assert cli.main(["audit", str(path), "--rpc-url", "http://node"]) == 0
     assert "RESULT: the file matches every anchor on Arc" in capsys.readouterr().out
     registry.anchors[0] = (b"\x99" * 32, 4, int(ANCHORED.timestamp()))

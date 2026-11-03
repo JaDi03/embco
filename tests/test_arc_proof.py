@@ -100,7 +100,7 @@ def test_the_cli_prints_the_value_from_a_downloaded_decision_proof(tmp_path, mon
     registry.anchors.append((bytes.fromhex(anchors[0].root), len(hashes), int(T0.timestamp())))
     monkeypatch.setattr(cli, "ArcRpc", lambda _url: registry)
     monkeypatch.setattr(cli, "JournalAnchors",
-                        lambda chain, shop: JournalAnchors(chain, shop, address=REGISTRY))
+                        lambda chain, shop, **_: JournalAnchors(chain, shop, address=REGISTRY))
     path = tmp_path / "decision.json"
     path.write_text(json.dumps(make_decision_bundle(data, "s1", "PINV-1", anchors)),
                     encoding="utf-8")

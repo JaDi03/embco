@@ -16,6 +16,7 @@ from pathlib import Path
 from agent.guardrails.rules import Verdict
 from agent.memory import DecisionJournal, JournalError, answer_ask, submit_wallet_signature
 from services.erp import LedgerAdapter, LedgerError
+from services.signing import ARC_TESTNET_CHAIN_ID
 
 log = logging.getLogger("embco")
 
@@ -54,8 +55,10 @@ def take_signatures(
     ledger: LedgerAdapter,
     *,
     at: datetime | None = None,
+    chain_id: int = ARC_TESTNET_CHAIN_ID,
 ) -> dict[str, dict[str, str]]:
-    """The outcome of each signature handled now, by supplier."""
+    """The outcome of each signature handled now, by supplier. `chain_id` is the shop's network,
+    the one in the typed data the supplier signed."""
     now = at or datetime.now(UTC)
     results: dict[str, dict[str, str]] = {}
     for path in sorted((folder / INBOX).glob("*.json")):
@@ -67,7 +70,8 @@ def take_signatures(
             path.unlink(missing_ok=True)
             continue
         try:
-            proof = submit_wallet_signature(journal, ledger, supplier, signature, at=now)
+            proof = submit_wallet_signature(journal, ledger, supplier, signature, at=now,
+                                            chain_id=chain_id)
         except LedgerError as error:
             log.warning("signature of %s left for the next cycle: %s", supplier, error)
             continue

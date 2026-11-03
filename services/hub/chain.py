@@ -1,6 +1,7 @@
 """What the hub reads on chain: which shops a wallet owns, a shop's limits and agent, and how
-much USDC a wallet holds."""
+much USDC a wallet holds. ShopChains does it on every network the server has a node for."""
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -8,10 +9,11 @@ from eth_abi import decode, encode
 from eth_utils import keccak, to_checksum_address
 
 from services.earn.client import ARC_USDC
-from services.payments.chain import ArcRpc
+from services.network import DEFAULT, TESTNET, Network
+from services.payments.chain import ArcRpc, ChainError
 from services.payments.encoding import USDC_DECIMALS
 
-DEFAULT_FACTORY = "0x5D455dF984C85abe160E4585E0c1139ded5d2c3b"  # ShopPayablesFactory, Arc testnet
+DEFAULT_FACTORY = TESTNET.factory  # ShopPayablesFactory, Arc testnet
 
 
 @dataclass(frozen=True)
@@ -46,6 +48,41 @@ class ShopChain:
 
     def _view(self, to: str, signature: str, types: list[str], args: list) -> bytes:
         return self._rpc.call(to, keccak(text=signature)[:4] + encode(types, args))
+
+
+class ShopChains:
+    """One ShopChain per network. A shop's network is the one in its saved configuration; a
+    shop not connected yet is on the network where its contract is deployed."""
+
+    def __init__(self, chains: Mapping[str, tuple[Network, ShopChain, ArcRpc]],
+                 saved_network: Callable[[str], str | None] = lambda shop: None) -> None:
+        self._chains = dict(chains)
+        self._saved = saved_network
+        self._found: dict[str, Network] = {}  # contracts do not move: asked once per shop
+
+    @property
+    def networks(self) -> list[Network]:
+        return [net for net, _chain, _rpc in self._chains.values()]
+
+    def shops_of(self, owner: str) -> list[str]:
+        return [s for _net, chain, _rpc in self._chains.values() for s in chain.shops_of(owner)]
+
+    def network_of(self, shop: str) -> Network:
+        saved = self._saved(shop)
+        if saved:
+            if saved not in self._chains:
+                raise ChainError(f"this server has no node for the shop's network ({saved})")
+            return self._chains[saved][0]
+        if shop not in self._found:
+            self._found[shop] = next((net for net, _chain, rpc in self._chains.values()
+                                      if net is not DEFAULT and rpc.has_code(shop)), DEFAULT)
+        return self._found[shop]
+
+    def chain_of(self, shop: str) -> ShopChain:
+        return self._chains[self.network_of(shop).name][1]
+
+    def limits(self, shop: str) -> ShopLimits:
+        return self.chain_of(shop).limits(shop)
 
 
 def _usdc(units: int) -> Decimal:

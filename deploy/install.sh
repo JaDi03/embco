@@ -57,6 +57,12 @@ done
 if [ -n "$(get "$FROM" TELEGRAM_BOT_TOKEN)" ] && [ -z "$(get "$FROM" TELEGRAM_BOT_USERNAME)" ]; then
   missing+=(TELEGRAM_BOT_USERNAME)
 fi
+# Arc mainnet is optional; once its node is set, its Circle account is needed too
+if [ -n "$(get "$FROM" ARC_MAINNET_RPC_URL)" ]; then
+  for key in CIRCLE_MAINNET_API_KEY CIRCLE_MAINNET_ENTITY_SECRET; do
+    [ -n "$(get "$FROM" "$key")" ] || missing+=("$key")
+  done
+fi
 [ ${#missing[@]} -eq 0 ] || fail "fill in ${missing[*]} in $FROM, then run this again"
 
 site=$(get "$FROM" EMBCO_SITE)
@@ -83,6 +89,12 @@ rpc=$(get "$FROM" ARC_TESTNET_RPC_URL)
 chain=$(curl -s -m 15 -X POST -H 'content-type: application/json' \
   --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' "$rpc" || true)
 case $chain in *0x4cef52*) ;; *) fail "ARC_TESTNET_RPC_URL does not answer as Arc Testnet" ;; esac
+rpc=$(get "$FROM" ARC_MAINNET_RPC_URL)
+if [ -n "$rpc" ]; then
+  chain=$(curl -s -m 15 -X POST -H 'content-type: application/json' \
+    --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' "$rpc" || true)
+  case $chain in *0x13b2*) ;; *) fail "ARC_MAINNET_RPC_URL does not answer as Arc Mainnet" ;; esac
+fi
 
 say "2/6 Code"
 id embco >/dev/null 2>&1 ||

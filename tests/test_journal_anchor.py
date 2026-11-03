@@ -15,6 +15,7 @@ from agent.memory.sqlite import _content
 from services import cli
 from services.anchor import Anchor, JournalAnchors, journal_root, mismatches
 from services.circle import CircleError, CircleTransaction
+from services.network import TESTNET
 from services.payments import ChainError
 from services.shops.anchoring import anchor_journal, anchors_for, due, money_moved
 
@@ -220,12 +221,12 @@ def test_cli_verify_checks_the_copy_against_arc(tmp_path, monkeypatch, capsys):
     with _journal(tmp_path) as journal:
         hashes = journal.entry_hashes()
         registry.anchors.append((journal_root(hashes), 3, int(NOW.timestamp())))
-        monkeypatch.setattr(cli, "JOURNAL_ANCHOR", REGISTRY)
         monkeypatch.setattr(cli, "ArcRpc", lambda _url: registry)
         monkeypatch.setattr(cli, "JournalAnchors",
-                            lambda chain, shop: JournalAnchors(chain, shop, address=REGISTRY))
+                            lambda chain, shop, **_: JournalAnchors(chain, shop, address=REGISTRY))
         settings = SimpleNamespace(journal_path=tmp_path / "journal.sqlite3",
-                                   arc_rpc_url="http://node", shop_address=SHOP)
+                                   arc_rpc_url="http://node", shop_address=SHOP,
+                                   network=TESTNET)
         assert cli._verify(None, settings, journal) == 0
         assert "matches all 1 anchors on Arc: 3 of 3 entries" in capsys.readouterr().out
         registry.anchors[0] = (b"\x99" * 32, 3, int(NOW.timestamp()))

@@ -23,13 +23,15 @@ def wallet_names(shop: str) -> tuple[str, str]:
     return f"embco {tag}", f"embco agent {tag}"
 
 
-def create_agent_wallet(circle: CircleClient, shop: str) -> CircleWallet:
+def create_agent_wallet(circle: CircleClient, shop: str,
+                        blockchain: str = ARC_TESTNET) -> CircleWallet:
     """Idempotency keys come from the shop, so a retry does not make a second wallet."""
     set_name, wallet_name = wallet_names(shop)
     wallet_set = circle.create_wallet_set(
         set_name, idempotency_key=str(uuid.uuid5(_NAMESPACE, f"set:{shop}")))
     return circle.create_eoa_wallet(
-        wallet_set, wallet_name, idempotency_key=str(uuid.uuid5(_NAMESPACE, f"wallet:{shop}")))
+        wallet_set, wallet_name, blockchain=blockchain,
+        idempotency_key=str(uuid.uuid5(_NAMESPACE, f"wallet:{shop}")))
 
 
 @dataclass(frozen=True)
@@ -38,28 +40,31 @@ class AgentWallets:
     signer: CircleWallet  # signs Unified Balance spends; the agent itself in older shops
 
 
-def create_agent_wallets(circle: CircleClient, owner: str, index: int) -> AgentWallets:
+def create_agent_wallets(circle: CircleClient, owner: str, index: int,
+                         blockchain: str = ARC_TESTNET) -> AgentWallets:
     """The wallets for the owner's shop number `index` (0 for their first). Idempotency keys come
-    from both, so asking again before the contract exists returns the same two wallets."""
+    from both, so asking again before the contract exists returns the same two wallets. Each
+    network has its own Circle account, so the same keys on another network are not a clash."""
     owner = owner.lower()
     key = lambda part: str(uuid.uuid5(_NAMESPACE, f"{part}:{owner}:{index}"))  # noqa: E731
     tag = f"{owner[:10]} #{index + 1}"
     wallet_set = circle.create_wallet_set(f"embco {tag}", idempotency_key=key("set"))
     agent = circle.create_wallet(wallet_set, f"embco agent {tag}", account_type="SCA",
-                                 idempotency_key=key("agent"))
+                                 blockchain=blockchain, idempotency_key=key("agent"))
     signer = circle.create_wallet(wallet_set, f"embco signer {tag}", account_type="EOA",
-                                  idempotency_key=key("signer"))
+                                  blockchain=blockchain, idempotency_key=key("signer"))
     return AgentWallets(agent=agent, signer=signer)
 
 
-def agent_wallets_of(circle: CircleClient, agent: str) -> AgentWallets | None:
+def agent_wallets_of(circle: CircleClient, agent: str,
+                     blockchain: str = ARC_TESTNET) -> AgentWallets | None:
     """Our wallets behind the agent of a contract; None when it is not one of ours."""
-    wallet = circle.find_wallet(agent, ARC_TESTNET)
+    wallet = circle.find_wallet(agent, blockchain)
     if wallet is None:
         return None
     if wallet.account_type != "SCA":
         return AgentWallets(agent=wallet, signer=wallet)
-    signers = [w for w in circle.wallets_in_set(wallet.wallet_set_id)
+    signers = [w for w in circle.wallets_in_set(wallet.wallet_set_id, blockchain)
                if w.account_type == "EOA"]
     if len(signers) != 1:
         raise CircleError(f"the agent's wallet set has {len(signers)} signers, expected 1")

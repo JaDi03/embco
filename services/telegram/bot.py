@@ -21,7 +21,7 @@ is tried at most a few times per chat and hour, and a chat that loses the link i
 import logging
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -59,14 +59,20 @@ def answers_of(entry: dict[str, Any]) -> tuple[tuple[str, str], ...]:
     return PLAIN_ANSWERS if entry.get("answers") == PLAIN else ANSWERS
 
 
-def contract_pauser(circle: CircleClient, store: ShopStore) -> Callable[[str], str]:
+def contract_pauser(circles: Mapping[str, CircleClient],
+                    store: ShopStore) -> Callable[[str], str]:
     """Pause the shop contract with the agent's own wallet (the contract lets owner or agent
-    pause; only the owner resumes). Returns Circle's transaction id."""
+    pause; only the owner resumes), through the Circle account of the shop's network. Returns
+    Circle's transaction id."""
 
     def pause(shop: str) -> str:
-        wallet_id = store.config(shop).agent_wallet_id
-        if not wallet_id:
+        config = store.config(shop)
+        if not config.agent_wallet_id:
             raise ShopError("the shop has no agent wallet to pause the contract with")
+        circle = circles.get(config.network)
+        if circle is None:
+            raise ShopError(f"no Circle account for the shop's network ({config.network})")
+        wallet_id = config.agent_wallet_id
         tx = circle.execute_contract(wallet_id, to_checksum_address(shop), PAUSE_CALL,
                                      idempotency_key=str(uuid.uuid4()), ref_id="embco-stop")
         return tx.id

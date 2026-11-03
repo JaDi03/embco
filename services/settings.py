@@ -20,6 +20,8 @@ from agent.guardrails.rules import PolicyConfig
 from agent.models import Autonomy
 from agent.think import DAILY_BUDGET, DAILY_TOKENS
 from services.erp.erpnext.adapter import PROTECTED_PAYMENT_FIELDS
+from services.network import DEFAULT as DEFAULT_NETWORK
+from services.network import Network, NetworkError, network
 
 PREFIX = "EMBCO_"
 REQUIRED = (
@@ -69,6 +71,7 @@ class Settings:
     erpnext_wallet_bank: str | None = None  # wallets in Bank Account rows of this bank
     erpnext_payment_extra: Mapping[str, str] = field(default_factory=dict)  # required by the ERP
     erpnext_draft_payments: bool = True  # draft mode: payment entries stay as TESTNET drafts
+    network: Network = DEFAULT_NETWORK  # where the shop's contract is and the USDC moves
     approvals_file: Path | None = None
     owner_users: tuple[str, ...] = ()  # ERP accounts whose mark on an invoice answers an ASK
     shop_address: str | None = None
@@ -100,6 +103,10 @@ class Settings:
         )
         _check_erpnext_url(get("ERPNEXT_URL"))
         pay = _flag("PAY", get("PAY"))
+        try:
+            net = network(get("NETWORK"))
+        except NetworkError:
+            raise SettingsError(f"{PREFIX}NETWORK must be testnet or mainnet") from None
         settings = cls(
             erpnext_url=get("ERPNEXT_URL"),
             erpnext_api_key=get("ERPNEXT_API_KEY"),
@@ -111,20 +118,22 @@ class Settings:
             explain=_flag("EXPLAIN", get("EXPLAIN")),
             llm_model=get("LLM_MODEL") or DEFAULT_MODEL,
             anthropic_api_key=env.get("ANTHROPIC_API_KEY", "").strip() or None,
-            circle_api_key=env.get("CIRCLE_API_KEY", "").strip() or None,
-            circle_entity_secret=env.get("CIRCLE_ENTITY_SECRET", "").strip() or None,
+            circle_api_key=env.get(net.circle_key_env, "").strip() or None,
+            circle_entity_secret=env.get(net.circle_secret_env, "").strip() or None,
             agent_wallet_id=get("AGENT_WALLET_ID") or None,
             signer_address=get("SIGNER_ADDRESS") or None,
             pay=pay,
             erpnext_paid_from=get("ERPNEXT_PAID_FROM") or None,
             erpnext_wallet_bank=get("ERPNEXT_WALLET_BANK") or None,
             erpnext_payment_extra=_payment_extra(get("ERPNEXT_PAYMENT_EXTRA")),
-            erpnext_draft_payments=_flag("ERPNEXT_DRAFT_PAYMENTS",
-                                         get("ERPNEXT_DRAFT_PAYMENTS") or "on"),
+            # real USDC settles the invoice: on mainnet every payment is submitted
+            erpnext_draft_payments=net.test_money and _flag(
+                "ERPNEXT_DRAFT_PAYMENTS", get("ERPNEXT_DRAFT_PAYMENTS") or "on"),
+            network=net,
             approvals_file=Path(get("APPROVALS_FILE")) if get("APPROVALS_FILE") else None,
             shop_address=get("SHOP_ADDRESS") or None,
             owner_users=tuple(u.strip() for u in get("OWNER_USERS").split(",") if u.strip()),
-            arc_rpc_url=env.get("ARC_TESTNET_RPC_URL", "").strip() or None,
+            arc_rpc_url=env.get(net.rpc_env, "").strip() or None,
             brain=_flag("BRAIN", get("BRAIN") or "on"),
             brain_model=get("BRAIN_MODEL") or BRAIN_MODEL,
             brain_effort=_choice("BRAIN_EFFORT", get("BRAIN_EFFORT") or BRAIN_EFFORT, EFFORTS),
@@ -144,11 +153,11 @@ class Settings:
 
     def _check_payments(self) -> None:
         needed = {
-            "CIRCLE_API_KEY": self.circle_api_key,
-            "CIRCLE_ENTITY_SECRET": self.circle_entity_secret,
+            self.network.circle_key_env: self.circle_api_key,
+            self.network.circle_secret_env: self.circle_entity_secret,
             f"{PREFIX}AGENT_WALLET_ID": self.agent_wallet_id,
             f"{PREFIX}SHOP_ADDRESS": self.shop_address,
-            "ARC_TESTNET_RPC_URL": self.arc_rpc_url,
+            self.network.rpc_env: self.arc_rpc_url,
         }
         missing = [name for name, value in needed.items() if not value]
         if missing:

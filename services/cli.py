@@ -34,13 +34,13 @@ from agent.reflexes.cycle import run_cycle
 from agent.reflexes.report import format_report
 from agent.reflexes.watch import watch
 from agent.wiring import brain_setup, room_of
-from services.anchor import JOURNAL_ANCHOR, AuditError, JournalAnchors, mismatches
+from services.anchor import AuditError, JournalAnchors, mismatches
 from services.anchor import audit as audit_journal
 from services.anchor import report as audit_report
 from services.anchor.audit import load as load_journal_file
 from services.anchor.decision import check_decision_bundle as check_decision
 from services.anchor.decision import decision_report
-from services.anchor.onchain import ARC_EXPLORER, DECISION_VERIFIER, arc_proof
+from services.anchor.onchain import arc_proof
 from services.anchor.proof import check_bundle as check_proof
 from services.anchor.proof import make_bundle as make_proof
 from services.anchor.proof import proof_report
@@ -51,6 +51,7 @@ from services.anchor.witness import witness as run_witness
 from services.circle import CircleClient, CircleError
 from services.erp import ErpnextAdapter, LedgerError
 from services.fx import Frankfurter
+from services.network import NETWORKS, Network, NetworkError, network
 from services.payments import ArcRpc, ChainError, Payer
 from services.payments.encoding import ref_scope
 from services.settings import Settings, SettingsError
@@ -164,7 +165,7 @@ def _payer(settings: Settings, ledger: ErpnextAdapter) -> Payer | None:
         return None
     return Payer(
         ledger=ledger,
-        chain=ArcRpc(settings.arc_rpc_url),
+        chain=ArcRpc(settings.arc_rpc_url, first_block=settings.network.first_block),
         circle=CircleClient(settings.circle_api_key, settings.circle_entity_secret),
         shop=settings.shop_address,
         wallet_id=settings.agent_wallet_id,
@@ -234,7 +235,8 @@ def _challenge(args, settings, journal) -> int:
 
 
 def _sign_wallet(args, settings, journal) -> int:
-    proof = submit_wallet_signature(journal, _ledger(settings), args.supplier, args.signature)
+    proof = submit_wallet_signature(journal, _ledger(settings), args.supplier, args.signature,
+                                    chain_id=settings.network.chain_id)
     print(f"proof recorded: {proof.supplier} controls {proof.wallet}")
     return 0
 
@@ -252,10 +254,11 @@ def _history(args, settings, journal) -> int:
 def _verify(args, settings, journal) -> int:
     journal.verify()
     print(f"journal verified: {settings.journal_path}")
-    if not (JOURNAL_ANCHOR and settings.arc_rpc_url and settings.shop_address):
+    if not (settings.arc_rpc_url and settings.shop_address):
         print("not checked against Arc: no anchor registry or no shop on Arc in the settings")
         return 0
-    anchors = JournalAnchors(ArcRpc(settings.arc_rpc_url), settings.shop_address).all()
+    anchors = JournalAnchors(ArcRpc(settings.arc_rpc_url), settings.shop_address,
+                             address=settings.network.journal_anchor).all()
     hashes = journal.entry_hashes()
     if problems := mismatches(hashes, anchors):
         for problem in problems:
@@ -269,12 +272,10 @@ def _verify(args, settings, journal) -> int:
 
 def _audit(args) -> int:
     """No settings, no keys: a downloaded journal, and an Arc node to read the anchors from."""
-    url = args.rpc_url or os.environ.get("ARC_TESTNET_RPC_URL", "").strip()
     try:
-        if not url:
-            raise AuditError("pass an Arc Testnet node with --rpc-url (or ARC_TESTNET_RPC_URL)")
+        _node(args)  # say first what is missing to run at all
         data = load_journal_file(args.file)
-        anchors = JournalAnchors(ArcRpc(url), data["shop"]).all()
+        anchors = _anchors(args, data["shop"])
     except (AuditError, ChainError) as error:
         print(f"embco: {error}", file=sys.stderr)
         return 2
@@ -283,18 +284,32 @@ def _audit(args) -> int:
     return 0 if result.ok else 1
 
 
-def _arc_node(args) -> str:
-    url = args.rpc_url or os.environ.get("ARC_TESTNET_RPC_URL", "").strip()
+def _network(args) -> Network:
+    try:
+        return network(args.network)
+    except NetworkError as error:
+        raise AuditError(str(error)) from None
+
+
+def _node(args) -> tuple[Network, str]:
+    """The network asked for (testnet unless --network mainnet) and a node of it."""
+    net = _network(args)
+    url = args.rpc_url or os.environ.get(net.rpc_env, "").strip()
     if not url:
-        raise AuditError("pass an Arc Testnet node with --rpc-url (or ARC_TESTNET_RPC_URL)")
-    return url
+        raise AuditError(f"pass an {net.label} node with --rpc-url (or {net.rpc_env})")
+    return net, url
+
+
+def _anchors(args, shop: str) -> list:
+    net, url = _node(args)
+    return JournalAnchors(ArcRpc(url), shop, address=net.journal_anchor).all()
 
 
 def _prove(args) -> int:
     """One entry of a downloaded journal, with the proof that it is anchored on Arc."""
     try:
         data = load_journal_file(args.file)
-        anchors = JournalAnchors(ArcRpc(_arc_node(args)), data["shop"]).all()
+        anchors = _anchors(args, data["shop"])
         bundle = make_proof(data, args.entry, anchors)
     except (AuditError, ChainError) as error:
         print(f"embco: {error}", file=sys.stderr)
@@ -312,7 +327,7 @@ def _check_proof(args) -> int:
     """Check a proof bundle: its entry, its place in the tree, and the root on Arc."""
     try:
         bundle = read_proof(args.file)
-        anchors = JournalAnchors(ArcRpc(_arc_node(args)), bundle["shop"]).all()
+        anchors = _anchors(args, bundle["shop"])
     except (AuditError, ChainError) as error:
         print(f"embco: {error}", file=sys.stderr)
         return 2
@@ -333,13 +348,13 @@ def _arc_proof(args) -> int:
     """A decision proof as the one value DecisionVerifier.verify takes, to paste in the explorer."""
     try:
         bundle = read_proof(args.file)
-        anchors = JournalAnchors(ArcRpc(_arc_node(args)), bundle["shop"]).all()
+        anchors = _anchors(args, bundle["shop"])
         value = arc_proof(bundle, anchors)
+        net = _network(args)
     except (AuditError, ChainError) as error:
         print(f"embco: {error}", file=sys.stderr)
         return 2
-    where = (f"{ARC_EXPLORER}/address/{DECISION_VERIFIER}?tab=read_contract" if DECISION_VERIFIER
-             else "DecisionVerifier (not deployed yet)")
+    where = f"{net.explorer}/address/{net.decision_verifier}?tab=read_contract"
     print(f"Paste this in verify, at {where}:\n\n{value}")
     return 0
 
@@ -351,7 +366,7 @@ def _witness(args) -> int:
         journal = load_journal_file(args.journal) if args.journal else None
         state_path = Path(args.state or f"witness-{shop[2:10].lower()}.json")
         state = load_witness_state(state_path, shop)
-        anchors = JournalAnchors(ArcRpc(_arc_node(args)), shop).all()
+        anchors = _anchors(args, shop)
     except (AuditError, ChainError) as error:
         print(f"embco: {error}", file=sys.stderr)
         return 2
@@ -371,10 +386,12 @@ def _create_wallet(args, settings, journal) -> int:
         print("EMBCO_AGENT_WALLET_ID is already set; the agent has a wallet", file=sys.stderr)
         return 1
     if not (settings.circle_api_key and settings.circle_entity_secret):
-        raise SettingsError("missing settings: CIRCLE_API_KEY, CIRCLE_ENTITY_SECRET")
+        raise SettingsError(f"missing settings: {settings.network.circle_key_env}, "
+                            f"{settings.network.circle_secret_env}")
     circle = CircleClient(settings.circle_api_key, settings.circle_entity_secret)
     wallet_set_id = circle.create_wallet_set(f"embco {settings.company}")
-    wallet = circle.create_eoa_wallet(wallet_set_id, f"embco agent {settings.company}")
+    wallet = circle.create_eoa_wallet(wallet_set_id, f"embco agent {settings.company}",
+                                      blockchain=settings.network.circle_blockchain)
     print(f"wallet created on {wallet.blockchain}: {wallet.address}")
     print(f"add to the settings: EMBCO_AGENT_WALLET_ID={wallet.id}")
     return 0
@@ -414,23 +431,33 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("verify", help="check that the memory was not altered")
     audit_cmd = sub.add_parser("audit", help="check a downloaded journal against Arc")
     audit_cmd.add_argument("file", help="the journal JSON downloaded from the dashboard")
-    audit_cmd.add_argument("--rpc-url", help="an Arc Testnet node (default: ARC_TESTNET_RPC_URL)")
+    audit_cmd.add_argument("--rpc-url", help="an Arc node (default: ARC_<NETWORK>_RPC_URL)")
+    audit_cmd.add_argument("--network", default="testnet", choices=sorted(NETWORKS),
+                        help="where the shop is (default: testnet)")
     prove_cmd = sub.add_parser("prove", help="make the proof that one entry is anchored on Arc")
     prove_cmd.add_argument("file", help="the journal JSON downloaded from the dashboard")
     prove_cmd.add_argument("--entry", type=int, required=True, help="the entry number, from 1")
     prove_cmd.add_argument("--out", help="write the proof to this file (default: print it)")
-    prove_cmd.add_argument("--rpc-url", help="an Arc Testnet node (default: ARC_TESTNET_RPC_URL)")
+    prove_cmd.add_argument("--rpc-url", help="an Arc node (default: ARC_<NETWORK>_RPC_URL)")
+    prove_cmd.add_argument("--network", default="testnet", choices=sorted(NETWORKS),
+                        help="where the shop is (default: testnet)")
     check_cmd = sub.add_parser("check-proof", help="check a proof of one entry against Arc")
     check_cmd.add_argument("file", help="a proof written by embco prove")
-    check_cmd.add_argument("--rpc-url", help="an Arc Testnet node (default: ARC_TESTNET_RPC_URL)")
+    check_cmd.add_argument("--rpc-url", help="an Arc node (default: ARC_<NETWORK>_RPC_URL)")
+    check_cmd.add_argument("--network", default="testnet", choices=sorted(NETWORKS),
+                        help="where the shop is (default: testnet)")
     arc_cmd = sub.add_parser("arc-proof", help="a decision proof as one value to check on Arc")
     arc_cmd.add_argument("file", help="a decision proof (from the dashboard's journal download)")
-    arc_cmd.add_argument("--rpc-url", help="an Arc Testnet node (default: ARC_TESTNET_RPC_URL)")
+    arc_cmd.add_argument("--rpc-url", help="an Arc node (default: ARC_<NETWORK>_RPC_URL)")
+    arc_cmd.add_argument("--network", default="testnet", choices=sorted(NETWORKS),
+                        help="where the shop is (default: testnet)")
     witness_cmd = sub.add_parser("witness", help="keep when each anchor was seen; compare")
     witness_cmd.add_argument("--shop", required=True, help="the shop contract address")
     witness_cmd.add_argument("--journal", help="your latest copy of the journal (downloaded JSON)")
     witness_cmd.add_argument("--state", help="the witness record (default: witness-<shop>.json)")
-    witness_cmd.add_argument("--rpc-url", help="an Arc Testnet node (default: ARC_TESTNET_RPC_URL)")
+    witness_cmd.add_argument("--rpc-url", help="an Arc node (default: ARC_<NETWORK>_RPC_URL)")
+    witness_cmd.add_argument("--network", default="testnet", choices=sorted(NETWORKS),
+                        help="where the shop is (default: testnet)")
     sub.add_parser("create-wallet", help="create the agent's paying wallet with Circle (once)")
     shop = sub.add_parser("shop", help="run the hosted agent of one shop from its folder")
     shop.add_argument("--dir", required=True, help="the shop's folder: ROOT/<contract address>")

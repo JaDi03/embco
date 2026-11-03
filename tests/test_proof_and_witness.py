@@ -144,7 +144,7 @@ def test_cli_prove_and_check_proof(journal_file, tmp_path, monkeypatch, capsys):
                              int(NOW.timestamp())))
     monkeypatch.setattr(cli, "ArcRpc", lambda _url: registry)
     monkeypatch.setattr(cli, "JournalAnchors",
-                        lambda chain, shop: JournalAnchors(chain, shop, address=REGISTRY))
+                        lambda chain, shop, **_: JournalAnchors(chain, shop, address=REGISTRY))
     out = tmp_path / "proof.json"
     assert cli.main(["prove", str(path), "--entry", "4", "--out", str(out),
                      "--rpc-url", "http://node"]) == 0
@@ -217,7 +217,7 @@ def test_cli_witness_exits_by_the_result(journal_file, tmp_path, monkeypatch, ca
                              int(NOW.timestamp())))
     monkeypatch.setattr(cli, "ArcRpc", lambda _url: registry)
     monkeypatch.setattr(cli, "JournalAnchors",
-                        lambda chain, shop: JournalAnchors(chain, shop, address=REGISTRY))
+                        lambda chain, shop, **_: JournalAnchors(chain, shop, address=REGISTRY))
     state = tmp_path / "w.json"
     args = ["witness", "--shop", SHOP, "--journal", str(path), "--state", str(state),
             "--rpc-url", "http://node"]

@@ -14,8 +14,10 @@ import httpx
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
+from services.network import TESTNET
+
 BASE_URL = "https://api.circle.com"
-ARC_TESTNET = "ARC-TESTNET"
+ARC_TESTNET = TESTNET.circle_blockchain
 TERMINAL_STATES = frozenset({"COMPLETE", "FAILED", "DENIED", "CANCELLED"})
 READ_RETRIES = 2
 
