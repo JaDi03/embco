@@ -23,7 +23,7 @@
 html { scroll-behavior: smooth; }
 body { line-height: 1.55; }
 main h1, main h2, main h3, main p { margin: 0; }
-main h1 { font-size: clamp(2.3rem, 5.4vw, 4rem); line-height: 1.06; letter-spacing: -0.035em; }
+main h1 { font-size: clamp(2.3rem, 5vw, 3.5rem); line-height: 1.06; letter-spacing: -0.035em; }
 main h2 { font-size: clamp(1.7rem, 3.4vw, 2.5rem); line-height: 1.12; letter-spacing: -0.025em; }
 main h3 { font-size: 1.08rem; line-height: 1.25; letter-spacing: -0.01em; }
 .soft { color: var(--ink-2); }
@@ -42,14 +42,14 @@ main h3 { font-size: 1.08rem; line-height: 1.25; letter-spacing: -0.01em; }
 .nav-right .btn { text-decoration: none; padding: 7px 14px; }
 
 /* Hero: the navy of the logo, ruled like a ledger page */
-.hero { position: relative; padding: 150px 0 0; color: #f8fafc; background-color: var(--navy); background-image: repeating-linear-gradient(to bottom, transparent 0 39px, var(--rule) 39px 40px); }
-.hero::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 180px; background: var(--bg); }
+.hero { position: relative; padding: 116px 0 0; color: #f8fafc; background-color: var(--navy); background-image: repeating-linear-gradient(to bottom, transparent 0 39px, var(--rule) 39px 40px); }
+.hero::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 440px; background: var(--bg); }
 .hero-copy { position: relative; text-align: center; display: grid; justify-items: center; }
 .hero h1 { color: #f8fafc; }
 .hero .soft { color: var(--logo-blue); }
 .eyebrow-pill { display: inline-flex; align-items: center; gap: 8px; font-size: 0.82rem; font-weight: 600; color: #cbd5e1; border: 1px solid rgb(148 163 184 / 0.3); border-radius: 8px; padding: 5px 12px; margin-bottom: 22px; }
 .eyebrow-pill i { width: 8px; height: 8px; border-radius: 2px; background: var(--logo-green); }
-.hero .lead { font-size: 1.15rem; color: #cbd5e1; margin: 22px 0 30px; max-width: 38rem; }
+.hero .lead { font-size: 1.15rem; color: #cbd5e1; margin: 18px 0 24px; max-width: 38rem; }
 .cta-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
 .cta-row .btn { padding: 13px 22px; text-decoration: none; }
 .btn-line { background: transparent; color: #f8fafc; border: 1px solid rgb(148 163 184 / 0.45); }
@@ -61,7 +61,7 @@ main h3 { font-size: 1.08rem; line-height: 1.25; letter-spacing: -0.01em; }
 
 /* The example dashboard: whole, sitting across the edge of the hero */
 .hero > .wrap:last-child { position: relative; z-index: 1; }
-.app-shot { margin: 60px auto 0; max-width: 980px; display: grid; grid-template-columns: 190px 1fr; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; text-align: left; }
+.app-shot { margin: 40px auto 0; max-width: 980px; display: grid; grid-template-columns: 190px 1fr; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; text-align: left; }
 .app-side { display: flex; flex-direction: column; gap: 4px; padding: 18px 12px; background: var(--surface-2); border-right: 1px solid var(--line-soft); font-size: 0.88rem; }
 .app-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; padding: 0 8px 14px; }
 .app-link { padding: 7px 10px; border-radius: 8px; color: var(--muted); }
