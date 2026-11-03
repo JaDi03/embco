@@ -2,7 +2,8 @@
 // Every change is a transaction the owner signs in MetaMask; this page holds no keys.
 
 import { ethers } from "./vendor/ethers-6.17.0.min.js";
-import { ARC_TESTNET, FAUCET_URL } from "./config.js";
+import { FAUCET_URL } from "./config.js";
+import { activeNetwork, networkNamed, useNetwork } from "./networks.js";
 import { describeError } from "./errors.js";
 import { setNotice } from "./notice.js";
 import { pendingApprovals } from "./approvals.js";
@@ -45,8 +46,22 @@ function notify(text, kind = "info") {
   }
 }
 
-const addressUrl = (address) => `${ARC_TESTNET.explorer}/address/${address}`;
-const txUrl = (hash) => `${ARC_TESTNET.explorer}/tx/${hash}`;
+const addressUrl = (address) => `${activeNetwork().explorer}/address/${address}`;
+const txUrl = (hash) => `${activeNetwork().explorer}/tx/${hash}`;
+
+/** Show the network the page is on: the switch, the explorer link and the test-only parts. */
+function paintNetwork(network) {
+  const box = $("network-switch");
+  box.hidden = !network;
+  for (const button of box.querySelectorAll("button")) {
+    button.setAttribute("aria-pressed", String(button.dataset.network === network?.name));
+  }
+  document.body.dataset.network = network?.name ?? "";
+  $("explorer-link").href = (network ?? activeNetwork()).explorer;
+  $("create-network").textContent = !network ? "" : network.testMoney
+    ? "On Arc Testnet: the agent pays in test USDC, with no real value."
+    : "On Arc Mainnet: the agent pays your suppliers in real USDC, from your wallet.";
+}
 
 /** A wallet as the short address linking to the explorer, plus a button that copies it whole. */
 function walletLink(address) {
@@ -106,18 +121,19 @@ async function render() {
   notify("");
   setAccount(account);
   if (!account) {
-    $("network-pill").hidden = true;
+    paintNetwork(null);
     showWelcome();
     return;
   }
   const provider = wallet.provider();
   session = { provider, account, shop: null };
-  if (!(await wallet.onArc())) {
-    $("network-pill").hidden = true;
+  const network = await wallet.arcNetwork();
+  paintNetwork(network);
+  if (!network) {
     show("view-network");
     return;
   }
-  $("network-pill").hidden = false;
+  useNetwork(network);  // reads, links and new shops follow the network the owner chose
   notify("Looking for your shop contract...");
   const shops = await shopsOf(account);
   notify("");
@@ -202,10 +218,11 @@ async function renderShop() {
   $("agent-off").hidden = !isOwner || !view.on;
   $("agent-on").hidden = !isOwner || view.on;
 
+  const testMoney = activeNetwork().testMoney;  // cross-chain funds and Earn run on test USDC only
   await Promise.all([renderHistory(isOwner), renderApprovals(isOwner),
-    renderErp(isOwner, state).then(() => Promise.all([renderChains(isOwner), renderEarn(isOwner, service)]))]);
+    renderErp(isOwner, state).then(() => testMoney && Promise.all([renderChains(isOwner), renderEarn(isOwner, service)]))]);
   renderTreasury(state, service);
-  if (isOwner) renderEarnCard($("earn-card-body"), await hub.balances(session.shop).catch(() => ({})));
+  if (isOwner && testMoney) renderEarnCard($("earn-card-body"), await hub.balances(session.shop).catch(() => ({})));
 }
 
 // Treasury: where the owner's USDC is and what the planned payments leave in the wallet, from
@@ -1508,14 +1525,19 @@ function wireActions() {
     await render();
   });
 
-  $("switch-button").addEventListener("click", async () => {
-    try {
-      await wallet.switchToArc();
-      await render();
-    } catch (error) {
-      notify(describeError(error), "error");
-    }
-  });
+  // The owner picks the network: the wallet switches to it and the page follows.
+  for (const button of document.querySelectorAll("[data-switch-network], #network-switch button")) {
+    button.addEventListener("click", async () => {
+      const network = networkNamed(button.dataset.switchNetwork ?? button.dataset.network);
+      if (button.getAttribute("aria-pressed") === "true") return;
+      try {
+        await wallet.switchToArc(network);
+        await render();
+      } catch (error) {
+        notify(describeError(error), "error");
+      }
+    });
+  }
 
   onSubmit("create-form", async (data, button) => {
     button.disabled = true;
@@ -1523,11 +1545,14 @@ function wireActions() {
       const maxPerPayment = parseUsdc(data.get("maxPerPayment"));
       const weeklyCap = parseUsdc(data.get("weeklyCap"));
       if (maxPerPayment > weeklyCap) throw new Error("The per-payment limit cannot be above the weekly limit.");
+      const network = activeNetwork();
+      if ((await wallet.arcNetwork()) !== network) throw new Error(`Switch your wallet to ${network.chainName} first.`);
       const signer = await session.provider.getSigner();
       notify("Preparing your shop's agent (sign in if MetaMask asks: it is free)...");
-      const wallets = await hub.newAgentWallets(signer);  // the contract is created with its agent
+      // the contract is created with its agent, made on the same network
+      const wallets = await hub.newAgentWallets(signer, fetch, network.name);
       notify("Create your shop contract: confirm it in MetaMask...");
-      const tx = await factory(signer).create(wallets.agent, maxPerPayment, weeklyCap);
+      const tx = await factory(signer, network).create(wallets.agent, maxPerPayment, weeklyCap);
       notify("Creating your shop contract on Arc...");
       await tx.wait();
       settings(false);
@@ -1858,7 +1883,7 @@ function wireActions() {
 
 function start() {
   $("faucet-link").href = FAUCET_URL;
-  $("explorer-link").href = ARC_TESTNET.explorer;
+  $("explorer-link").href = activeNetwork().explorer;
   wireActions();
   nav.start();
   wallet.onWalletChange(() => render().catch((error) => notify(describeError(error), "error")));

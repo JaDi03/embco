@@ -1,13 +1,13 @@
 // The audit page: a downloaded journal checked in the browser against the roots the agent wrote on
 // Arc. No sign-in and no upload; the roots come from the JournalAnchor contract, never from the file.
 
-import { arcValue, askArc, sameAsArc, VERIFIER_PAGE } from "./arc-check.js";
-import { ARC_TESTNET, DECISION_VERIFIER_ADDRESS, JOURNAL_ANCHOR_ADDRESS } from "./config.js";
+import { arcValue, askArc, sameAsArc, verifierPage } from "./arc-check.js";
 import { describeError } from "./errors.js";
 import { parseJournal, report } from "./journal.js";
 import { allDecisionProofs, checkDecisionProof, isDecisionProof } from "./proof.js";
 import { checklist, decisionStory, headline, plain } from "./report.js";
 import { proofFromHash } from "./share.js";
+import { MAINNET, TESTNET } from "./networks.js";
 import { journalAnchors, read } from "./shop.js";
 import "./theme.js";
 import { qrcode } from "./vendor/qrcode-generator-2.0.4/qrcode.mjs";
@@ -17,7 +17,18 @@ const short = (hex) => `${hex.slice(0, 12)}...${hex.slice(-6)}`;
 // with its time zone: a sheet on paper must say which clock it means
 const when = (iso) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "long" });
 
-$("anchor-link").href = `${ARC_TESTNET.explorer}/address/${JOURNAL_ANCHOR_ADDRESS}`;
+let net = TESTNET;  // the network of the shop being checked: its contracts, node and explorer
+
+/** The shop's network: mainnet when its contract is deployed there, else testnet. */
+async function useShopNetwork(shop) {
+  const code = await read((provider) => provider.getCode(shop), MAINNET).catch(() => "0x");
+  net = code && code !== "0x" ? MAINNET : TESTNET;
+  $("anchor-link").href = `${net.explorer}/address/${net.journalAnchor}`;
+  $("network-pill").textContent = net.chainName;
+  $("network-pill").title = net.testMoney ? "Test network: no real value" : "Real USDC";
+}
+
+$("anchor-link").href = `${net.explorer}/address/${net.journalAnchor}`;
 
 function setStatus(text, kind = "") {
   const status = $("audit-status");
@@ -41,7 +52,7 @@ function el(tag, props = {}, ...children) {
   return node;
 }
 
-const explorer = (path, text) => el("a", { href: `${ARC_TESTNET.explorer}/${path}`, target: "_blank", rel: "noopener", textContent: text });
+const explorer = (path, text) => el("a", { href: `${net.explorer}/${path}`, target: "_blank", rel: "noopener", textContent: text });
 
 function section(title, ...children) {
   return el("section", { className: "report-part" }, el("h3", { textContent: title }), ...children);
@@ -110,13 +121,13 @@ function verifyBlock(story, value) {
       value ? el("p", { className: "print-only", textContent: "The decision: ask the shop owner for the link to this "
         + "record. It opens this sheet and asks Arc's verifier contract again." }) : null,
       value ? el("p", { className: "no-print" }, "The decision: copy the proof, open the ",
-        el("a", { href: VERIFIER_PAGE, target: "_blank", rel: "noopener", textContent: "verifier contract on Arc's explorer" }),
+        el("a", { href: verifierPage(net), target: "_blank", rel: "noopener", textContent: "verifier contract on Arc's explorer" }),
         ", paste it in ", el("b", { textContent: "verify" }), " and press ", el("b", { textContent: "Read" }),
         ". No wallet is needed. Arc answers with the decision it checked.") : null,
       value ? el("div", { className: "row no-print" }, copy) : null,
       value ? el("details", { className: "no-print" }, el("summary", { textContent: "The proof" }),
         el("textarea", { className: "mono arc-proof", readOnly: true, rows: 4, value })) : null),
-    tx ? qr(`${ARC_TESTNET.explorer}/tx/${tx}`, "The payment on Arc") : el("span"));
+    tx ? qr(`${net.explorer}/tx/${tx}`, "The payment on Arc") : el("span"));
 }
 
 const fact = (term, ...value) => [el("dt", { textContent: term }), el("dd", {}, ...value)];
@@ -176,16 +187,17 @@ function renderDecision(bundle, result, arc = null, value = null) {
       story.summary ? el("p", { textContent: `It told the owner: “${story.summary}”` }) : null),
     section("How this was checked",
       arc ? el("p", {}, "Arc checked the decision: the ",
-        explorer(`address/${DECISION_VERIFIER_ADDRESS}`, "verifier contract"),
+        explorer(`address/${net.decisionVerifier}`, "verifier contract"),
         " hashed its list of records, followed it to the summary the agent wrote on Arc and returned the decision"
         + " above. It has no owner and nobody can change it.") : null,
       el("ul", { className: "report-checklist" }, ...checks.items.map((i) =>
         el("li", { className: i.ok ? "status-on" : "status-off", textContent: `${i.ok ? "✓" : "✗"} ${i.text}` }))),
       el("p", { className: "hint" }, "Each record was compared with the summary the agent wrote on Arc (",
-        explorer(`address/${JOURNAL_ANCHOR_ADDRESS}`, "JournalAnchor"),
+        explorer(`address/${net.journalAnchor}`, "JournalAnchor"),
         "). A record changed by even one letter would not match.")),
     verifyBlock(story, value),
-    el("p", { className: "sheet-foot", textContent: "Arc Testnet: a test network, where amounts have no real value. "
+    el("p", { className: "sheet-foot", textContent: (net.testMoney
+      ? "Arc Testnet: a test network, where amounts have no real value. " : "Arc Mainnet: amounts in real USDC. ")
       + "What the agent read before deciding is shown on screen, not on paper." }),
     el("div", { className: "row no-print" },
       el("button", { className: "btn btn-ghost btn-small", type: "button", textContent: "Print or save as PDF",
@@ -224,10 +236,11 @@ function render(data, audit) {
 /** One decision: checked in this browser, and asked to Arc when it has a MANIFEST. */
 async function runDecision(bundle, anchors = null) {
   if (typeof bundle.shop !== "string") throw new Error("That proof does not say which shop it belongs to.");
-  const onArc = anchors ?? await journalAnchors(bundle.shop);
+  if (!anchors) await useShopNetwork(bundle.shop);
+  const onArc = anchors ?? await journalAnchors(bundle.shop, net);
   const result = await checkDecisionProof(bundle, onArc);
   const value = arcValue(bundle, onArc);
-  const arc = value ? await read((provider) => askArc(value, provider)) : null;
+  const arc = value ? await read((provider) => askArc(value, provider, net), net) : null;
   setStatus("");
   renderDecision(bundle, result, arc, value);
 }
@@ -276,7 +289,8 @@ async function run(file) {
       return;
     }
     const data = parseJournal(text);
-    const anchors = await journalAnchors(data.shop);
+    await useShopNetwork(data.shop);
+    const anchors = await journalAnchors(data.shop, net);
     const audit = await report(data.entries, anchors);
     render(data, audit);
     const last = audit.rows.at(-1);

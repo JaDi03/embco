@@ -119,6 +119,15 @@ a { color: var(--accent-ink); }
   font-size: 0.8rem; font-weight: 600; padding: 3px 9px; border-radius: 999px;
   background: var(--warn-soft); color: var(--warn-ink);
 }
+.net-switch { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; background: var(--surface); }
+.net-switch button {
+  font: inherit; font-size: 0.8rem; font-weight: 600; padding: 3px 10px; border: 0; border-radius: 999px;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.net-switch button[aria-pressed="true"] { background: var(--warn-soft); color: var(--warn-ink); cursor: default; }
+.net-switch button[data-network="mainnet"][aria-pressed="true"] { background: var(--success-soft); color: var(--success); }
+/* Test-USDC-only parts (Earn, cross-chain funds, the faucet) are not shown on Arc Mainnet. */
+body[data-network="mainnet"] .test-money { display: none !important; }
 .icon-btn {
   font: inherit; width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
   border: 1px solid var(--line); background: var(--surface); color: var(--text);

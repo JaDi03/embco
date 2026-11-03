@@ -54,10 +54,11 @@ export async function signIn(signer, fetchImpl = fetch) {
   });
 }
 
-/** The agent wallets of the owner's next shop ({agent, signer}): its contract is created with
- * them. Signs in first when the owner has not yet. */
-export async function newAgentWallets(signer, fetchImpl = fetch) {
-  const ask = () => call(`${HUB_PATH}/owners/agent-wallets`, { method: "POST", fetchImpl });
+/** The agent wallets of the owner's next shop ({agent, signer}) on `network` ("testnet" or
+ * "mainnet"): its contract is created with them. Signs in first when the owner has not yet. */
+export async function newAgentWallets(signer, fetchImpl = fetch, network = "testnet") {
+  const ask = () => call(`${HUB_PATH}/owners/agent-wallets`,
+    { method: "POST", body: { network }, fetchImpl });
   try {
     return await ask();
   } catch (error) {
@@ -150,9 +151,10 @@ export function agentSwitchView(serviceOn, paused) {
 export const setDraftMode = (shop, draft, confirm = false, fetchImpl = fetch) =>
   call(`${shopPath(shop)}/draft-mode`, { method: "POST", body: { draft, confirm }, fetchImpl });
 
-/** What the page says about draft mode; nothing until the shop's ERP is connected. */
+/** What the page says about draft mode; nothing until the shop's ERP is connected, and nothing
+ * on mainnet, where real USDC settles the invoice and every payment is submitted. */
 export function draftModeView(shop) {
-  if (!shop?.connected) return null;
+  if (!shop?.connected || shop.network === "mainnet") return null;
   if (shop.draft_mode !== false) {
     return {
       draft: true,

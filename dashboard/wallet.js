@@ -4,7 +4,7 @@
 
 import { createStore } from "./vendor/mipd-0.0.7/index.js";
 import { ethers } from "./vendor/ethers-6.17.0.min.js";
-import { ARC_TESTNET, rpcUrl } from "./config.js";
+import { networkOfChain, rpcUrlOf, TESTNET } from "./networks.js";
 
 const REMEMBER = "embco-wallet";  // the rdns of the wallet last connected
 const store = createStore();
@@ -99,18 +99,24 @@ export function provider() {
   return new ethers.BrowserProvider(chosen.provider);
 }
 
-export async function onArc() {
+/** The Arc network the wallet is on (networks.js), or null when it is on another chain. */
+export async function arcNetwork() {
   const network = await provider().getNetwork();
-  return network.chainId === ARC_TESTNET.chainId;
+  return networkOfChain(network.chainId);
 }
 
-/** Switch the wallet to Arc Testnet, adding the network first if the wallet does not know it. */
-export async function switchToArc() {
+/** The wallet is on this Arc network. */
+export async function onArc(network = TESTNET) {
+  return (await arcNetwork()) === network;
+}
+
+/** Switch the wallet to an Arc network, adding it first if the wallet does not know it. */
+export async function switchToArc(network = TESTNET) {
   if (!chosen) throw new Error("Connect your wallet first.");
   try {
     await chosen.provider.request({
       method: "wallet_switchEthereumChain",
-      params: [{ chainId: ARC_TESTNET.chainIdHex }],
+      params: [{ chainId: network.chainIdHex }],
     });
   } catch (error) {
     const unknownChain = error.code === 4902 || error?.data?.originalError?.code === 4902;
@@ -119,11 +125,11 @@ export async function switchToArc() {
       method: "wallet_addEthereumChain",
       params: [
         {
-          chainId: ARC_TESTNET.chainIdHex,
-          chainName: ARC_TESTNET.chainName,
-          nativeCurrency: ARC_TESTNET.nativeCurrency,
-          rpcUrls: [rpcUrl()],
-          blockExplorerUrls: [ARC_TESTNET.explorer],
+          chainId: network.chainIdHex,
+          chainName: network.chainName,
+          nativeCurrency: network.nativeCurrency,
+          rpcUrls: [rpcUrlOf(network)],
+          blockExplorerUrls: [network.explorer],
         },
       ],
     });
