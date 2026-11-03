@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field, field_validator
 from services.circle import CircleClient, CircleError
 from services.erp.erpnext.adapter import PROTECTED_PAYMENT_FIELDS
 from services.erp.erpnext.client import FrappeClient
+from services.hub.admission import MAX_CONNECTED_SHOPS, Notify, new_shop_text, tell
 from services.hub.agent_balance import agent_balance_routes
 from services.hub.auth import ALL_SHOPS, SESSION_LIFETIME, Auth, AuthError
 from services.hub.chain import ShopLimits
@@ -96,9 +97,12 @@ def create_app(
     circles: Mapping[str, CircleClient] | None = None,
     balances: Mapping[str, Callable[[str], Decimal]] | None = None,
     rpc_urls: Mapping[str, str] | None = None,
+    max_shops: int = MAX_CONNECTED_SHOPS,
+    notify_operator: Notify | None = None,
 ) -> FastAPI:
     """`circle`, `balance_of` and `rpc_url` are testnet's; `circles`, `balances` and `rpc_urls`
-    give them by network name, testnet included."""
+    give them by network name, testnet included. `max_shops` caps the connected shops and
+    `notify_operator` is told about each new one (services/hub/admission.py)."""
     app = FastAPI(title="embco hub", docs_url=None, redoc_url=None, openapi_url=None)
     circles = dict(circles if circles is not None else
                    ({DEFAULT.name: circle} if circle else {}))
@@ -281,7 +285,13 @@ def create_app(
     def connect(shop: str, body: Connect,
                 embco_session: str | None = Cookie(default=None)) -> dict[str, Any]:
         shop = shop_of(shop)
-        owner_session(shop, embco_session)
+        session = owner_session(shop, embco_session)
+        try:
+            previous = store.config(shop)
+        except ShopError:
+            previous = None
+        if previous is None and len(store.connected()) >= max_shops:
+            raise HubError(503, "embco is not taking new shops right now")
         try:
             base = check_url(body.erp_url)
         except UnsafeUrl as error:
@@ -297,11 +307,7 @@ def create_app(
             limits = limits_of(shop)
         except ChainError as error:
             raise HubError(502, "could not read the shop contract") from error
-        try:
-            previous = store.config(shop)
-        except ShopError:
-            previous = None
-        wallet_id = previous.agent_wallet_id if previous else None
+        wallet_id =previous.agent_wallet_id if previous else None
         wallet_address = previous.agent_wallet_address if previous else None
         signer_address = previous.signer_wallet_address if previous else None
         if circle and not wallet_id:
@@ -327,6 +333,10 @@ def create_app(
                        signer_wallet_address=signer_address, network=net.name),
             ErpCredentials(api_key=body.api_key, api_secret=body.api_secret),
         )
+        if previous is None:
+            tell(notify_operator, new_shop_text(
+                shop=shop, owner=session.owner, network=net.label, erp_url=base,
+                company=body.company, connected=len(store.connected()), limit=max_shops))
         if store.agent_on(shop):  # turned off by the owner: a new connection does not start it
             try:
                 units.start(shop)

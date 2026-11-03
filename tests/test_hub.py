@@ -209,8 +209,10 @@ def hub(tmp_path, auth, owner):
     units, circle = FakeUnits(), FakeCircle()
     erp = {"status": 200}
     chain = {"agent": AGENT_ON_CONTRACT, "shops": []}
+    told = []
     app = create_app(
         store=store, auth=auth, units=units, circle=circle,
+        max_shops=2, notify_operator=told.append,
         shops_of=lambda wallet: list(chain["shops"]) if wallet == owner.address else [],
         limits_of=lambda shop: ShopLimits(Decimal("300"), Decimal("2000"), chain["agent"]),
         frappe_for=lambda url, key, secret: FrappeClient(
@@ -219,7 +221,7 @@ def hub(tmp_path, auth, owner):
     )
     client = TestClient(app, base_url="https://testserver")
     return {"client": client, "store": store, "units": units, "circle": circle, "erp": erp,
-            "chain": chain}
+            "chain": chain, "told": told}
 
 
 def signed_in(hub, owner, shop=SHOP):
@@ -306,6 +308,68 @@ def test_a_session_for_one_shop_cannot_touch_another(hub, owner):
     response = client.post(f"/api/shops/{OTHER_SHOP}/erp", json=connect_body(secrets.token_hex(8)))
     assert response.status_code == 401
 
+
+
+# ---- new shops: the cap and the word to the operator
+
+
+def test_the_operator_is_told_once_about_a_new_shop(hub, owner):
+    client = signed_in(hub, owner)
+    client.post(f"/api/shops/{SHOP}/erp", json=connect_body(secrets.token_hex(16)))
+    client.post(f"/api/shops/{SHOP}/erp", json=connect_body(secrets.token_hex(16)))
+    assert len(hub["told"]) == 1
+    text = hub["told"][0]
+    assert SHOP in text and owner.address in text and "https://shop.frappe.cloud" in text
+    assert "Arc testnet" in text and "1 of 2" in text
+
+
+def test_no_new_shop_connects_at_the_cap(hub, owner):
+    keys = ErpCredentials(api_key=secrets.token_hex(8), api_secret=secrets.token_urlsafe(24))
+    for other in (OTHER_SHOP, "0x" + "c3" * 20):
+        hub["store"].save(ShopConfig(shop=other, erp_url="https://shop.frappe.cloud",
+                                     company="TEST Shop", max_per_payment="300",
+                                     weekly_budget="2000"), keys)
+    client = signed_in(hub, owner)
+    secret = secrets.token_hex(16)
+    response = client.post(f"/api/shops/{SHOP}/erp", json=connect_body(secret))
+    assert response.status_code == 503 and secret not in response.text
+    assert SHOP not in hub["store"].connected() and hub["units"].started == []
+    assert hub["told"] == []
+
+
+def test_a_known_shop_reconnects_at_the_cap(hub, owner):
+    client = signed_in(hub, owner)
+    client.post(f"/api/shops/{SHOP}/erp", json=connect_body(secrets.token_hex(16)))
+    client.delete(f"/api/shops/{SHOP}/erp")
+    keys = ErpCredentials(api_key=secrets.token_hex(8), api_secret=secrets.token_urlsafe(24))
+    for other in (OTHER_SHOP, "0x" + "c3" * 20):
+        hub["store"].save(ShopConfig(shop=other, erp_url="https://shop.frappe.cloud",
+                                     company="TEST Shop", max_per_payment="300",
+                                     weekly_budget="2000"), keys)
+    response = client.post(f"/api/shops/{SHOP}/erp", json=connect_body(secrets.token_hex(16)))
+    assert response.status_code == 200, response.text
+    assert len(hub["told"]) == 1  # only its first connection
+
+
+def test_a_failed_word_to_the_operator_keeps_the_shop_connected():
+    from services.hub.admission import tell
+    from services.telegram.api import TelegramError
+
+    def failing(text):
+        raise TelegramError("Telegram sendMessage did not answer")
+
+    tell(failing, "New shop")  # logged, not raised
+
+
+def test_the_cap_and_the_operator_chat_come_from_the_settings():
+    from services.hub.admission import MAX_CONNECTED_SHOPS, max_shops, operator_notify
+
+    assert max_shops({}) == MAX_CONNECTED_SHOPS == 20
+    assert max_shops({"EMBCO_MAX_SHOPS": "5"}) == 5
+    assert operator_notify({"TELEGRAM_BOT_TOKEN": "x"}) is None
+    assert operator_notify({"EMBCO_OPERATOR_TELEGRAM_CHAT": "1"}) is None
+    assert callable(operator_notify({"TELEGRAM_BOT_TOKEN": "x",
+                                     "EMBCO_OPERATOR_TELEGRAM_CHAT": "1"}))
 
 @pytest.mark.parametrize("units, text", [(300_000_000, "300"), (2_000_000_000, "2000"),
                                          (1_500_000, "1.5"), (1, "0.000001"), (0, "0")])
