@@ -14,7 +14,7 @@ from services.anchor.audit import AuditError
 from services.anchor.client import Anchor
 
 # DecisionVerifier on Arc Testnet (contracts/script/DeployDecisionVerifier.s.sol).
-DECISION_VERIFIER = "0xE9ca18fa99251555DAbed0cE1414b7157B9aD516"
+DECISION_VERIFIER = "0x2e23aFE44fe10378F9957030bf3B0d31998dddde"
 ARC_EXPLORER = "https://explorer.testnet.arc.io"
 PROOF_TYPE = "(address,uint256,uint256,bytes32[],bytes)"  # DecisionVerifier.Proof
 

@@ -53,7 +53,7 @@ export const JOURNAL_ANCHOR_ADDRESS = "0x4385a2F8acda166F3FE3B3825F6950BA7dAc258
 
 // DecisionVerifier on Arc Testnet (contracts/script/DeployDecisionVerifier.s.sol): checks one
 // decision's MANIFEST against JournalAnchor and returns the decision. No owner, view only.
-export const DECISION_VERIFIER_ADDRESS = "0xE9ca18fa99251555DAbed0cE1414b7157B9aD516";
+export const DECISION_VERIFIER_ADDRESS = "0x2e23aFE44fe10378F9957030bf3B0d31998dddde";
 
 // ShopEarnFactory on Arc Testnet (contracts/script/DeployEarn.s.sol) and verified ERC-4626 vaults.
 export const EARN_FACTORY_ADDRESS = "0xEDF589982F10CCC3c8489726FaB39124b1F683Aa";
