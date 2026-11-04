@@ -19,13 +19,13 @@ and acts on what happened. A smart contract sets the limits it cannot cross.
 
 [![CI](https://github.com/JaDi03/embco/actions/workflows/ci.yml/badge.svg)](https://github.com/JaDi03/embco/actions/workflows/ci.yml)
 [![Docs](https://github.com/JaDi03/embco/actions/workflows/docs.yml/badge.svg)](https://docs.embco.xyz/)
-![Status](https://img.shields.io/badge/status-testnet%20only-orange)
+![Status](https://img.shields.io/badge/status-Arc%20testnet%20%26%20mainnet-2ea44f)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 </div>
 
 > Built for the Tameion Agents Hackathon (Canteen x Circle, on Arc). Early and built in public:
-> the agent runs against a live ERPNext and pays on Arc Testnet.
+> the agent runs against a live ERPNext and pays on Arc Testnet or Arc Mainnet.
 
 ## Live stats: what the agents have paid
 
@@ -115,7 +115,7 @@ How each part works, with diagrams: [the documentation](https://docs.embco.xyz/)
 | Layer | Technology |
 |---|---|
 | Agent | ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white) ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white) ![Pydantic](https://img.shields.io/badge/Pydantic-v2-E92063?logo=pydantic&logoColor=white) ![SQLite](https://img.shields.io/badge/SQLite-journal-003B57?logo=sqlite&logoColor=white) |
-| Chain | ![Arc](https://img.shields.io/badge/Arc-Testnet-0f172a) ![USDC](https://img.shields.io/badge/USDC-payments-2775CA) ![Circle](https://img.shields.io/badge/Circle-wallets-1d4ed8) ![Solidity](https://img.shields.io/badge/Solidity-0.8.37-363636?logo=solidity&logoColor=white) |
+| Chain | ![Arc](https://img.shields.io/badge/Arc-Testnet%20%26%20Mainnet-0f172a) ![USDC](https://img.shields.io/badge/USDC-payments-2775CA) ![Circle](https://img.shields.io/badge/Circle-wallets-1d4ed8) ![Solidity](https://img.shields.io/badge/Solidity-0.8.37-363636?logo=solidity&logoColor=white) |
 | ERP | ![ERPNext](https://img.shields.io/badge/ERPNext-v16-0089FF?logo=erpnext&logoColor=white) ![Frappe](https://img.shields.io/badge/Frappe%20Cloud-tested-0089FF?logo=frappe&logoColor=white) |
 | Owner apps | ![JavaScript](https://img.shields.io/badge/JavaScript-no%20build-F7DF1E?logo=javascript&logoColor=black) ![ethers](https://img.shields.io/badge/ethers-6.17.0-2535A0?logo=ethers&logoColor=white) ![MetaMask](https://img.shields.io/badge/MetaMask-sign--in-F6851B) ![Telegram](https://img.shields.io/badge/Telegram-bot-26A5E4?logo=telegram&logoColor=white) |
 | Tooling | ![uv](https://img.shields.io/badge/uv-DE5FE9?logo=uv&logoColor=white) ![Ruff](https://img.shields.io/badge/Ruff-D7FF64?logo=ruff&logoColor=black) ![pytest](https://img.shields.io/badge/pytest-0A9EDC?logo=pytest&logoColor=white) ![MkDocs](https://img.shields.io/badge/Material%20for%20MkDocs-526CFE?logo=materialformkdocs&logoColor=white) ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?logo=githubactions&logoColor=white) |
