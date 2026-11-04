@@ -2,6 +2,7 @@
 // Arc. No sign-in and no upload; the roots come from the JournalAnchor contract, never from the file.
 
 import { arcValue, askArc, sameAsArc, verifierPage } from "./arc-check.js";
+import { copyButton } from "./copy.js";
 import { describeError } from "./errors.js";
 import { parseJournal, report } from "./journal.js";
 import { allDecisionProofs, checkDecisionProof, isDecisionProof } from "./proof.js";
@@ -103,15 +104,9 @@ function qr(url, caption) {
 
 /** How to check the sheet without this page: on paper, two codes; on screen, the proof to copy. */
 function verifyBlock(story, value) {
-  const copy = el("button", { className: "btn btn-ghost btn-small no-print", type: "button", textContent: "Copy the proof" });
-  copy.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      copy.textContent = "Copied";
-    } catch {
-      copy.textContent = "Copy it from the box below";
-    }
-  });
+  const copy = copyButton("Copy the proof", value, (error) => {
+    if (error) copy.replaceChildren("Copy it from the box below");
+  }, "no-print");
   const tx = story.payment?.tx;
   return el("section", { className: "sheet-verify" },
     el("div", {},
