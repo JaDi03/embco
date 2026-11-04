@@ -8,6 +8,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from services.circle import CircleClient
+from services.hub.admission import max_shops, operator_notify
 from services.hub.api import PUBLIC_URL, create_app
 from services.hub.auth import Auth
 from services.hub.chain import ShopChain, ShopChains
@@ -72,6 +73,8 @@ def build_app(env: Mapping[str, str]) -> FastAPI:
         circles=circles,
         balances={name: chain.usdc_balance for name, (_net, chain, _rpc) in chains.items()},
         rpc_urls=rpc_urls,
+        max_shops=max_shops(env),
+        notify_operator=operator_notify(env),
     )
 
 
