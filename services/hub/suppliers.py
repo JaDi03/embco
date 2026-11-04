@@ -80,8 +80,8 @@ def supplier_routes(
                  "wallet": p.get("wallet")}
                 for name, entry in sorted(entries(shop).items())
                 for p in entry.get("payments") or [] if p.get("tx_hash")]
-        return {"shop": shop, "at": view.get("at"), "site": site, "suppliers": rows,
-                "payments": paid}
+        return {"shop": shop, "at": view.get("at"), "company": view.get("company"), "site": site,
+                "suppliers": rows, "payments": paid}
 
     @router.post("/api/shops/{shop}/suppliers/{supplier}/email")
     def email_notice(shop: str, supplier: str,

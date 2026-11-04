@@ -29,7 +29,34 @@ export function paymentName(payment, list) {
   return row ? { supplier: row.supplier, invoice: null } : null;
 }
 
-export const emailNotice =(shop, supplier, fetchImpl = fetch) =>
+const same = (a, b) => Boolean(a && b) && a.toLowerCase() === b.toLowerCase();
+
+/**
+ * One row per supplier, with whether the contract approves its wallet on file, and the approved
+ * wallets no supplier uses now: `was` names the supplier a payment once went to, if any. Those are
+ * the risk: the contract still lets the agent pay them.
+ */
+export function supplierBook(list, approved) {
+  const rows = (list?.suppliers ?? []).map((row) => ({
+    ...row, approved: approved.some((wallet) => same(wallet, row.wallet)),
+  }));
+  const loose = approved
+    .filter((wallet) => !rows.some((row) => same(row.wallet, wallet)))
+    .map((wallet) => ({
+      wallet, was: (list?.payments ?? []).find((p) => same(p.wallet, wallet))?.supplier ?? null,
+    }));
+  return { rows, loose };
+}
+
+/** Approved wallets a payment went to for the supplier whose wallet on file is `wallet`, but not `wallet`. */
+export function oldWallets(list, approved, wallet) {
+  const owner = (list?.suppliers ?? []).find((row) => same(row.wallet, wallet))?.supplier;
+  if (!owner) return [];
+  const before = (list?.payments ?? []).filter((p) => p.supplier === owner && !same(p.wallet, wallet));
+  return approved.filter((a) => before.some((p) => same(p.wallet, a)));
+}
+
+export const emailNotice = (shop, supplier, fetchImpl = fetch) =>
   call(`${shopPath(shop)}/suppliers/${encodeURIComponent(supplier)}/email`, { method: "POST", fetchImpl });
 
 /** The notice the owner can send by WhatsApp: the same words as the email, no link. */
