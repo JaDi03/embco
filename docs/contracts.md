@@ -62,6 +62,19 @@ for status and troubleshooting.
 | USDC (ERC-20 interface) | `0x3600000000000000000000000000000000000000` |
 | Pilot shop's agent wallet (Circle EOA, from before shops got their own gasless agent) | [`0x2309ed4a43e3b1ab4222f6938538a6c88bd27dd8`](https://explorer.testnet.arc.io/address/0x2309ed4a43e3b1ab4222f6938538a6c88bd27dd8) |
 
+## Deployed on Arc Mainnet
+
+The same contracts, built from the same sources, all verified on Sourcify with an exact creation
+and runtime match on chain 5042.
+
+| Contract | Address |
+|---|---|
+| `ShopPayablesFactory` | [`0x1304d82964c44E2a8cca4D5bc27E30C83A123a50`](https://explorer.arc.io/address/0x1304d82964c44E2a8cca4D5bc27E30C83A123a50) ([Sourcify](https://repo.sourcify.dev/5042/0x1304d82964c44E2a8cca4D5bc27E30C83A123a50)) |
+| `ShopEarnFactory` | [`0xcCD7ADB91bD5F2F3f5d944BB9333E65A1E5Eee46`](https://explorer.arc.io/address/0xcCD7ADB91bD5F2F3f5d944BB9333E65A1E5Eee46) ([Sourcify](https://repo.sourcify.dev/5042/0xcCD7ADB91bD5F2F3f5d944BB9333E65A1E5Eee46)) |
+| `JournalAnchor` | [`0x4d8efEc867e9F46c05E8359e81dEC6C7D13c95A8`](https://explorer.arc.io/address/0x4d8efEc867e9F46c05E8359e81dEC6C7D13c95A8) ([Sourcify](https://repo.sourcify.dev/5042/0x4d8efEc867e9F46c05E8359e81dEC6C7D13c95A8)) |
+| `DecisionVerifier` | [`0x69e31Af302Ee222204AA78099D39a2956F5C95d6`](https://explorer.arc.io/address/0x69e31Af302Ee222204AA78099D39a2956F5C95d6?tab=read_contract) ([Sourcify](https://repo.sourcify.dev/5042/0x69e31Af302Ee222204AA78099D39a2956F5C95d6)) |
+| USDC (ERC-20 interface) | `0x3600000000000000000000000000000000000000` |
+
 ## Who can do what
 
 <figure class="diagram" markdown>
