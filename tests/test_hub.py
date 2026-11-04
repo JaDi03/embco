@@ -310,6 +310,19 @@ def test_a_session_for_one_shop_cannot_touch_another(hub, owner):
 
 
 
+
+def test_one_client_cannot_fill_the_sign_in_requests(hub, owner):
+    from services.hub.auth import SIGN_IN_REQUESTS_PER_MINUTE
+
+    client = hub["client"]
+    ask = [lambda: client.post(f"/api/shops/{SHOP}/sign-in-request",
+                               json={"address": owner.address}),
+           lambda: client.post("/api/owners/sign-in-request", json={"address": owner.address}),
+           lambda: client.post("/api/supplier/sign-in-request", json={"wallet": owner.address})]
+    codes = [ask[i % 3]().status_code for i in range(SIGN_IN_REQUESTS_PER_MINUTE + 3)]
+    assert codes[:SIGN_IN_REQUESTS_PER_MINUTE] == [200] * SIGN_IN_REQUESTS_PER_MINUTE
+    assert set(codes[SIGN_IN_REQUESTS_PER_MINUTE:]) == {429}  # owners and suppliers together
+
 # ---- new shops: the cap and the word to the operator
 
 
