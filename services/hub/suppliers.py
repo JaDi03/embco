@@ -75,7 +75,13 @@ def supplier_routes(
                  "payments": len(entry.get("payments") or []),
                  "signature_needed": entry.get("challenge") is not None}
                 for name, entry in sorted(entries(shop).items())]
-        return {"shop": shop, "at": view.get("at"), "site": site, "suppliers": rows}
+        # the contract only keeps a wallet and a hash per payment: this names them by transaction
+        paid = [{"tx_hash": p["tx_hash"], "supplier": name, "invoice": p.get("invoice"),
+                 "wallet": p.get("wallet")}
+                for name, entry in sorted(entries(shop).items())
+                for p in entry.get("payments") or [] if p.get("tx_hash")]
+        return {"shop": shop, "at": view.get("at"), "site": site, "suppliers": rows,
+                "payments": paid}
 
     @router.post("/api/shops/{shop}/suppliers/{supplier}/email")
     def email_notice(shop: str, supplier: str,

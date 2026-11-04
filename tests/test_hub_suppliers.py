@@ -66,7 +66,10 @@ def view(c=None, other_wallet=None):
                     "wallet": other_wallet or Account.create().address,
                     "invoices": [{"invoice": "PINV-9", "amount": "50", "due_date": None,
                                   "status": "SCHEDULED"}],
-                    "payments": [], "challenge": None, "last_signature": None},
+                    "payments": [{"invoice": "PINV-2", "amount": "40", "paid_at": NOW.isoformat(),
+                                  "tx_hash": "0x" + "ab" * 32,
+                                  "wallet": other_wallet or "0x" + "cd" * 20}],
+                    "challenge": None, "last_signature": None},
             }}
 
 
@@ -124,6 +127,13 @@ def test_the_owner_lists_suppliers_and_the_address_to_give_them(hub, owner):  # 
     assert [r["supplier"] for r in body["suppliers"]] == [SUPPLIER, "Other Supplier"]
     assert body["suppliers"][0]["signature_needed"]
     assert body["suppliers"][0]["wallet"] == SUPPLIER_KEY.address
+
+
+def test_each_payment_is_named_by_its_transaction(hub, owner):  # noqa: F811
+    body = owner_client(hub, owner).get(f"/api/shops/{SHOP}/suppliers").json()
+    assert body["payments"] == [{"tx_hash": "0x" + "ab" * 32, "supplier": "Other Supplier",
+                                 "invoice": "PINV-2", "wallet": "0x" + "cd" * 20}]
+    assert body["suppliers"][1]["payments"] == 1
 
 
 def test_owner_routes_need_the_owner(hub):

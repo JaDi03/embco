@@ -1292,8 +1292,12 @@ async function renderHistory(isOwner) {
   if (!payments.childElementCount) payments.replaceChildren(loading());
 
   let history;
+  let names;
   try {
-    history = await shopHistory(session.shop);
+    [history, names] = await Promise.all([
+      shopHistory(session.shop),
+      suppliers.listSuppliers(session.shop).catch(() => null),  // without it, payments show the wallet
+    ]);
   } catch (error) {
     const unavailable = () =>
       Object.assign(document.createElement("li"), { className: "empty", textContent: describeError(error) });
@@ -1327,14 +1331,15 @@ async function renderHistory(isOwner) {
     ...(history.payments.length
       ? history.payments.map((p) => {
           const li = document.createElement("li");
-          const who = p.by.toLowerCase() === session.account.toLowerCase() ? "you" : "the agent";
           const amount = Object.assign(document.createElement("span"), {
             className: "amount",
             textContent: `${formatUsdc(p.amount)} USDC`,
           });
+          const name = suppliers.paymentName(p, names);
+          const parts = name ? [name.supplier, name.invoice].filter(Boolean) : [`to ${shortAddress(p.payee)}`];
+          if (p.by.toLowerCase() === session.account.toLowerCase()) parts.push("paid by you");
           const detail = document.createElement("span");
-          detail.append(`to ${shortAddress(p.payee)}, paid by ${who}, `,
-            `invoice reference ${p.invoiceRef.slice(0, 10)}... `, link("view", txUrl(p.tx)));
+          detail.append(`${parts.join(" · ")} · `, link("view", txUrl(p.tx)));
           li.append(amount, detail);
           return li;
         })
