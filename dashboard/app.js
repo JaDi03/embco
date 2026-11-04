@@ -25,6 +25,7 @@ import * as proofs from "./proof.js";
 import { proofLink } from "./share.js";
 import { AUTHORIZE_ALL, authorizationView, formatUsdc, parseUsdc, shortAddress, ZERO_ADDRESS } from "./units.js";
 import { chooseWallet } from "./picker.js";
+import { copyButton } from "./copy.js";
 import "./theme.js";
 import * as wallet from "./wallet.js";
 
@@ -64,17 +65,13 @@ function paintNetwork(network) {
 }
 
 /** A wallet as the short address linking to the explorer, plus a button that copies it whole. */
-function walletLink(address) {
-  const button = el("button", { className: "share-proof", type: "button", textContent: "Copy" });
-  button.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(address);
-      notify("Address copied.", "success");
-    } catch (error) {
-      notify(`Could not copy the address: ${describeError(error)}`, "error");
-    }
-  });
-  return [link(shortAddress(address), addressUrl(address)), button];
+function walletLink(address, className = "") {
+  return [link(shortAddress(address), addressUrl(address), className), copyAddress(address)];
+}
+
+function copyAddress(address) {
+  return copyButton("Copy the address", address, (error) =>
+    notify(error ? `Could not copy the address: ${describeError(error)}` : "Address copied.", error ? "error" : "success"));
 }
 
 function link(text, href, className = "") {
@@ -732,16 +729,11 @@ async function receiptProofLine(tx) {
 /** Copies a link that opens this decision, in plain words and checked against Arc, for anyone:
  * an accountant, a supplier, a judge. The proof travels inside the link; Embco keeps nothing. */
 function shareButton(bundle) {
-  const button = el("button", { className: "share-proof", type: "button", textContent: "Copy a link anyone can check" });
-  button.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(await proofLink(bundle, new URL("audit/", location.href).href));
-      notify("Link copied. Whoever opens it sees this decision and what the agent read, checked against Arc.", "success");
-    } catch (error) {
-      notify(`Could not copy the link: ${describeError(error)}`, "error");
-    }
-  });
-  return button;
+  return copyButton("Copy a link anyone can check",
+    () => proofLink(bundle, new URL("audit/", location.href).href),
+    (error) => notify(error ? `Could not copy the link: ${describeError(error)}`
+      : "Link copied. Whoever opens it sees this decision and what the agent read, checked against Arc.",
+    error ? "error" : "success"));
 }
 
 function seenLines(session) {
@@ -1219,7 +1211,7 @@ function renderSupplierBook(isOwner, approved, list) {
 function walletRow(isOwner, address, warning) {
   const li = document.createElement("li");
   const what = Object.assign(document.createElement("div"), { className: "supplier-row" });
-  what.append(link(address, addressUrl(address), "mono"));
+  what.append(el("span", {}, link(address, addressUrl(address), "mono"), copyAddress(address)));
   if (warning) what.append(Object.assign(document.createElement("span"), { className: "reasons status-off", textContent: warning }));
   li.append(what);
   if (isOwner) li.append(removeButton(address));
@@ -1243,7 +1235,7 @@ function supplierRow(isOwner, list, row) {
   }
   title.append(row.supplier);
   const detail = Object.assign(document.createElement("span"), { className: "reasons" });
-  if (row.wallet) detail.append(link(shortAddress(row.wallet), addressUrl(row.wallet), "mono"), " · ");
+  if (row.wallet) detail.append(...walletLink(row.wallet, "mono"), " · ");
   detail.append(`${row.wallet ? (row.approved ? "approved" : "not approved") : "no wallet on file"}`
     + ` · ${row.open_invoices} open · ${row.payments} paid`
     + (row.signature_needed ? " · waiting for the supplier to confirm its wallet" : ""));
@@ -1324,7 +1316,7 @@ async function renderApprovals(isOwner) {
       const li = document.createElement("li");
       const total = invoices.reduce((sum, i) => sum + i.amount, 0n);
       const detail = document.createElement("span");
-      detail.append(link(address, addressUrl(address), "mono"));
+      detail.append(link(address, addressUrl(address), "mono"), copyAddress(address));
       detail.append(` ${formatUsdc(total)} USDC for ${invoices.map((i) => i.invoice).join(", ")}`);
       const approve = Object.assign(document.createElement("button"), {
         className: "btn btn-primary",
