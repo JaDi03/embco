@@ -1285,10 +1285,10 @@ async function renderApprovals(isOwner) {
 }
 
 async function renderHistory(isOwner) {
-  const suppliers = $("suppliers");
+  const approved = $("suppliers");
   const payments = $("payments");
   const loading = () => Object.assign(document.createElement("li"), { className: "empty", textContent: "Loading..." });
-  if (!suppliers.childElementCount) suppliers.replaceChildren(loading());  // a refresh keeps what is shown
+  if (!approved.childElementCount) approved.replaceChildren(loading());  // a refresh keeps what is shown
   if (!payments.childElementCount) payments.replaceChildren(loading());
 
   let history;
@@ -1301,12 +1301,12 @@ async function renderHistory(isOwner) {
   } catch (error) {
     const unavailable = () =>
       Object.assign(document.createElement("li"), { className: "empty", textContent: describeError(error) });
-    suppliers.replaceChildren(unavailable());
+    approved.replaceChildren(unavailable());
     payments.replaceChildren(unavailable());
     return;
   }
 
-  suppliers.replaceChildren(
+  approved.replaceChildren(
     ...(history.suppliers.length
       ? history.suppliers.map((address) => {
           const li = document.createElement("li");
