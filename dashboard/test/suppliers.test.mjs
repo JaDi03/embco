@@ -120,3 +120,16 @@ test("the wallet check ignores case and marks the exact characters that differ",
   assert.deepEqual(wrong.chars.filter((c) => c.state === "wrong").map((c) => c.c), ["d"]);
   assert.equal(suppliers.compareAddress(onFile, "0x213793c4a7bd00").extra, 2);
 });
+
+test("a payment is named by its transaction, else by the supplier's wallet", () => {
+  const list = {
+    suppliers: [{ supplier: "Klen Pharmacy", wallet: WALLET }],
+    payments: [{ tx_hash: "0xAB", supplier: "Okogen Pharmacy", invoice: "ACC-PINV-2026-00012", wallet: SHOP }],
+  };
+  assert.deepEqual(suppliers.paymentName({ tx: "0xab", payee: SHOP }, list),
+    { supplier: "Okogen Pharmacy", invoice: "ACC-PINV-2026-00012" });
+  assert.deepEqual(suppliers.paymentName({ tx: "0xcd", payee: WALLET.toLowerCase() }, list),
+    { supplier: "Klen Pharmacy", invoice: null });
+  assert.equal(suppliers.paymentName({ tx: "0xcd", payee: "0x" + "1".repeat(40) }, list), null);
+  assert.equal(suppliers.paymentName({ tx: "0xab", payee: SHOP }, null), null);
+});

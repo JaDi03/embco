@@ -16,7 +16,20 @@ export const SUPPLIER_PAGE = "app.embco.xyz/supplier";
 export const listSuppliers = (shop, fetchImpl = fetch) =>
   call(`${shopPath(shop)}/suppliers`, { fetchImpl });
 
-export const emailNotice = (shop, supplier, fetchImpl = fetch) =>
+/**
+ * Who an on-chain payment went to and for which invoice, from what the agent recorded: found by
+ * its transaction, else only the supplier by its wallet. Null when nobody on file matches.
+ */
+export function paymentName(payment, list) {
+  const tx = String(payment.tx ?? "").toLowerCase();
+  const recorded = (list?.payments ?? []).find((p) => String(p.tx_hash).toLowerCase() === tx);
+  if (recorded) return { supplier: recorded.supplier, invoice: recorded.invoice };
+  const payee = String(payment.payee ?? "").toLowerCase();
+  const row = (list?.suppliers ?? []).find((s) => s.wallet && s.wallet.toLowerCase() === payee);
+  return row ? { supplier: row.supplier, invoice: null } : null;
+}
+
+export const emailNotice =(shop, supplier, fetchImpl = fetch) =>
   call(`${shopPath(shop)}/suppliers/${encodeURIComponent(supplier)}/email`, { method: "POST", fetchImpl });
 
 /** The notice the owner can send by WhatsApp: the same words as the email, no link. */
