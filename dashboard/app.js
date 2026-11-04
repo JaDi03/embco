@@ -416,7 +416,6 @@ function hideAgent() {
   $("work-setup").append($("erp-card"));
   work.groups = [];
   paintWork();
-  $("suppliers-card").hidden = true;
   $("tasks-card").hidden = true;
   $("terminal-card").hidden = true;
 }
@@ -468,10 +467,9 @@ async function renderErp(isOwner, state) {
   try {
     list = await suppliers.listSuppliers(session.shop);
   } catch {
-    list = null;  // the supplier card stays hidden; the tasks still show what the agent decided
+    list = null;  // the tasks still show what the agent decided
   }
   await renderTasks(shop, state, list);
-  renderSuppliers(shop, list);
   startTerminal();
 }
 
@@ -1194,20 +1192,49 @@ async function checkAndWait() {
   await renderShop();
 }
 
-function renderSuppliers(shop, list) {
-  if (!list) return;  // the card stays hidden; the ERP card already reports a service problem
-  $("suppliers-card").hidden = false;
-  $("supplier-site").textContent = list.site;
-  if (!list.suppliers.length) {
-    $("supplier-list").replaceChildren(Object.assign(document.createElement("li"), {
-      className: "empty", textContent: "The agent has not seen any supplier yet.",
-    }));
+/** The suppliers card: one row per supplier from ERPNext, and above it any approved wallet no
+ * supplier uses now. Without the owner's list (signed out, service down) it shows the approved
+ * wallets as the contract has them. */
+function renderSupplierBook(isOwner, approved, list) {
+  const rows = $("suppliers");
+  const looseList = $("loose-wallets");
+  if (list?.site) $("supplier-site").textContent = list.site;
+  if (!list) {
+    looseList.hidden = true;
+    rows.replaceChildren(...(approved.length
+      ? approved.map((address) => walletRow(isOwner, address, null))
+      : [Object.assign(document.createElement("li"), { className: "empty", textContent: "No approved suppliers yet." })]));
     return;
   }
-  $("supplier-list").replaceChildren(...list.suppliers.map((row) => supplierRow(shop, list.site, row)));
+  const book = suppliers.supplierBook(list, approved);
+  looseList.hidden = !book.loose.length;
+  looseList.replaceChildren(...book.loose.map(({ wallet: address, was }) => walletRow(isOwner, address,
+    was ? `Old wallet of ${was}, still approved: the agent could pay it. Remove it.`
+      : "Approved, but no supplier in ERPNext with an invoice or a payment uses it. Remove it unless you know it.")));
+  rows.replaceChildren(...(book.rows.length
+    ? book.rows.map((row) => supplierRow(isOwner, list, row))
+    : [Object.assign(document.createElement("li"), { className: "empty", textContent: "The agent has not seen any supplier yet." })]));
 }
 
-function supplierRow(shop, site, row) {
+function walletRow(isOwner, address, warning) {
+  const li = document.createElement("li");
+  const what = Object.assign(document.createElement("div"), { className: "supplier-row" });
+  what.append(link(address, addressUrl(address), "mono"));
+  if (warning) what.append(Object.assign(document.createElement("span"), { className: "reasons status-off", textContent: warning }));
+  li.append(what);
+  if (isOwner) li.append(removeButton(address));
+  return li;
+}
+
+function removeButton(address) {
+  const remove = Object.assign(document.createElement("button"), {
+    className: "btn btn-danger", type: "button", textContent: "Remove",
+  });
+  remove.addEventListener("click", () => act(remove, "Remove supplier", async (shop) => shop.setPayee(address, false)));
+  return remove;
+}
+
+function supplierRow(isOwner, list, row) {
   const li = document.createElement("li");
   const what = Object.assign(document.createElement("div"), { className: "supplier-row" });
   const title = document.createElement("span");
@@ -1215,14 +1242,25 @@ function supplierRow(shop, site, row) {
     title.append(Object.assign(document.createElement("span"), { className: "badge badge-ask", textContent: "SIGN" }));
   }
   title.append(row.supplier);
-  const detail = Object.assign(document.createElement("span"), {
-    className: "reasons",
-    textContent: `${row.wallet ? shortAddress(row.wallet) : "no wallet on file"} · ${row.open_invoices} open · ${row.payments} paid`
-      + (row.signature_needed ? " · waiting for the supplier to confirm its wallet" : ""),
-  });
+  const detail = Object.assign(document.createElement("span"), { className: "reasons" });
+  if (row.wallet) detail.append(link(shortAddress(row.wallet), addressUrl(row.wallet), "mono"), " · ");
+  detail.append(`${row.wallet ? (row.approved ? "approved" : "not approved") : "no wallet on file"}`
+    + ` · ${row.open_invoices} open · ${row.payments} paid`
+    + (row.signature_needed ? " · waiting for the supplier to confirm its wallet" : ""));
   what.append(title, detail);
+  li.append(what);
+  if (!isOwner) return li;
 
   const actions = Object.assign(document.createElement("div"), { className: "row" });
+  if (row.approved) {
+    actions.append(removeButton(row.wallet));
+  } else if (row.wallet && !row.signature_needed) {  // a wallet the supplier has not proved waits
+    const approve = Object.assign(document.createElement("button"), {
+      className: "btn btn-primary", type: "button", textContent: "Approve",
+    });
+    approve.addEventListener("click", () => approveWallet(approve, row.wallet));
+    actions.append(approve);
+  }
   const email = Object.assign(document.createElement("button"), {
     className: "btn btn-ghost", type: "button", textContent: "Email notice",
   });
@@ -1238,11 +1276,30 @@ function supplierRow(shop, site, row) {
     }
   });
   const text = suppliers.noticeText({
-    company: shop.company, supplier: row.supplier, wallet: row.wallet, signatureNeeded: row.signature_needed, site,
+    company: list.company, supplier: row.supplier, wallet: row.wallet, signatureNeeded: row.signature_needed, site: list.site,
   });
   actions.append(email, link("WhatsApp", suppliers.whatsappUrl(text), "btn btn-ghost"));
-  li.append(what, actions);
+  li.append(actions);
   return li;
+}
+
+/** Approve the wallet ERPNext holds for a supplier. Its old approved wallet goes in the same
+ * action: two approved wallets would let the agent pay both. Without the list it waits. */
+async function approveWallet(button, address) {
+  let old;
+  try {
+    const [history, list] = await Promise.all([shopHistory(session.shop), suppliers.listSuppliers(session.shop)]);
+    old = suppliers.oldWallets(list, history.suppliers, address);
+  } catch (error) {
+    notify(describeError(error), "error");
+    return;
+  }
+  const label = old.length ? `Replace the old wallet (${old.length + 1} signatures)` : "Approve supplier";
+  const ok = await act(button, label, async (shop) => {
+    for (const stale of old) await (await shop.setPayee(stale, false)).wait();
+    return shop.setPayee(address, true);
+  });
+  if (ok) checkAndWait();  // the approval may answer a question: check now
 }
 
 async function renderApprovals(isOwner) {
@@ -1274,10 +1331,7 @@ async function renderApprovals(isOwner) {
         type: "button",
         textContent: "Approve",
       });
-      approve.addEventListener("click", () =>
-        act(approve, "Approve supplier", (shop) => shop.setPayee(address, true))
-          .then((ok) => ok && checkAndWait()),  // the approval may answer a question: check now
-      );
+      approve.addEventListener("click", () => approveWallet(approve, address));
       li.append(detail, approve);
       return li;
     }),
@@ -1306,26 +1360,7 @@ async function renderHistory(isOwner) {
     return;
   }
 
-  approved.replaceChildren(
-    ...(history.suppliers.length
-      ? history.suppliers.map((address) => {
-          const li = document.createElement("li");
-          li.append(link(address, addressUrl(address), "mono"));
-          if (isOwner) {
-            const remove = Object.assign(document.createElement("button"), {
-              className: "btn btn-danger",
-              type: "button",
-              textContent: "Remove",
-            });
-            remove.addEventListener("click", () =>
-              act(remove, "Remove supplier", async (shop) => shop.setPayee(address, false)),
-            );
-            li.append(remove);
-          }
-          return li;
-        })
-      : [Object.assign(document.createElement("li"), { className: "empty", textContent: "No approved suppliers yet." })]),
-  );
+  renderSupplierBook(isOwner, history.suppliers, names);
 
   payments.replaceChildren(
     ...(history.payments.length
@@ -1870,20 +1905,6 @@ function wireActions() {
     act(button, "Make it the agent", (contract) => contract.setAgent(shop.agent_wallet));
   });
 
-  onSubmit("supplier-form", (data, button, form) => {
-    let supplier;
-    try {
-      supplier = readAddress(data.get("supplier"));
-    } catch (error) {
-      notify(describeError(error), "error");
-      return;
-    }
-    act(button, "Approve supplier", (shop) => shop.setPayee(supplier, true)).then((ok) => {
-      if (!ok) return;
-      form.reset();
-      checkAndWait();  // the approval may answer a question: check now
-    });
-  });
 }
 
 function start() {

@@ -124,6 +124,7 @@ def signature_of(typed, key=SUPPLIER_KEY):
 def test_the_owner_lists_suppliers_and_the_address_to_give_them(hub, owner):  # noqa: F811
     body = owner_client(hub, owner).get(f"/api/shops/{SHOP}/suppliers").json()
     assert body["site"] == "app.example.com/supplier"
+    assert body["company"] == "TEST Shop"  # the notice names the shop
     assert [r["supplier"] for r in body["suppliers"]] == [SUPPLIER, "Other Supplier"]
     assert body["suppliers"][0]["signature_needed"]
     assert body["suppliers"][0]["wallet"] == SUPPLIER_KEY.address

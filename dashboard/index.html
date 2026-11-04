@@ -217,23 +217,16 @@
           <section class="page" data-page="suppliers" aria-label="Suppliers" hidden>
             <header class="page-head"><h1>Suppliers</h1></header>
             <div id="tab-suppliers">
-              <article class="card wide owner-only" id="suppliers-card" hidden>
+              <article class="card wide">
                 <h2>Your suppliers</h2>
                 <p class="hint">
-                  Each supplier signs in at <b id="supplier-site">app.embco.xyz/supplier</b> with the wallet you pay it to. There
-                  it sees its invoices and payments, and confirms a new wallet when the agent asks. The notice you send never
-                  carries a link, so your suppliers learn to type the address themselves.
+                  The agent pays a supplier only at the wallet ERPNext holds for it, once you approve that wallet here. A new
+                  wallet replaces the old one, so a supplier never has two. Each supplier signs in at
+                  <b id="supplier-site">app.embco.xyz/supplier</b> with that wallet to see its invoices and payments. The notice
+                  you send never carries a link, so your suppliers learn to type the address themselves.
                 </p>
-                <ul class="list" id="supplier-list"></ul>
-              </article>
-              <article class="card wide">
-                <h2>Approved suppliers</h2>
-                <p class="hint">The agent can only pay these wallets. Confirm a new wallet with the supplier on a number you already have before adding it.</p>
+                <ul class="list" id="loose-wallets" hidden></ul>
                 <ul class="list" id="suppliers"></ul>
-                <form id="supplier-form" class="inline-form owner-only" novalidate>
-                  <input name="supplier" placeholder="Supplier wallet 0x..." autocomplete="off" spellcheck="false" aria-label="Supplier wallet" />
-                  <button class="btn btn-primary" type="submit">Approve</button>
-                </form>
               </article>
             </div>
 

@@ -133,3 +133,26 @@ test("a payment is named by its transaction, else by the supplier's wallet", () 
   assert.equal(suppliers.paymentName({ tx: "0xcd", payee: "0x" + "1".repeat(40) }, list), null);
   assert.equal(suppliers.paymentName({ tx: "0xab", payee: SHOP }, null), null);
 });
+
+const OLD = "0x" + "a".repeat(40);
+const NEW = "0x" + "b".repeat(40);
+const STRAY = "0x" + "c".repeat(40);
+const BOOK = {
+  suppliers: [{ supplier: "Klen Pharmacy", wallet: NEW }, { supplier: "Ogun Dairy", wallet: null }],
+  payments: [{ tx_hash: "0x1", supplier: "Klen Pharmacy", invoice: "PINV-1", wallet: OLD.toUpperCase().replace("0X", "0x") }],
+};
+
+test("each supplier says whether its wallet is approved, and stray approvals are listed", () => {
+  const { rows, loose } = suppliers.supplierBook(BOOK, [OLD, STRAY]);
+  assert.deepEqual(rows.map((r) => [r.supplier, r.approved]), [["Klen Pharmacy", false], ["Ogun Dairy", false]]);
+  assert.deepEqual(loose, [{ wallet: OLD, was: "Klen Pharmacy" }, { wallet: STRAY, was: null }]);
+  assert.deepEqual(suppliers.supplierBook(BOOK, [NEW]).loose, []);
+  assert.deepEqual(suppliers.supplierBook(null, [OLD]).loose, [{ wallet: OLD, was: null }]);
+});
+
+test("approving a supplier's new wallet finds its old approved one, and only that", () => {
+  assert.deepEqual(suppliers.oldWallets(BOOK, [OLD, STRAY], NEW), [OLD]);
+  assert.deepEqual(suppliers.oldWallets(BOOK, [STRAY], NEW), []);
+  assert.deepEqual(suppliers.oldWallets(BOOK, [OLD], STRAY), []);
+  assert.deepEqual(suppliers.oldWallets(null, [OLD], NEW), []);
+});
