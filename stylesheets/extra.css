@@ -1,0 +1,104 @@
+/* embco brand colors, taken from dashboard/brand/logo.svg and dashboard/style.css */
+:root {
+  --md-primary-fg-color: #0f172a;
+  --md-primary-fg-color--light: #1e293b;
+  --md-primary-fg-color--dark: #020617;
+  --md-accent-fg-color: #00b87b;
+  --md-typeset-a-color: #1d4ed8;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #0b0f17;
+  --md-typeset-a-color: #60a5fa;
+}
+
+/* Diagrams: shown fitted in the page, with an Expand button (docs/javascripts/diagrams.js) */
+.md-typeset figure.diagram {
+  margin: 1.5em auto;
+}
+
+.md-typeset figure.diagram p {
+  margin: 0;
+  text-align: center;
+}
+
+/* No display rule here: Material hides the #only-light or #only-dark image with display: none */
+.md-typeset figure.diagram img {
+  vertical-align: middle;
+  max-width: 100%;
+  max-height: 70vh;
+  width: auto;
+  height: auto;
+  border-radius: 6px;
+  border: 1px solid var(--md-default-fg-color--lightest);
+}
+
+.diagram-button {
+  font: inherit;
+  font-size: 0.7rem;
+  padding: 0.3em 0.8em;
+  border-radius: 4px;
+  border: 1px solid var(--md-default-fg-color--lighter);
+  background: var(--md-default-bg-color);
+  color: var(--md-default-fg-color);
+  cursor: pointer;
+}
+
+.diagram-button:hover,
+.diagram-button:focus-visible {
+  border-color: var(--md-accent-fg-color);
+  color: var(--md-accent-fg-color);
+}
+
+/* Below the image, so it never covers part of the diagram */
+.diagram-expand {
+  margin-top: 0.4rem;
+}
+
+.diagram-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: var(--md-default-bg-color);
+}
+
+.diagram-overlay[hidden] {
+  display: none;
+}
+
+.diagram-overlay__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  font-size: 0.8rem;
+}
+
+.diagram-overlay__title {
+  flex: 1;
+  color: var(--md-default-fg-color--light);
+}
+
+.diagram-overlay__stage {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  padding: 1rem;
+}
+
+.diagram-overlay__stage img {
+  margin: auto;
+  max-width: 100%;
+  max-height: 100%;
+  cursor: zoom-in;
+}
+
+.diagram-overlay--actual .diagram-overlay__stage img {
+  max-width: none;
+  max-height: none;
+  cursor: zoom-out;
+}
