@@ -13,7 +13,7 @@ from typing import Any
 from eth_account import Account
 from eth_account.messages import encode_typed_data
 from eth_utils import is_address, to_checksum_address
-from fastapi import APIRouter, Cookie
+from fastapi import APIRouter, Cookie, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -54,6 +54,7 @@ def supplier_routes(
     frappe_for: Callable[[str, str, str], FrappeClient],
     public_url: str,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    not_too_often: Callable[[Request], None] = lambda request: None,
 ) -> APIRouter:
     router = APIRouter()
     site = supplier_site(public_url)
@@ -119,7 +120,8 @@ def supplier_routes(
         return found
 
     @router.post("/api/supplier/sign-in-request")
-    def sign_in_request(body: SignInRequest) -> dict[str, Any]:
+    def sign_in_request(body: SignInRequest, request: Request) -> dict[str, Any]:
+        not_too_often(request)
         if not is_address(body.wallet):
             raise HubError(422, "this is not a wallet address")
         try:

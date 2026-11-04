@@ -24,6 +24,8 @@ from services.signing.wallet_ownership import ARC_TESTNET_CHAIN_ID
 NONCE_LIFETIME = timedelta(minutes=5)
 SESSION_LIFETIME = timedelta(hours=12)
 MAX_OPEN_REQUESTS = 10_000  # sign-in requests are unauthenticated: cap what they can hold
+# and per client address, so one client cannot fill that cap and lock everyone else out
+SIGN_IN_REQUESTS_PER_MINUTE = 5
 ALL_SHOPS = "all-shops"  # a sign-in for every shop of the wallet, and for creating one
 
 Clock = Callable[[], datetime]

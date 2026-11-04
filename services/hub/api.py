@@ -26,13 +26,19 @@ from services.erp.erpnext.adapter import PROTECTED_PAYMENT_FIELDS
 from services.erp.erpnext.client import FrappeClient
 from services.hub.admission import MAX_CONNECTED_SHOPS, Notify, new_shop_text, tell
 from services.hub.agent_balance import agent_balance_routes
-from services.hub.auth import ALL_SHOPS, SESSION_LIFETIME, Auth, AuthError
+from services.hub.auth import (
+    ALL_SHOPS,
+    SESSION_LIFETIME,
+    SIGN_IN_REQUESTS_PER_MINUTE,
+    Auth,
+    AuthError,
+)
 from services.hub.chain import ShopLimits
 from services.hub.errors import HubError
 from services.hub.guard import UnsafeUrl, check_erp_url
 from services.hub.owner_actions import owner_action_routes, waiting_answers
 from services.hub.probe import probe
-from services.hub.rpc_proxy import rpc_routes
+from services.hub.rpc_proxy import CallBudget, rpc_routes
 from services.hub.supplier_auth import SupplierAuth
 from services.hub.suppliers import supplier_routes
 from services.hub.units import UnitError, Units
@@ -143,8 +149,16 @@ def create_app(
         except ChainError as error:
             raise HubError(502, "could not tell which network the shop is on") from error
 
+    sign_in_budget = CallBudget(per_minute=SIGN_IN_REQUESTS_PER_MINUTE)
+
+    def not_too_often(request: Request) -> None:
+        """Sign-in requests per client address, for owners and suppliers together."""
+        if not sign_in_budget.take(request.client.host if request.client else "", 1):
+            raise HubError(429, "too many sign-in requests; try again in a minute")
+
     @app.post("/api/shops/{shop}/sign-in-request")
-    def sign_in_request(shop: str, body: SignInRequest) -> dict[str, Any]:
+    def sign_in_request(shop: str, body: SignInRequest, request: Request) -> dict[str, Any]:
+        not_too_often(request)
         if not is_address(body.address):
             raise HubError(422, "this is not a wallet address")
         try:
@@ -166,7 +180,8 @@ def create_app(
         return response
 
     @app.post("/api/owners/sign-in-request")
-    def owner_sign_in_request(body: SignInRequest) -> dict[str, Any]:
+    def owner_sign_in_request(body: SignInRequest, request: Request) -> dict[str, Any]:
+        not_too_often(request)
         if not is_address(body.address):
             raise HubError(422, "this is not a wallet address")
         try:
@@ -373,7 +388,8 @@ def create_app(
     supplier_auth = supplier_auth or SupplierAuth(public_url=public_url)
     app.include_router(supplier_routes(store=store, auth=supplier_auth,
                                        shop_of=shop_of, owner_session=owner_session,
-                                       frappe_for=frappe_for, public_url=public_url))
+                                       frappe_for=frappe_for, public_url=public_url,
+                                       not_too_often=not_too_often))
     for name, url in rpc_urls.items():  # /rpc for testnet, /rpc/mainnet for mainnet
         path = "/rpc" if name == DEFAULT.name else f"/rpc/{name}"
         app.include_router(rpc_routes(url, path=path))
