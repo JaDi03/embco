@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { ethers } from "../vendor/ethers-6.17.0.min.js";
 
 globalThis.window = { location: { origin: "https://app.embco.xyz" } };
-const { decodeHistory, explorerLogs, nodeLogs } = await import("../shop.js");
+const { decodeHistory, explorerLogs, nodeLogs, withBlockTimes } = await import("../shop.js");
 const { rpcUrl } = await import("../config.js");
 const { SHOP_ABI } = await import("../abi.js");
 const { describeError } = await import("../errors.js");
@@ -67,6 +67,25 @@ test("explorer pages are followed until there is no next page", async () => {
 test("a failing explorer is reported plainly", async () => {
   const fakeFetch = async () => ({ ok: false, status: 429 });
   await assert.rejects(explorerLogs("0xshop", fakeFetch), /explorer answered 429/);
+});
+
+test("a hanging explorer is given up on, so the node can answer instead", async () => {
+  let signal;
+  const fakeFetch = async (_url, options) => {
+    signal = options.signal;
+    return { ok: true, json: async () => ({ items: [] }) };
+  };
+  await explorerLogs("0xshop", fakeFetch);
+  assert.ok(signal instanceof AbortSignal);
+});
+
+test("node logs get the explorer's block_timestamp, one block read per block", async () => {
+  const reads = [];
+  const provider = { getBlock: async (n) => (reads.push(n), { timestamp: 1760000000 + n }) };
+  const logs = await withBlockTimes([{ block_number: 5 }, { block_number: 5 }, { block_number: 7 }], provider);
+  assert.deepEqual(reads.sort(), [5, 7]);
+  assert.equal(logs[0].block_timestamp, new Date((1760000000 + 5) * 1000).toISOString());
+  assert.equal(logs[2].block_timestamp, new Date((1760000000 + 7) * 1000).toISOString());
 });
 
 test("chain traffic goes to this site's /rpc proxy, never a node URL", () => {

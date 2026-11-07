@@ -3,7 +3,8 @@
 
 import { ARC_TESTNET, FACTORY_ADDRESS, REAL_SHOPS } from "./config.js";
 import { describeError } from "./errors.js";
-import { explorerLogs } from "./shop.js";
+import { TESTNET } from "./networks.js";
+import { explorerLogs, nodeLogs, read, withBlockTimes } from "./shop.js";
 import { dailyChart } from "./stats-chart.js";
 import { dailyTotals, shopsFromFactory, summarize } from "./stats.js";
 import "./theme.js";
@@ -36,12 +37,21 @@ function render({ shops, payments, usdc }) {
   $("stats-body").hidden = false;
 }
 
+/** A contract's logs: the explorer's index first, the node through this site's /rpc if it fails. */
+async function logsOf(address) {
+  try {
+    return await explorerLogs(address);
+  } catch {
+    return read(async (provider) => withBlockTimes(await nodeLogs(address, provider, TESTNET), provider), TESTNET);
+  }
+}
+
 async function load() {
   $("factory-link").href = `${ARC_TESTNET.explorer}/address/${FACTORY_ADDRESS}?tab=logs`;
   try {
     // the explorer takes seconds per answer: ask for the factory and the real shops at once
     const real = REAL_SHOPS.map((a) => a.toLowerCase());
-    const [factoryLogs, ...shopLogs] = await Promise.all([FACTORY_ADDRESS, ...real].map((a) => explorerLogs(a)));
+    const [factoryLogs, ...shopLogs] = await Promise.all([FACTORY_ADDRESS, ...real].map((a) => logsOf(a)));
     const histories = new Map(real.map((shop, i) => [shop, shopLogs[i]]));
     render(summarize(shopsFromFactory(factoryLogs), histories, REAL_SHOPS));
     $("stats-status").className = "journal-status";

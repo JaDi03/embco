@@ -5,7 +5,7 @@
 
 import { ethers } from "./vendor/ethers-6.17.0.min.js";
 import { FACTORY_ABI, JOURNAL_ANCHOR_ABI, SHOP_ABI, USDC_ABI } from "./abi.js";
-import { EXPLORER_API, HISTORY_MAX_PAGES, RPC_BATCH_MAX, USDC_ADDRESS } from "./config.js";
+import { EXPLORER_API, EXPLORER_TIMEOUT_MS, HISTORY_MAX_PAGES, RPC_BATCH_MAX, USDC_ADDRESS } from "./config.js";
 import { activeNetwork, rpcUrlOf } from "./networks.js";
 
 const readers = new Map();  // one read-only provider per network
@@ -75,7 +75,8 @@ async function explorerLogs(address, fetchImpl = fetch, api = EXPLORER_API) {
   const logs = [];
   let query = "";
   for (let page = 0; page < HISTORY_MAX_PAGES; page++) {
-    const response = await fetchImpl(`${api}/addresses/${address}/logs${query}`);
+    const response = await fetchImpl(`${api}/addresses/${address}/logs${query}`,
+      { signal: AbortSignal.timeout(EXPLORER_TIMEOUT_MS) });
     if (!response.ok) throw new Error(`The Arc explorer answered ${response.status}. Try again in a moment.`);
     const body = await response.json();
     logs.push(...(body.items ?? []));
@@ -140,4 +141,11 @@ export async function shopHistory(shop, network = activeNetwork()) {
   return decodeHistory(logs);
 }
 
-export { explorerLogs, nodeLogs };
+/** Node logs with the block_timestamp (ISO) the explorer gives: one block read per block. */
+async function withBlockTimes(logs, provider) {
+  const blocks = [...new Set(logs.map((l) => l.block_number))];
+  const times = new Map(await Promise.all(blocks.map(async (n) => [n, (await provider.getBlock(n)).timestamp])));
+  return logs.map((l) => ({ ...l, block_timestamp: new Date(Number(times.get(l.block_number)) * 1000).toISOString() }));
+}
+
+export { explorerLogs, nodeLogs, withBlockTimes };
