@@ -27,6 +27,8 @@ export const RPC_PATH = "/rpc";
 // The explorer has every event indexed: one request instead of scanning the chain in chunks.
 export const EXPLORER_API = "https://explorer.testnet.arc.io/api/v2";
 export const HISTORY_MAX_PAGES = 10;
+// The explorer's logs endpoint can hang for minutes: past this, the history comes from the node.
+export const EXPLORER_TIMEOUT_MS = 8000;
 
 // The node answers 413 to a batch of more than 10 calls; ethers batches up to 100 by default.
 export const RPC_BATCH_MAX = 10;
