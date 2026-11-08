@@ -38,6 +38,7 @@ from services.hub.errors import HubError
 from services.hub.guard import UnsafeUrl, check_erp_url
 from services.hub.owner_actions import owner_action_routes, waiting_answers
 from services.hub.probe import probe
+from services.hub.request_guard import TOO_LARGE, BodyTooLarge, RequestGuard
 from services.hub.rpc_proxy import CallBudget, rpc_routes
 from services.hub.supplier_auth import SupplierAuth
 from services.hub.suppliers import supplier_routes
@@ -128,6 +129,10 @@ def create_app(
         # Never echo the request back: it may hold the ERP secret.
         fields = sorted({".".join(str(p) for p in e["loc"][1:]) for e in error.errors()})
         return JSONResponse({"error": "invalid request", "fields": fields}, status_code=422)
+
+    @app.exception_handler(BodyTooLarge)
+    async def _too_large(request: Request, error: BodyTooLarge) -> JSONResponse:
+        return JSONResponse({"error": TOO_LARGE}, status_code=413)
 
     def owner_session(shop: str, token: str | None):
         try:
@@ -393,4 +398,5 @@ def create_app(
     for name, url in rpc_urls.items():  # /rpc for testnet, /rpc/mainnet for mainnet
         path = "/rpc" if name == DEFAULT.name else f"/rpc/{name}"
         app.include_router(rpc_routes(url, path=path))
+    app.add_middleware(RequestGuard, public_url=public_url)
     return app
