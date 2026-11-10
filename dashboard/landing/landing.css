@@ -1,14 +1,13 @@
 /* The landing page's own sections. Colors, buttons, the terminal and the light and dark themes
    come from ../style.css, shared with the dashboard and the supplier page. The landing's own look
-   comes from the logo (navy tile, blue E, green check) and from a ledger: ruled lines, receipts
-   and tabular numbers. */
+   comes from the logo (navy tile, blue E, green check) and from a ledger: receipts and tabular
+   numbers. */
 
 :root {
   --navy: #0f172a;
   --navy-2: #16213a;
   --logo-blue: #60a5fa;
   --logo-green: #00b87b;
-  --rule: rgb(96 165 250 / 0.09);
   --ink-2: var(--accent-ink);
   --paper: var(--surface);
   --shadow: 0 30px 70px -30px rgb(15 23 42 / 0.45);
@@ -41,8 +40,8 @@ main h3 { font-size: 1.08rem; line-height: 1.25; letter-spacing: -0.01em; }
 .nav-right { display: flex; align-items: center; gap: 8px; }
 .nav-right .btn { text-decoration: none; padding: 7px 14px; }
 
-/* Hero: the navy of the logo, ruled like a ledger page */
-.hero { position: relative; padding: 116px 0 0; color: #f8fafc; background-color: var(--navy); background-image: repeating-linear-gradient(to bottom, transparent 0 39px, var(--rule) 39px 40px); }
+/* Hero: the plain navy of the logo */
+.hero { position: relative; padding: 116px 0 0; color: #f8fafc; background-color: var(--navy); }
 .hero::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 440px; background: var(--bg); }
 .hero-copy { position: relative; text-align: center; display: grid; justify-items: center; }
 .hero h1 { color: #f8fafc; }
@@ -152,9 +151,9 @@ main h3 { font-size: 1.08rem; line-height: 1.25; letter-spacing: -0.01em; }
 .faq details p { color: var(--muted); padding-bottom: 18px; }
 .faq details a { color: var(--accent-ink); }
 
-/* The closing call: the navy ledger page again, signed with the logo's check */
+/* The closing call: the plain navy again, signed with the logo's check */
 .final-wrap { padding: 24px 0 96px; }
-.final { border-radius: 18px; padding: 72px 24px; text-align: center; display: grid; justify-items: center; gap: 14px; color: #f8fafc; background-color: var(--navy); background-image: repeating-linear-gradient(to bottom, transparent 0 39px, var(--rule) 39px 40px); }
+.final { border-radius: 18px; padding: 72px 24px; text-align: center; display: grid; justify-items: center; gap: 14px; color: #f8fafc; background-color: var(--navy); }
 .final::before { content: "✓"; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 12px; background: var(--navy-2); color: var(--logo-green); font-size: 1.5rem; font-weight: 800; border: 1px solid rgb(148 163 184 / 0.25); }
 .final h2 { color: #f8fafc; }
 .final .kicker { color: var(--logo-blue); margin: 0; }
