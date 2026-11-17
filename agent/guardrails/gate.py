@@ -14,17 +14,29 @@ from agent.guardrails.rules import Action, Decision
 MAX_SCHEDULE_DAYS = 60
 
 
+def over_limit(decision: Decision, limit: Decimal | None) -> str | None:
+    """Why the shop contract would refuse this payment as too large, or None. The contract
+    refuses any single payment above its per-payment limit; only the owner can change it."""
+    if limit is None or decision.amount <= limit:
+        return None
+    return (f"{fmt(decision.amount)} USDC is above the contract's per-payment limit of "
+            f"{fmt(limit)} USDC, so the contract would refuse it; hold it and tell the owner, "
+            "who can change the limit in the dashboard")
+
+
 def pay_refusal(
     decision: Decision | None,
     *,
     done: Collection[str],
     room: Decimal | None = None,
     committed: Decimal = Decimal(0),
+    limit: Decimal | None = None,
 ) -> str | None:
     """Why the agent may not pay this invoice now, or None when it may.
 
-    `room` is what the contract still lets the shop pay this week (None when unknown) and
-    `committed` what the agent already chose to pay now in this session."""
+    `room` is what the contract still lets the shop pay this week (None when unknown),
+    `committed` what the agent already chose to pay now in this session and `limit` the
+    contract's per-payment limit."""
     if decision is None:
         return "this invoice is not among the unpaid invoices"
     if decision.invoice in done:
@@ -33,6 +45,8 @@ def pay_refusal(
         return "the checks hold this invoice: " + "; ".join(decision.reasons)
     if decision.action is Action.ASK:
         return "the owner must answer first: " + "; ".join(decision.reasons)
+    if too_large := over_limit(decision, limit):
+        return too_large
     if room is not None and committed + decision.amount > room:
         left = max(room - committed, Decimal(0))
         return (f"only {fmt(left)} USDC left under this week's cap after what you already chose "
@@ -42,7 +56,7 @@ def pay_refusal(
 
 def schedule_refusal(
     decision: Decision | None, pay_on: date, today: date, *, done: Collection[str],
-    room: Decimal | None = None, renews_on: date | None = None,
+    room: Decimal | None = None, renews_on: date | None = None, limit: Decimal | None = None,
 ) -> str | None:
     """Why the agent may not schedule this payment for `pay_on`, or None when it may.
 
@@ -55,6 +69,8 @@ def schedule_refusal(
         return "the agent already paid or sent this invoice"
     if decision.action is not Action.PAY:
         return f"the checks do not allow paying it ({decision.action.value}); hold or ask instead"
+    if too_large := over_limit(decision, limit):
+        return too_large
     if pay_on < today:
         return f"{pay_on} is in the past; today is {today}"
     if pay_on > today + timedelta(days=MAX_SCHEDULE_DAYS):

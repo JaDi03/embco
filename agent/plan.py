@@ -28,6 +28,7 @@ def agent_plan(
     today: date,
     budget,
     autonomy: Autonomy = Autonomy.ACT,
+    limit=None,  # the contract's per-payment limit
 ) -> PaymentPlan:
     due: list[Decision] = []
     deferred: list[Deferral] = []
@@ -57,7 +58,7 @@ def agent_plan(
             deferred.append(Deferral(d, f"observe mode: the agent would pay it ({mine.reason})"))
         else:
             due.append(d)
-    paying = plan_payments(due, budget)
+    paying = plan_payments(due, budget, limit)
     return PaymentPlan(
         pay_now=paying.pay_now,
         deferred=(*paying.deferred, *deferred),
