@@ -3,6 +3,7 @@
 from datetime import date
 from decimal import Decimal
 
+from agent.guardrails.controls.base import fmt
 from agent.guardrails.rules.models import Action, Decision, Deferral, PaymentPlan
 
 
@@ -20,7 +21,7 @@ def plan_payments(decisions: list[Decision], budget: Decimal,
     remaining = budget
     for decision in payable:
         if limit is not None and decision.amount > limit:
-            deferred.append(Deferral(decision, f"above the per-payment limit ({limit})"))
+            deferred.append(Deferral(decision, f"above the per-payment limit ({fmt(limit)})"))
         elif decision.amount <= remaining:
             pay_now.append(decision)
             remaining -= decision.amount
