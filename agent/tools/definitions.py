@@ -33,6 +33,8 @@ REASON = _text("Why, in one or two plain sentences the owner will read.")
 ALLOCATIONS = _text("How much USDC from each chain, as chain:amount separated by commas, e.g. "
                     "Base_Sepolia:120, Arbitrum_Sepolia:30.5. Chain names as cash_position "
                     "lists them.")
+FUND_MOVES = (" At most 3 fund moves per session, counting deposit_to_gateway, bring_funds, "
+              "park_in_earn and withdraw_from_earn together.")
 
 TOOLS: list[dict[str, Any]] = [
     _tool("list_open_invoices",
@@ -72,7 +74,7 @@ TOOLS: list[dict[str, Any]] = [
           "Returns what happened: paid with its transaction, sent and not confirmed yet, or an "
           "error with the real reason (the contract's refusal, Circle's own message). After an "
           "error, find out why (agent_wallet, cash_position, get_invoice) and tell the owner "
-          "what to do if only they can fix it.",
+          "what to do if only they can fix it. At most 10 payments per session.",
           invoice=INVOICE, reason=REASON),
     _tool("payment_status",
           "The current state of your payment of an invoice: sent, paid on Arc, recorded in the "
@@ -87,7 +89,7 @@ TOOLS: list[dict[str, Any]] = [
           "only ever deposits for the owner, within the limits the owner set. cash_position "
           "says how much you may move on each chain. On Base Sepolia and Ethereum Sepolia the "
           "deposit is spendable only once the chain is final (15 minutes or more): set an "
-          "alarm, then bring_funds. Returns the transaction, or the real error.",
+          "alarm, then bring_funds. Returns the transaction, or the real error." + FUND_MOVES,
           chain=_text("The chain as cash_position lists it, e.g. Base_Sepolia."),
           amount=_text("USDC to move, e.g. 120 or 30.5."), reason=REASON),
     _tool("estimate_bring_funds",
@@ -103,7 +105,7 @@ TOOLS: list[dict[str, Any]] = [
           "from each chain; it always arrives at the owner's wallet, never anywhere else. Only "
           "chains where the owner authorized you. Each chain's gas and protocol fee come out of "
           "its balance on top of the amount, so leave room for them (estimate first). Returns "
-          "what arrived, the fees and the transaction, or the real error.",
+          "what arrived, the fees and the transaction, or the real error." + FUND_MOVES,
           allocations=ALLOCATIONS, reason=REASON),
     _tool("earn_plan",
           "Everything to decide whether idle USDC should go to Earn, worked out with real "
@@ -121,25 +123,27 @@ TOOLS: list[dict[str, Any]] = [
     _tool("park_in_earn",
           "Park idle USDC from the owner's wallet on Arc into an approved Arc Earn vault through "
           "the owner's ShopEarn contract: shares go straight to the owner's wallet, within the "
-          "per-park and weekly limits the owner set, leaving 1 USDC in the wallet for Arc fees.",
+          "per-park and weekly limits the owner set, leaving 1 USDC in the wallet for Arc fees."
+          + FUND_MOVES,
           vault=_text("The vault key: morpho or earnkit."),
           amount=_text("USDC to park, e.g. 200 or 50.5."), reason=REASON),
     _tool("withdraw_from_earn",
           "Withdraw the owner's USDC from an Arc Earn vault back to the owner's wallet on Arc "
           "through ShopEarn, for real and with no cross-chain fee, so the shop contract can pay "
-          "invoices from it. Use 'all' to redeem the full vault balance.",
+          "invoices from it. Use 'all' to redeem the full vault balance." + FUND_MOVES,
           vault=_text("The vault key: morpho or earnkit."),
           amount=_text("USDC to withdraw, e.g. 150, or 'all' for the whole vault balance."),
           reason=REASON),
     _tool("schedule_payment",
           "Plan to pay this invoice on a later date you choose (shop's local date). Only "
           "invoices the checks allow. On that day you are woken to pay it with pay_now, or to "
-          "decide again with what you see then.",
+          "decide again with what you see then. At most 60 days ahead.",
           invoice=INVOICE, pay_on=_text("The date to pay, YYYY-MM-DD."), reason=REASON),
     _tool("hold",
-          "Do not pay this invoice for now. Use it for anything you are not sure about. An "
-          "open question of yours to the owner already keeps an invoice unpaid: leave it, so "
-          "the owner can still answer it.",
+          "Do not pay this invoice for now, because something is clearly off or it must wait. "
+          "When only the owner can know whether it is fine (did the goods arrive, was a price "
+          "rise agreed), use ask_owner instead. An open question of yours to the owner already "
+          "keeps an invoice unpaid: leave it, so the owner can still answer it.",
           invoice=INVOICE, reason=REASON),
     _tool("ask_owner",
           "Ask the owner a question about this invoice; it is not paid until the owner answers. "
@@ -156,13 +160,15 @@ TOOLS: list[dict[str, Any]] = [
                          "check. Plain words, no invoice number, no recommendation here."),
           recommendation=_text("What you recommend and why, in one sentence.")),
     _tool("set_alarm",
-          "Wake yourself at a given time to look at something again.",
+          "Wake yourself at a given time to look at something again. The time must be in the "
+          "future and at most 60 days ahead, and a session can set at most 5 alarms.",
           at=_text("Shop's local date and time, YYYY-MM-DDTHH:MM."),
           why=_text("What to look at then."),
           invoice=_text("The invoice it is about, exactly as listed, or empty. An alarm about "
                         "an invoice does not ring once that invoice is paid.")),
     _tool("note",
-          "Keep a short note for your future sessions (about a supplier, an invoice or the shop).",
+          "Keep a short note for your future sessions (about a supplier, an invoice or the "
+          "shop). At most 10 notes per session; a note is cut at 600 characters.",
           about=_text("A supplier name, an invoice name, or 'shop'."),
           text=_text("The note, at most a few sentences.")),
     _tool("reply_owner",
