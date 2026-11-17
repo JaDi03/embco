@@ -137,7 +137,7 @@ TOOLS: list[dict[str, Any]] = [
     _tool("schedule_payment",
           "Plan to pay this invoice on a later date you choose (shop's local date). Only "
           "invoices the checks allow. On that day you are woken to pay it with pay_now, or to "
-          "decide again with what you see then.",
+          "decide again with what you see then. At most 60 days ahead.",
           invoice=INVOICE, pay_on=_text("The date to pay, YYYY-MM-DD."), reason=REASON),
     _tool("hold",
           "Do not pay this invoice for now, because something is clearly off or it must wait. "

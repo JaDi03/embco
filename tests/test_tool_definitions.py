@@ -5,6 +5,7 @@ import re
 
 import pytest
 
+from agent.guardrails import gate
 from agent.tools import toolbox
 from agent.tools.definitions import MAX_STRICT_TOOLS, TOOLS
 
@@ -22,7 +23,7 @@ def test_every_multi_input_tool_is_strict():
 LIMITS = [
     ("set_alarm", toolbox.MAX_ALARMS), ("set_alarm", toolbox.MAX_ALARM_DAYS),
     ("note", toolbox.MAX_NOTES), ("note", toolbox.MAX_NOTE_CHARS),
-    ("pay_now", toolbox.MAX_PAYMENTS),
+    ("pay_now", toolbox.MAX_PAYMENTS), ("schedule_payment", gate.MAX_SCHEDULE_DAYS),
     ("deposit_to_gateway", toolbox.MAX_FUND_MOVES), ("bring_funds", toolbox.MAX_FUND_MOVES),
     ("park_in_earn", toolbox.MAX_FUND_MOVES), ("withdraw_from_earn", toolbox.MAX_FUND_MOVES),
 ]
