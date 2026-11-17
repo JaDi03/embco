@@ -104,7 +104,8 @@ def run_cycle(
     thought = None
     if brain is None:
         unpaid = [d for d in decisions if d.invoice not in done]
-        plan = _without_brain(plan_payments(unpaid, policy.weekly_budget))
+        plan = _without_brain(plan_payments(unpaid, policy.weekly_budget,
+                                            policy.max_per_payment))
     else:
         thought = think(brain, journal=journal, ledger=ledger, decisions=decisions,
                         changes=memory.changes, policy=policy, done=done, now=now, extra=wakes,
@@ -112,7 +113,7 @@ def run_cycle(
         done = paid_or_sent(journal, decisions) if payments else set()
         unpaid = [d for d in decisions if d.invoice not in done]
         plan = agent_plan(unpaid, thought.agent, now.astimezone(brain.zone).date(),
-                          policy.weekly_budget, brain.autonomy)
+                          policy.weekly_budget, brain.autonomy, limit=policy.max_per_payment)
     settlement = None
     if settled is not None:
         made = thought.payments if thought else ()

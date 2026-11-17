@@ -10,9 +10,9 @@ from decimal import Decimal
 
 from agent.agent import SessionRun
 from agent.guardrails.controls import Finding, Outcome
-from agent.guardrails.rules import Action, Decision, PolicyConfig
+from agent.guardrails.rules import Action, Decision, PolicyConfig, fingerprint, plan_payments
 from agent.memory import SqliteJournal
-from agent.models import Autonomy, Choice
+from agent.models import AgentDecision, Autonomy, Choice
 from agent.plan import agent_plan
 from agent.think import BrainSetup, think
 from agent.tools import Toolbox, ToolError
@@ -158,3 +158,36 @@ def test_the_owner_never_reads_a_way_around_a_limit(tmp_path):
                                "recommendation": "It is over your limit, so it waits; check the "
                                                  "order with the supplier."})
         assert box.chosen["ASKED"].choice is Choice.ASK
+
+
+def test_the_model_cannot_pay_or_schedule_above_the_per_payment_limit(tmp_path):
+    over = decision("OVER", Action.PAY, "400")  # the limit is 300: the contract would refuse it
+    reason = {"reason": "the model wants it paid"}
+    brain = ScriptedBrain(calls=[
+        ("pay_now", {"invoice": "OVER", **reason}),
+        ("schedule_payment", {"invoice": "OVER", "pay_on": "2026-10-13", **reason}),
+        ("hold", {"invoice": "OVER", "reason": "above the per-payment limit"}),
+    ])
+    setup = BrainSetup(brain=brain, zone=timezone(timedelta(hours=1)), room=lambda: Decimal(5000))
+    with SqliteJournal(tmp_path / "journal.sqlite3") as journal:
+        thought = think(setup, journal=journal, ledger=None, decisions=[over], changes=(),
+                        policy=POLICY, done=set(), now=NOW)
+
+    assert "per-payment limit" in brain.refused[("pay_now", "OVER")]
+    assert "per-payment limit" in brain.refused[("schedule_payment", "OVER")]
+    assert thought.agent["OVER"].choice is Choice.HOLD
+
+
+def test_a_payment_due_today_above_the_per_payment_limit_waits():
+    over, ok = decision("OVER", Action.PAY, "400"), decision("OK", Action.PAY, "100")
+    planned = plan_payments([over, ok], Decimal(5000), POLICY.max_per_payment)
+    assert [d.invoice for d in planned.pay_now] == ["OK"]
+    assert [(d.decision.invoice, "per-payment limit" in d.reason) for d in planned.deferred] == [
+        ("OVER", True)]
+
+    scheduled = {"OVER": AgentDecision(invoice="OVER", choice=Choice.PAY_NOW, reason="pay it",
+                                       fingerprint=fingerprint(over))}
+    plan = agent_plan([over], scheduled, NOW.date(), Decimal(5000),
+                      limit=POLICY.max_per_payment)
+    assert plan.pay_now == ()
+    assert "per-payment limit" in plan.deferred[0].reason

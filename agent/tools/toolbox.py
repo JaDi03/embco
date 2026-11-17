@@ -326,7 +326,7 @@ class Toolbox:
         decision = self._by_invoice.get(invoice)
         committed = self._committed(excluding=invoice)
         refusal = pay_refusal(decision, done=self.done, room=self._room_this_week(),
-                              committed=committed)
+                              committed=committed, limit=self.policy.max_per_payment)
         if refusal:
             raise ToolError(f"not allowed: {refusal}")
         if self.payer is None:
@@ -602,7 +602,8 @@ class Toolbox:
         decision = self._by_invoice.get(invoice)
         day = _parse_day(pay_on)
         refusal = schedule_refusal(decision, day, self.today, done=self.done,
-                                   room=self._room_this_week(), renews_on=self._renews_on())
+                                   room=self._room_this_week(), renews_on=self._renews_on(),
+                                   limit=self.policy.max_per_payment)
         if refusal:
             raise ToolError(f"not allowed: {refusal}")
         if decision.due_date and day > decision.due_date and not self.messages:
